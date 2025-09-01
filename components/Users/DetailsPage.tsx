@@ -1,39 +1,125 @@
-// NEWS DETAIL PAGE COMPONENT
+// NEWS DETAIL PAGE COMPONENT WITH SWIPE NAVIGATION
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useRef } from 'react';
 import {
-    Dimensions,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  Image,
+  PanResponder,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import Navbar from '../Navbar';
 
 const { width } = Dimensions.get('window');
-const NewsDetailScreen = ({ article, onBack }:any) => {
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-      
+
+const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
+  const pan = useRef(new Animated.ValueXY()).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to horizontal swipes
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: pan.x._value,
+          y: pan.y._value,
+        });
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Update position and opacity based on swipe
+        pan.setValue({ x: gestureState.dx, y: 0 });
+        const progress = Math.abs(gestureState.dx) / width;
+        opacity.setValue(1 - progress * 0.3);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        pan.flattenOffset();
+        
+        const shouldGoBack = gestureState.dx > width * 0.3 && gestureState.vx > 0;
+        const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0;
+
+        if (shouldGoBack) {
+          // Swipe right - go back
+          Animated.parallel([
+            Animated.timing(pan.x, {
+              toValue: width,
+              duration: 300,
+              useNativeDriver: false,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: false,
+            }),
+          ]).start(() => {
+            if (onBack) onBack();
+          });
+        } else if (shouldGoNext && hasNext) {
+          // Swipe left - go to next
+          Animated.parallel([
+            Animated.timing(pan.x, {
+              toValue: -width,
+              duration: 300,
+              useNativeDriver: false,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: false,
+            }),
+          ]).start(() => {
+            if (onNext) onNext();
+          });
+        } else {
+          // Spring back to original position
+          Animated.parallel([
+            Animated.spring(pan.x, {
+              toValue: 0,
+              useNativeDriver: false,
+            }),
+            Animated.spring(opacity, {
+              toValue: 1,
+              useNativeDriver: false,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
+
+  
+   
+
+// Then your SafeAreaView component stays exactly the same:
+return (
+  <SafeAreaView style={styles.container}>
+    <StatusBar barStyle="light-content" backgroundColor="#000" />
+    
+    <Animated.View 
+      style={[
+        styles.container, 
+        {
+          transform: [{ translateX: pan.x }],
+          opacity: opacity,
+        }
+      ]}
+      {...panResponder.panHandlers}
+    >
       {/* Header */}
-      <View style={styles.detailHeader}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.detailHeaderTitle}>Article</Text>
-        <TouchableOpacity style={styles.shareButton}>
-          <Text style={styles.shareIcon}>📤</Text>
-        </TouchableOpacity>
-      </View>
+      <Navbar/>
 
       <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
         {/* Article Image */}
         <View style={styles.articleImageContainer}>
-          <Image source={{ uri: article.image }} style={styles.articleImage} />
+          <Image source={{ uri: article.featuredImage}} style={styles.articleImage} />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.3)']}
             style={styles.articleImageGradient}
@@ -43,13 +129,25 @@ const NewsDetailScreen = ({ article, onBack }:any) => {
               <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
             </View>
           )}
+          
+          {/* Swipe Indicators */}
+          <View style={styles.swipeIndicators}>
+            <View style={styles.swipeIndicator}>
+              <Text style={styles.swipeText}>← Swipe to go back</Text>
+            </View>
+            {/* {hasNext && (
+              <View style={styles.swipeIndicator}>
+                <Text style={styles.swipeText}>Swipe for next →</Text>
+              </View>
+            )} */}
+          </View>
         </View>
 
         {/* Article Content */}
         <View style={styles.articleContentContainer}>
           {/* Source and Time */}
           <View style={styles.articleMeta}>
-            <Text style={styles.articleSource}>📺 {article.source}</Text>
+            <Text style={styles.articleSource}>📺 {article.source || "Unknown"}</Text>
             <Text style={styles.articleTime}>2 hours ago</Text>
           </View>
 
@@ -58,88 +156,22 @@ const NewsDetailScreen = ({ article, onBack }:any) => {
 
           {/* Author and Location */}
           <View style={styles.authorSection}>
-            <Text style={styles.authorText}>By Political Correspondent</Text>
-            <Text style={styles.locationText}>📍 New Delhi</Text>
+            <Text style={styles.authorText}>By {article.authorName}</Text>
+            <Text style={styles.locationText}>📍 {article.location || "Unknown"}</Text>
           </View>
 
           {/* Tags */}
           <View style={styles.tagsContainer}>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Politics</Text>
-            </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>International</Text>
-            </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Breaking</Text>
-            </View>
+            {article.tags && article.tags.split(',').map((tag, index) => (
+              <View key={index} style={styles.tag}>
+                <Text style={styles.tagText}>{tag.trim()}</Text>
+              </View>
+            ))}
           </View>
 
           {/* Article Body */}
-          <Text style={styles.articleLead}>
-            In a significant diplomatic development, former President Donald Trump reportedly engaged in a telephone conversation with Indian Prime Minister Narendra Modi, discussing key insights from the recent Alaska summit.
-          </Text>
-
-          <Text style={styles.articleBody}>
-            The conversation, which lasted approximately 45 minutes, covered various aspects of bilateral relations and international cooperation. Sources close to the matter suggest that the discussion focused on strengthening ties between the two nations.
-          </Text>
-
-          <Text style={styles.articleSubheading}>
-            Key Discussion Points
-          </Text>
-
-          <Text style={styles.articleBody}>
-            During the call, Trump shared valuable insights from discussions held during the Alaska summit, where world leaders gathered to address pressing global challenges including climate change and economic cooperation.
-          </Text>
-
-          <Text style={styles.articleBody}>
-            Political analysts view this communication as a positive step towards maintaining strong international relationships. The timing of the call underscores the importance both leaders place on continued dialogue.
-          </Text>
-
-          {/* Stats Section */}
-          <View style={styles.statsSection}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>2.4K</Text>
-              <Text style={styles.statLabel}>Reads</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>187</Text>
-              <Text style={styles.statLabel}>Shares</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>42</Text>
-              <Text style={styles.statLabel}>Comments</Text>
-            </View>
-          </View>
-
-          {/* Related Articles */}
-          <View style={styles.relatedSection}>
-            <Text style={styles.relatedTitle}>Related Articles</Text>
-            
-            <TouchableOpacity style={styles.relatedItem}>
-              <Image 
-                source={{ uri: "https://images.unsplash.com/photo-1577962917302-cd874c4e31d2?w=80&h=60&fit=crop" }} 
-                style={styles.relatedImage} 
-              />
-              <View style={styles.relatedTextContainer}>
-                <Text style={styles.relatedItemTitle}>International Summit Outcomes</Text>
-                <Text style={styles.relatedItemSource}>Global News • 3h ago</Text>
-              </View>
-              <Text style={styles.relatedArrow}>→</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.relatedItem}>
-              <Image 
-                source={{ uri: "https://images.unsplash.com/photo-1594736797933-d0401ba2fe65?w=80&h=60&fit=crop" }} 
-                style={styles.relatedImage} 
-              />
-              <View style={styles.relatedTextContainer}>
-                <Text style={styles.relatedItemTitle}>Diplomatic Relations Update</Text>
-                <Text style={styles.relatedItemSource}>World Today • 5h ago</Text>
-              </View>
-              <Text style={styles.relatedArrow}>→</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.articleLead}>{article.summary}</Text>
+          <Text style={styles.articleBody}>{article.content}</Text>
         </View>
       </ScrollView>
 
@@ -147,7 +179,7 @@ const NewsDetailScreen = ({ article, onBack }:any) => {
       <View style={styles.actionBar}>
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.actionIcon}>👍</Text>
-          <Text style={styles.actionText}>242</Text>
+          <Text style={styles.actionText}>{article.viewCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.actionIcon}>👎</Text>
@@ -155,7 +187,7 @@ const NewsDetailScreen = ({ article, onBack }:any) => {
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.actionIcon}>💬</Text>
-          <Text style={styles.actionText}>18</Text>
+          <Text style={styles.actionText}>{article.commentCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.actionIcon}>📤</Text>
@@ -165,8 +197,11 @@ const NewsDetailScreen = ({ article, onBack }:any) => {
           <Text style={styles.saveIcon}>🔖</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
-  );
+    </Animated.View>
+  </SafeAreaView>
+);
+
+
 };
 
 const styles = StyleSheet.create({
@@ -175,17 +210,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 
-  
-
   // DETAIL SCREEN STYLES
   detailHeader: {
-    
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    // paddingTop:40,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -257,6 +288,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 2,
   },
+  
+  // New Swipe Indicators
+  swipeIndicators: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  swipeIndicator: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  swipeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
   articleContentContainer: {
     padding: 20,
   },
@@ -461,4 +515,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NewsDetailScreen
+export default NewsDetailScreen;
