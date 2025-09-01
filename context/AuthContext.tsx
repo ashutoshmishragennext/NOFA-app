@@ -3,12 +3,17 @@ import { apiService } from '@/api';
 import { clearCookies, getCookies } from '@/utils/cookieUtils';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 
-interface User {
+export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'SUPER_ADMIN' | 'ADMIN' | 'USER';
+  role: string;
+  otherRoles?: string[];
+  organizationId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface AuthContextType {
@@ -35,35 +40,57 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialNavigation, setInitialNavigation] = useState(false);
   const router = useRouter();
   const segments = useSegments();
+
+  const AUTH_TOKEN_KEY = 'auth_token';
+  const USER_DATA_KEY = 'user_data';
 
   useEffect(() => {
     loadUserFromStorage();
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && !initialNavigation) {
+      handleInitialNavigation();
+      setInitialNavigation(true);
+    }
+  }, [isLoading, initialNavigation]);
+
+  useEffect(() => {
+    if (!isLoading && initialNavigation) {
       handleRouteProtection();
     }
-  }, [user, segments, isLoading]);
+  }, [user, segments, isLoading, initialNavigation]);
 
   const loadUserFromStorage = async () => {
-    try {
-      const cookies = await getCookies();
-      if (cookies && cookies.token) {
-        setUser({
-          id: cookies.userId || '',
-          name: cookies.name,
-          email: cookies.email,
-          role: cookies.role as 'SUPER_ADMIN' | 'ADMIN' | 'USER'
-        });
-        // router.replace(`(user)/dashboard` as any);
-      }
-    } catch (error) {
-      console.error('Error loading user:', error);
-    } finally {
-      setIsLoading(false);
+  try {
+    // Check both token and user data
+    const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+    const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
+    
+    if (token && userData) {
+      const user = JSON.parse(userData);
+      setUser(user);
+      console.log('User restored from SecureStore:', user);
+    } else {
+      console.log('No valid session found');
+    }
+  } catch (error) {
+    console.error('Error loading user:', error);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  const handleInitialNavigation = () => {
+    if (user) {
+      // User is logged in - redirect to dashboard
+      redirectToDashboard(user.role);
+    } else {
+      // User is not logged in - ensure they're on login page
+      router.replace('/login');
     }
   };
 
@@ -71,7 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const inAuthGroup = segments[0] === '(auth)';
     
     if (!user) {
-      // User not logged in - redirect to login
+      // User not logged in - redirect to login if not already there
       if (!inAuthGroup) {
         router.replace('/login');
       }
@@ -116,7 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(response.user);
       // Navigation will be handled by useEffect
     } catch (error) {
-      throw error; // Re-throw to handle in component
+      throw error;
     }
   };
 
@@ -128,6 +155,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setUser(null);
       await clearCookies();
+      setInitialNavigation(false); // Reset for next login
       router.replace('/login');
     }
   };

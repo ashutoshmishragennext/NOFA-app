@@ -1,6 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react'
 import {
+  Alert,
   Dimensions,
   Image,
   SafeAreaView,
@@ -13,6 +15,23 @@ import {
 } from 'react-native';
 
 const ProfileScreen = () => {
+  const { user, logout } = useAuth();
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+          },
+        },
+      ]
+    );
+  };
   return (
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.profileContainer}>
@@ -28,6 +47,18 @@ const ProfileScreen = () => {
               <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
           ))}
+
+          <TouchableOpacity
+            style={styles.profileOption}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.profileOptionText}>
+              Logout
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+
+          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -36,11 +67,11 @@ const ProfileScreen = () => {
 
 const styles = StyleSheet.create({
 
-    content: {
+  content: {
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
- // PROFILE SCREEN STYLES
+  // PROFILE SCREEN STYLES
   profileContainer: {
     padding: 20,
   },
@@ -84,6 +115,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+
 });
 
 export default ProfileScreen;
