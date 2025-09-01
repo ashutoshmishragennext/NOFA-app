@@ -374,49 +374,46 @@ class ApiService {
     this.initializeAuth();
   }
 
-  private async initializeAuth() {
+   private async initializeAuth() {
+  try {
+    const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
+    const authToken = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+    
+    if (userData && authToken) {
+      this.isLoggedIn = true;
+      console.log('User session restored');
+    } else {
+      this.isLoggedIn = false;
+    }
+  } catch (error) {
+    console.error('Error initializing auth:', error);
+    this.isLoggedIn = false;
+  }
+}
+
+private async getAuthHeaders(isFormData: boolean = false): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
+  headers['Accept'] = 'application/json';
+
+  // Get the actual stored token instead of using hardcoded BEARER_TOKEN
+  if (this.isLoggedIn) {
     try {
-      const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
-      if (userData) {
-        this.isLoggedIn = true;
-        console.log('User session restored');
+      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
     } catch (error) {
-      console.error('Error initializing auth:', error);
+      console.error('Error getting auth token:', error);
     }
   }
 
-  // private async getAuthHeaders(): Promise<Record<string, string>> {
-  //   const headers: Record<string, string> = {
-  //     'Content-Type': 'application/json',
-  //   };
-
-  //   // Only add Authorization header if user is logged in
-  //   if (this.isLoggedIn) {
-  //     headers['Authorization'] = `Bearer ${BEARER_TOKEN}`;
-  //   }
-
-  //   return headers;
-  // }
-  // Override the getAuthHeaders method to handle FormData requests
-  private async getAuthHeaders(isFormData: boolean = false): Promise<Record<string, string>> {
-    const headers: Record<string, string> = {};
-
-    // Only add Content-Type for non-FormData requests
-    if (!isFormData) {
-      headers['Content-Type'] = 'application/json';
-    }
-    
-    headers['Accept'] = 'application/json';
-    headers['Authorization'] = `Bearer ${BEARER_TOKEN}`;
-
-    // Only add Authorization header if user is logged in
-    if (this.isLoggedIn) {
-      headers['Authorization'] = `Bearer ${BEARER_TOKEN}`;
-    }
-
-    return headers;
-  }
+  return headers;
+}
 private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -472,21 +469,9 @@ private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<
     return data;
   }
 
-  private async clearAuth() {
-    this.isLoggedIn = false;
-    try {
-      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(USER_DATA_KEY);
-    } catch (error) {
-      console.error('Error clearing auth:', error);
-    }
-  }
-
-async login(credentials: LoginRequest): Promise<LoginResponse> {
+ async login(credentials: LoginRequest): Promise<LoginResponse> {
   const url = `${this.baseURL}/api/auth/login`;
   console.log("🚀 Making request to:", url);
-  console.log("📋 Credentials:", credentials);
-  console.log("🌐 Base URL:", this.baseURL);
 
   try {
     const response = await fetch(url, {
@@ -497,13 +482,6 @@ async login(credentials: LoginRequest): Promise<LoginResponse> {
       body: JSON.stringify(credentials),
     });
 
-    console.log("📡 Response received:", {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries())
-    });
-
     const data = await response.json();
     console.log("📦 Response data:", data);
 
@@ -511,31 +489,47 @@ async login(credentials: LoginRequest): Promise<LoginResponse> {
       throw new Error(data.message || 'Login failed');
     }
 
+    // Check for both user and token in response
     if (!data.user) {
       throw new Error('Invalid login response: missing user data');
     }
 
+    // Store both user data and token
     this.isLoggedIn = true;
     await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(data.user));
+    
+    // Store the actual token from server response
+    if (data.token) {
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
+    } else {
+      console.warn('No token received from server, using fallback');
+      // Only use BEARER_TOKEN as fallback if server doesn't provide one
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, BEARER_TOKEN);
+    }
 
     return {
       user: data.user,
-      token: BEARER_TOKEN,
+      token: data.token || BEARER_TOKEN,
       message: data.message
     };
   } catch (error: any) {
-    console.error("❌ Login error details:", {
-      message: error.message,
-      name: error.name,
-      stack: error.stack
-    });
+    console.error("❌ Login error:", error);
     
-    // Provide more specific error messages
     if (error.message.includes('Network request failed')) {
       throw new Error('Cannot connect to server. Check if server is running and both devices are on same WiFi network.');
     }
     
     throw error;
+  }
+}
+
+private async clearAuth() {
+  this.isLoggedIn = false;
+  try {
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
+  } catch (error) {
+    console.error('Error clearing auth:', error);
   }
 }
 

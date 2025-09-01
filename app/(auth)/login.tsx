@@ -1,7 +1,8 @@
 import { useAuth } from "@/context/AuthContext";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -57,7 +58,31 @@ export default function ApartmentLoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-   const {login} = useAuth()
+   const {login , user} = useAuth()
+
+   const router = useRouter();
+
+    const getRoleGroup = (role: string): string => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return '(super-admin)';
+      case 'ADMIN':
+        return '(admin)';
+      case 'USER':
+        return '(user)';
+      default:
+        return '(user)';
+    }
+  };
+
+  useEffect(() => {    
+      if(user?.role) {
+        console.log("user in login", user);
+        // Redirect to dashboard if user is already logged in
+        const role = getRoleGroup(user.role);
+        router.replace(`${role}/dashboard` as any);
+      }
+  }, [user?.role])
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
