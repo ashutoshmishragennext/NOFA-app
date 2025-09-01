@@ -17,6 +17,9 @@ const { width } = Dimensions.get('window');
 const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
   const trendingTabs = ['Trending', 'My Topic', 'Local News', 'Crime', 'Political'];
   const [articals,setArticals]= useState<any>()
+    const [trending,setTrending]= useState<any>([])
+
+  
    
   
    const fetchArtical = async () => {
@@ -24,14 +27,34 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
     const response = await apiService.getDocuments();
 
     // response itself has data
+
+    // Access the array
+    const articles = response.data; 
+
+    // If you want to store them in state
+    setArticals(articles[0]);
+
+  } catch (error) {
+    console.error("Error fetching articles:", error);
+    
+  }
+};
+const fetchTrendingArtical = async () => {
+  try {
+    const response = await apiService.getDocuments({
+      'isTrending':true
+    });
+
+  
+    // response itself has data
     console.log("Full response:", response);
 
     // Access the array
     const articles = response.data; 
-    console.log("Articles:", articles);
+    console.warn("trending:", articles);
 
     // If you want to store them in state
-    setArticals(articles[0]);
+    setTrending(articles);
 
   } catch (error) {
     console.error("Error fetching articles:", error);
@@ -44,6 +67,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
   
   useEffect(()=>{
     fetchArtical()
+    fetchTrendingArtical()
   },[])
  
   
@@ -166,7 +190,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
       {/* Trending Collection */}
       <Text style={styles.sectionTitle}>Trending Collection</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
-        {trendingNews.map((item) => (
+        { trending.map((item) => (
           <TouchableOpacity 
             key={item.id} 
             style={styles.trendingItem}

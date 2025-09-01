@@ -116,6 +116,7 @@ export interface SearchDocumentsRequest {
   endDate?: string;   // Format: YYYY-MM-DD
   page?: number;
   limit?: number;
+  isTrending:boolean;
 }
 
 export interface CreateDocumentRequest {
@@ -591,7 +592,7 @@ async getDocuments(params?: SearchDocumentsRequest): Promise<any> {
     const searchParams = new URLSearchParams();
     
     if (params.query) searchParams.append('query', params.query);
-    if (params.documentTypeId) searchParams.append('documentTypeId', params.documentTypeId);
+    if (params.isTrending) searchParams.append('isTrending', params.isTrending);
     if (params.verificationStatus) searchParams.append('verificationStatus', params.verificationStatus);
     if (params.folderId) searchParams.append('folderId', params.folderId);
     if (params.startDate) searchParams.append('startDate', params.startDate);
@@ -606,12 +607,10 @@ async getDocuments(params?: SearchDocumentsRequest): Promise<any> {
     }
   }
 
-  console.log("Fetching documents with URL:", url);
 
   const response = await this.fetchWithTimeout(url, { method: 'GET' });
   const documents = await this.handleResponse<Document[]>(response);
 
-  console.log("Documents fetched:", documents);
 
   return documents; // ✅ FIX: Return the data
 }
@@ -665,13 +664,13 @@ async deleteDocument(documentId: string): Promise<DeleteDocumentResponse> {
 // Add to your ApiService class
 
 // GET /api/folders - Get folders with statistics
-async getFolders(params: GetFoldersRequest): Promise<GetFoldersResponse> {
+async getCategories(params: GetFoldersRequest): Promise<GetFoldersResponse> {
   const searchParams = new URLSearchParams();
   
   if (params.userId) searchParams.append('userId', params.userId);
   if (params.organizationId) searchParams.append('organizationId', params.organizationId);
   
-  const url = `/api/folders?${searchParams.toString()}`;
+  const url = `/api/categories?${searchParams.toString()}`;
   
   console.log("Fetching folders with URL:", url);
   
