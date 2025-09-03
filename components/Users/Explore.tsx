@@ -1,19 +1,19 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
-import { 
-  Dimensions, 
-  Image, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View,
-  ActivityIndicator,
-  TextInput,
-  Keyboard
-} from 'react-native';
 import { apiService } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Keyboard,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -178,7 +178,7 @@ const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => v
         </ScrollView>
       ) : (
         <View style={styles.initialStateContainer}>
-          <Ionicons name="search-outline" size={80} color="#e0e0e0" />
+          {/* <Ionicons name="search-outline" size={50} color="#e0e0e0" /> */}
           <Text style={styles.initialStateTitle}>Search for articles</Text>
           <Text style={styles.initialStateText}>
             Find news, topics, and stories by typing in the search bar above
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   searchHeader: {
     backgroundColor: '#fff',
-    padding: 15,
+    padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
     elevation: 2,
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f0f2f5',
-    borderRadius: 10,
+    borderRadius: 40,
     paddingHorizontal: 15,
     height: 50,
   },
