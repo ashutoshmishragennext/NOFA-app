@@ -691,6 +691,25 @@ async getBookMark(params:any): Promise<GetFoldersResponse> {
   
   return result;
 }
+async searchArticles(params:any): Promise<GetFoldersResponse> {
+  const searchParams = new URLSearchParams();
+  
+  // if (params.id) searchParams.append('id', params.id);
+  if (params.q) searchParams.append('q', params.q);
+  
+  const url = `/api/search?${searchParams.toString()}`;
+  
+  console.log("Fetching folders with URL:", url);
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<GetFoldersResponse>(response);
+  console.log("Folders fetched:", result);
+  
+  return result;
+}
 async getComments(params:any): Promise<GetFoldersResponse> {
   const searchParams = new URLSearchParams();
   
