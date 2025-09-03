@@ -253,12 +253,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendingScreenContainer: {
-    padding: 20,
+    padding: 18,
   },
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom:2,
   },
   trendingScreenTitle: {
     fontSize: 20,
@@ -274,14 +274,14 @@ const styles = StyleSheet.create({
   },
   timeRangeContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 10,
           
     padding: 6,
     
   },
   timeRangeButton: {
     paddingHorizontal: 40,
-    paddingVertical: 4,
+    paddingVertical: 6,
     marginHorizontal: 5,
     borderRadius: 20,
     backgroundColor: 'transparent',
@@ -303,10 +303,7 @@ const styles = StyleSheet.create({
   trendingList: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
+    
     elevation: 3,
     overflow: 'hidden',
   },
