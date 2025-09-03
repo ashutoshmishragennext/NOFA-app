@@ -2,368 +2,14 @@
 import { API_BASE_URL, API_TIMEOUT } from '../constants/config';
 // import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersRequest, GetFoldersResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
 import * as SecureStore from 'expo-secure-store';
+import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
 
 // Get the Bearer token from environment variable
 const BEARER_TOKEN ='eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiI5MzI4ZmRjNC03ZThmLTQ1NTgtOTA4MS0xNjE3MDc4YTMyMDYiLCJleHAiOjE3NTYyNzYwNTl9.8T7NYohV7U3QROwubIyptIjDBbB49zVVMwE-0foZ6j0';
-// src/api/types.ts
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
 
-export interface LoginResponse {
-  user: User;
-  token: string;
-  message?: string;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  otherRoles?: string[];
-  organizationId?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface Folder {
-  id: string;
-  name: string;
-  description?: string;
-  parentFolderId: string | null;
-  organizationId?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  uploadThingFolderId?: string;
-  children?: Folder[];
-  metadata?: {
-    documentTypeMetadataId?: string;
-  };
-  totalSizeBytes: string;
-  totalSizeKB: string;
-  documentCount: number;
-  totalSize: string;
-  storagePercentage: number;
-  isNearLimit: boolean;
-  isEmpty: boolean;
-  isActive: boolean;
-  lastUploadFormatted: string;
-  folderAge: number;
-}
-
-// eslint-disable-next-line import/export
-export interface UserStats {
-  totalFolders: number;
-  activeFolders: number;
-  emptyFolders: number;
-  totalDocuments: number;
-  totalStorage: string;
-  totalStorageBytes: string;
-  storagePercentage: number;
-  averageStoragePerFolder: string;
-}
-
-export interface UserDashboardResponse {
-  folders: Folder[];
-  userStats: UserStats;
-}
-
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-// Document-related types
-export interface Document {
-  id: string;
-  filename: string;
-  fileSize?: string;
-  mimeType: string;
-  uploadThingFileId?: string;
-  uploadThingUrl?: string;
-  documentTypeId?: string | null;
-  metadata: Record<string, any>;
-  uploadedBy?: string;
-  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
-  createdAt: string;
-  updatedAt: string;
-  documentType?: {
-    id: string;
-    name: string;
-  } | null;
-}
-
-export interface DocumentType {
-  id: string;
-  name: string;
-}
-
-// Request types
-export interface SearchDocumentsRequest {
-  query?: string;
-  metadata?: Record<string, any>;
-  tagIds?: string[];
-  documentTypeId?: string;
-  verificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
-  folderId?: string;
-  startDate?: string; // Format: YYYY-MM-DD
-  endDate?: string;   // Format: YYYY-MM-DD
-  page?: number;
-  limit?: number;
-  isTrending:boolean;
-}
-
-export interface CreateDocumentRequest {
-  filename: string;
-  fileSize?: string | number;
-  mimeType: string;
-  uploadThingFileId?: string;
-  uploadThingUrl?: string;
-  documentTypeId?: string | null;
-  metadata?: Record<string, any>;
-  metadataSchemaId?: string;
-  uploadedBy?: string;
-  organizationId: string;
-  verificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
-  folderId: string;
-}
-
-export interface UpdateDocumentRequest {
-  documentTypeId?: string | null;
-  metadata?: Record<string, any>;
-  metadataSchemaId?: string;
-  isVerified?: boolean;
-  verificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
-}
-
-// Response types
-export interface CreateDocumentResponse {
-  success: boolean;
-  id: string;
-  filename: string;
-  fileSize?: string;
-  mimeType: string;
-  uploadThingFileId?: string;
-  uploadThingUrl?: string;
-  documentTypeId?: string | null;
-  metadata: Record<string, any>;
-  uploadedBy: string;
-  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
-  createdAt: string;
-  updatedAt: string;
-  folderId: string;
-  organizationId: string;
-  message: string;
-}
-
-export interface UpdateDocumentResponse {
-  success: boolean;
-  data: Document;
-  message: string;
-}
-
-export interface DeleteDocumentResponse {
-  success: boolean;
-  message: string;
-}
-
-
-// eslint-disable-next-line import/export
-export interface UserStats {
-  totalFolders: number;
-  activeFolders: number;
-  emptyFolders: number;
-  totalDocuments: number;
-  totalStorage: string;
-  totalStorageBytes: string;
-  storagePercentage: number;
-  averageStoragePerFolder: string;
-}
-
-// Request types
-export interface GetFoldersRequest {
-  userId: string;
-  organizationId: string;
-}
-
-export interface CreateFolderRequest {
-  name: string;
-  description?: string;
-  parentFolderId?: string | null;
-  createdBy: string;
-  metadata?: Record<string, any>;
-  organizationId: string;
-}
-
-// Response types
-export interface GetFoldersResponse {
-  folders: Folder[];
-  userStats: UserStats;
-}
-
-export interface DeleteFolderResponse {
-  success: boolean;
-  message: string;
-}
-
-
-
-
-
-// Document Type related types
-export interface SchemaProperty {
-  type: string;
-  priority?: number;
-  description?: string;
-  [key: string]: any;
-}
-
-export interface Schema {
-  type: string;
-  required: string[];
-  properties: Record<string, SchemaProperty>;
-  [key: string]: any;
-}
-
-export interface DocumentMetadata {
-  id: string;
-  documentTypeId: string;
-  schema: Schema;
-  version: string;
-  isActive: boolean;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DocumentTypeBase {
-  id: string;
-  name: string;
-  description?: string;
-  isActive: boolean;
-  organizationId: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DocumentTypeWithMetadata extends DocumentTypeBase {
-  metadata: DocumentMetadata[];
-}
-
-// Request types
-export interface CreateDocumentTypeRequest {
-  name: string;
-  description?: string;
-  isActive?: boolean;
-  metadataSchema: Schema;
-  organizationId: string;
-  createdBy: string;
-}
-
-
-// AWS Upload related types
-export interface OptimizationInfo {
-  originalSize: string;
-  finalSize: string;
-  resolutionReduced?: boolean;
-  finalQuality?: number;
-}
-
-export interface AwsUploadResponse {
-  message: string;
-  url: string;
-  key: string;
-  fileName: string;
-  optimization: OptimizationInfo;
-}
-
-export interface AwsUploadInfoResponse {
-  message: string;
-  note: string;
-}
-
-// Image file interface for React Native compatibility
-export interface ImageFile {
-  uri: string;
-  type?: string;
-  fileName?: string;
-  name?: string;
-  fileSize?: number;
-  width?: number;
-  height?: number;
-}
-
-
-// Image Processing related types
-export interface ExtractedData {
-  Name: string;
-  Amount: number;
-  paidto: string;
-  purposeofPayment: string;
-  [key: string]: any; // Allow for dynamic fields
-}
-
-export interface ProcessImageRequest {
-  url: string;
-  filetype: string;
-  extractionFields?: ExtractedData;
-}
-
-export interface ProcessImageData {
-  extractedData: ExtractedData;
-  rawOcrText: string;
-  processingTime: string;
-}
-
-export interface ProcessImageResponse {
-  success: boolean;
-  data?: ProcessImageData;
-  error?: string;
-  details?: string;
-}
-
-export interface ProcessImageApiInfo {
-  message: string;
-  usage: {
-    method: string;
-    requiredFields: string[];
-    optionalFields: string[];
-    maxFileSize: string;
-    supportedFormats: string[];
-  };
-}
-
-// Predefined extraction templates
-export interface InvoiceExtractionFields {
-  invoiceNumber: string;
-  amount: number;
-  dueDate: string;
-  vendorName: string;
-  description: string;
-}
-
-export interface ReceiptExtractionFields {
-  storeName: string;
-  amount: number;
-  date: string;
-  items: string;
-  paymentMethod: string;
-}
-
-export interface ContractExtractionFields {
-  contractTitle: string;
-  parties: string;
-  effectiveDate: string;
-  expirationDate: string;
-  value: number;
-}
 class ApiService {
   getCurrentUser() {
     throw new Error('Method not implemented.');
@@ -876,6 +522,115 @@ async getProcessImageInfo(): Promise<ProcessImageApiInfo> {
   });
   
   return this.handleResponse<ProcessImageApiInfo>(response);
+}
+
+// GET /api/articles/[id]/likes - Get like count and user's like status
+async getArticleLikes(articleId: string, userId?: string): Promise<{likeCount: number, userLiked: boolean}> {
+  let url = `/api/articles/${articleId}/likes`;
+  
+  if (userId) {
+    url += `?userId=${userId}`;
+  }
+  
+  console.log("Fetching article likes:", url);
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{likeCount: number, userLiked: boolean}>(response);
+  console.log("Article likes fetched:", result);
+  
+  return result;
+}
+
+// POST /api/articles/[id]/likes - Toggle like/unlike for an article
+async toggleArticleLike(articleId: string, userId: string): Promise<{success: boolean, liked: boolean, likeCount: number}> {
+  console.log("Toggling article like:", articleId, userId);
+  
+  const response = await this.fetchWithTimeout(`/api/articles/${articleId}/likes`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+  
+  const result = await this.handleResponse<{success: boolean, liked: boolean, likeCount: number}>(response);
+  console.log("Article like toggled:", result);
+  
+  return result;
+}
+
+// GET /api/articles/[id]/shares - Get share count and platform breakdown
+async getArticleShares(articleId: string): Promise<{shareCount: number, platformBreakdown: any[]}> {
+  console.log("Fetching article shares:", articleId);
+  
+  const response = await this.fetchWithTimeout(`/api/articles/${articleId}/shares`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{shareCount: number, platformBreakdown: any[]}>(response);
+  console.log("Article shares fetched:", result);
+  
+  return result;
+}
+
+// POST /api/articles/[id]/shares - Record a share for an article
+async recordArticleShare(articleId: string, platform: string, userId?: string): Promise<{success: boolean, shareCount: number}> {
+  console.log("Recording article share:", articleId, platform);
+  
+  const response = await this.fetchWithTimeout(`/api/articles/${articleId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify({ 
+      userId: userId || null,
+      platform,
+      // You can add these if needed:
+      // ipAddress: null,
+      // userAgent: null
+    }),
+  });
+  
+  const result = await this.handleResponse<{success: boolean, shareCount: number}>(response);
+  console.log("Article share recorded:", result);
+  
+  return result;
+}
+
+// GET /api/bookmarks - Get user's bookmarks
+async getUserBookmarks(userId: string): Promise<{success: boolean, data: any[]}> {
+  console.log("Fetching user bookmarks:", userId);
+  
+  const response = await this.fetchWithTimeout(`/api/bookmarks?UserId=${userId}`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{success: boolean, data: any[]}>(response);
+  console.log("User bookmarks fetched:", result);
+  
+  return result;
+}
+
+// POST /api/bookmarks - Toggle bookmark (add or remove)
+async toggleBookmark(userId: string, articleId: string): Promise<{success: boolean, bookmarked: boolean, bookmarkId?: string, message: string}> {
+  console.log("Toggling bookmark:", userId, articleId);
+  
+  const response = await this.fetchWithTimeout(`/api/bookmarks?userId=${userId}&articleId=${articleId}`, {
+    method: 'POST',
+  });
+  
+  const result = await this.handleResponse<{success: boolean, bookmarked: boolean, bookmarkId?: string, message: string}>(response);
+  console.log("Bookmark toggled:", result);
+  
+  return result;
+}
+
+// Check if article is bookmarked by user
+async isArticleBookmarked(userId: string, articleId: string): Promise<boolean> {
+  try {
+    const bookmarks = await this.getUserBookmarks(userId);
+    return bookmarks.data.some(bookmark => bookmark.article.id === articleId);
+  } catch (error) {
+    console.error('Error checking bookmark status:', error);
+    return false;
+  }
 }
 
 
