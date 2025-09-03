@@ -1,17 +1,13 @@
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react'
+import React from 'react';
 import {
   Alert,
-  Dimensions,
-  Image,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 const ProfileScreen = () => {
@@ -41,12 +37,12 @@ const ProfileScreen = () => {
           <Text style={styles.profileEmail}>bryan@example.com</Text>
         </View>
         <View style={styles.profileOptions}>
-          {['Settings', 'Notifications', 'Privacy', 'Help & Support'].map((option, index) => (
+          {/* {['Settings', 'Notifications', 'Privacy', 'Help & Support'].map((option, index) => (
             <TouchableOpacity key={index} style={styles.profileOption}>
               <Text style={styles.profileOptionText}>{option}</Text>
               <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
-          ))}
+          ))} */}
 
           <TouchableOpacity
             style={styles.profileOption}

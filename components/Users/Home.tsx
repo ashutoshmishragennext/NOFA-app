@@ -15,92 +15,109 @@ import {
 const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
-  const trendingTabs = ['Trending', 'My Topic', 'Local News', 'Crime', 'Political'];
-  const [articals,setArticals]= useState<any>()
-    const [trending,setTrending]= useState<any>([])
+  const [articals, setArticals] = useState<any>();
+  const [trending, setTrending] = useState<any>([]);
+  const [categories, setCategories] = useState<any>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [filteredArticles, setFilteredArticles] = useState<any>([]);
+  const [categoryTrendingArticles, setCategoryTrendingArticles] = useState<any>([]);
+  const [categoryLatestArticles, setCategoryLatestArticles] = useState<any>([]);
 
-  
-   
-  
-   const fetchArtical = async () => {
-  try {
-    const response = await apiService.getDocuments();
+  const fetchgetCategories = async () => {
+    try {
+      const response = await apiService.getCategories();
+      const Categories = response.data; 
+      setCategories(Categories);
+      
+      // Set first category as selected by default
+      if (Categories && Categories.length > 0) {
+        setSelectedCategoryId(Categories[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
 
-    // response itself has data
+  const fetchArtical = async () => {
+    try {
+      const response = await apiService.getDocuments();
+      const articles = response.data; 
+      setArticals(articles[0]);
+    } catch (error) {
+      console.error("Error fetching articles:", error);
+    }
+  };
 
-    // Access the array
-    const articles = response.data; 
+  const fetchTrendingArtical = async () => {
+    try {
+      const response = await apiService.getDocuments({
+        'isTrending': true
+      });
+      
+      const articles = response.data; 
+      setTrending(articles);
+    } catch (error) {
+      console.error("Error fetching trending articles:", error);
+    }
+  };
 
-    // If you want to store them in state
-    setArticals(articles[0]);
+  const fetchArticlesByCategory = async (categoryId: number) => {
+    try {
+      const response = await apiService.getDocuments({
+        categoryId: categoryId
+      });
+      
+      const articles = response.data;
+      setFilteredArticles(articles);
+      
+      // Update main article to first article of selected category
+      if (articles && articles.length > 0) {
+        setArticals(articles[0]);
+      }
 
-  } catch (error) {
-    console.error("Error fetching articles:", error);
-    
-  }
-};
-const fetchTrendingArtical = async () => {
-  try {
-    const response = await apiService.getDocuments({
-      'isTrending':true
-    });
+      // Fetch trending articles for this category
+      const trendingResponse = await apiService.getDocuments({
+        categoryId: categoryId,
+        isTrending: true
+      });
+      setCategoryTrendingArticles(trendingResponse.data || []);
 
-  
-    // response itself has data
-    console.log("Full response:", response);
+      // Use remaining articles as latest updates for this category
+      if (articles && articles.length > 1) {
+        setCategoryLatestArticles(articles.slice(-5)); // Last 5 articles as latest
+      }
+    } catch (error) {
+      console.error("Error fetching articles by category:", error);
+      setFilteredArticles([]);
+      setCategoryTrendingArticles([]);
+      setCategoryLatestArticles([]);
+    }
+  };
 
-    // Access the array
-    const articles = response.data; 
-    console.warn("trending:", articles);
+  const handleCategoryPress = (category: any) => {
+    setSelectedCategoryId(category.id);
+    fetchArticlesByCategory(category.id);
+  };
 
-    // If you want to store them in state
-    setTrending(articles);
+  useEffect(() => {
+    fetchArtical();
+    fetchTrendingArtical();
+    fetchgetCategories();
+  }, []);
 
-  } catch (error) {
-    console.error("Error fetching articles:", error);
-    
-  }
-};
+  // Fetch articles when selectedCategoryId changes
+  useEffect(() => {
+    if (selectedCategoryId !== null) {
+      fetchArticlesByCategory(selectedCategoryId);
+    }
+  }, [selectedCategoryId]);
 
-
-       
-  
-  useEffect(()=>{
-    fetchArtical()
-    fetchTrendingArtical()
-  },[])
- 
-  
   const mainNews = {
     title: "Trump Dials PM Modi, shares insight on Alaska summit",
     source: "Republic TV",
     image: "https://fortune.com/img-assets/wp-content/uploads/2024/11/GettyImages-1203050488-e1730968620314.jpg?w=1440&q=75",
     isExclusive: true
   };
-
-  const trendingNews = [
-    {
-      id: 1,
-      image: "https://images.unsplash.com/photo-1577962917302-cd874c4e31d2?w=200&h=150&fit=crop",
-      title: "International Summit Meeting",
-      source: "Global News",
-      isExclusive: false
-    },
-    {
-      id: 2,
-      image: "https://images.unsplash.com/photo-1586880244406-556ebe35f282?w=200&h=150&fit=crop",
-      title: "War Zone Updates",
-      source: "World Today",
-      isExclusive: true
-    },
-    {
-      id: 3,
-      image: "https://images.unsplash.com/photo-1586880244406-556ebe35f282?w=200&h=150&fit=crop",
-      title: "Economic Crisis Analysis",
-      source: "Financial Times",
-      isExclusive: false
-    }
-  ];
 
   const bottomNews = [
     {
@@ -118,85 +135,148 @@ const fetchTrendingArtical = async () => {
       isExclusive: false
     }
   ];
-
+ 
   return (
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Trending Tabs */}
+      {/* Category Tabs */}
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
         style={styles.tabsContainer}
       >
-        {trendingTabs.map((tab, index) => (
+        {categories.map((category, index) => (
           <TouchableOpacity 
-            key={index} 
-            style={[styles.tab, index === 0 && styles.activeTab]}
+            key={category.id} 
+            style={[
+              styles.tab, 
+              selectedCategoryId === category.id && styles.activeTab
+            ]}
+            onPress={() => handleCategoryPress(category)}
           >
-            <Text style={[styles.tabText, index === 0 && styles.activeTabText]}>
-              {tab}
+            <Text style={[
+              styles.tabText, 
+              selectedCategoryId === category.id && styles.activeTabText
+            ]}>
+              {category.name}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Main News Card - CLICKABLE */}
-      {/* <TouchableOpacity 
-        style={styles.mainNewsCard}
-        onPress={() => onArticlePress(mainNews)}
-      >
-        <Image source={{ uri: mainNews.image }} style={styles.mainNewsImage} />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.8)']}
-          style={styles.mainNewsGradient}
+      {/* Main News Card */}
+      {filteredArticles && filteredArticles.length > 0 ? (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.mainNewsContainer}
+          pagingEnabled={true}
         >
-          {mainNews.isExclusive && (
-            <View style={styles.exclusiveTag}>
-              <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
-            </View>
-          )}
-          <Text style={styles.mainNewsTitle}>{mainNews.title}</Text>
-          <Text style={styles.mainNewsSource}>📺 {mainNews.source}</Text>
-        </LinearGradient>
-      </TouchableOpacity> */}
-      {articals && (
-  <TouchableOpacity 
-    onPress={() => onArticlePress(articals)} 
-    style={styles.mainNewsCard}
-  >
-    <Image 
-      source={{ uri: articals.featuredImage }} 
-      style={styles.mainNewsImage} 
-    />
+          {filteredArticles.slice(0, 3).map((article, index) => (
+            <TouchableOpacity 
+              key={article.id || index}
+              onPress={() => onArticlePress(article)} 
+              style={styles.mainNewsCard}
+            >
+              <Image 
+                source={{ uri: article.featuredImage || article.image }} 
+                style={styles.mainNewsImage} 
+              />
 
-    <LinearGradient
-      colors={['transparent', 'rgba(0,0,0,0.8)']}
-      style={styles.mainNewsGradient}
-    >
-      {mainNews.isExclusive && (
-        <View style={styles.exclusiveTag}>
-          <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={styles.mainNewsGradient}
+              >
+                {article.isExclusive && (
+                  <View style={styles.exclusiveTag}>
+                    <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
+                  </View>
+                )}
+
+                <Text style={styles.mainNewsTitle}>{article.title}</Text>
+                <Text style={styles.mainNewsSource}>{article.authorName || article.source}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : selectedCategoryId !== null ? (
+        <View style={styles.noNewsFullScreen}>
+          <Text style={styles.noNewsFullScreenText}>
+            No news available for {categories.find(cat => cat.id === selectedCategoryId)?.name || 'this category'}
+          </Text>
         </View>
+      ) : articals ? (
+        <TouchableOpacity 
+          onPress={() => onArticlePress(articals)} 
+          style={styles.mainNewsCard}
+        >
+          <Image 
+            source={{ uri: articals.featuredImage }} 
+            style={styles.mainNewsImage} 
+          />
+
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.mainNewsGradient}
+          >
+            {articals.isExclusive && (
+              <View style={styles.exclusiveTag}>
+                <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
+              </View>
+            )}
+
+            <Text style={styles.mainNewsTitle}>{articals.title}</Text>
+            <Text style={styles.mainNewsSource}>{articals.authorName}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Category Filtered Articles - Only show if there are more than 3 articles */}
+      {filteredArticles.length > 3 && (
+        <>
+          <Text style={styles.sectionTitle}>
+            More {categories.find(cat => cat.id === selectedCategoryId)?.name || 'Category'} Articles
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
+            {filteredArticles.slice(3).map((item, index) => (
+              <TouchableOpacity 
+                key={item.id || index} 
+                style={styles.trendingItem}
+                onPress={() => onArticlePress(item)}
+              >
+                <Image 
+                  source={{ uri: item.featuredImage || item.image }} 
+                  style={styles.trendingImage} 
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.6)']}
+                  style={styles.trendingGradient}
+                />
+                <View style={styles.trendingTextOverlay}>
+                  <Text style={styles.trendingTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
       )}
 
-      {/* ✅ Show title and source */}
-      <Text style={styles.mainNewsTitle}>{articals.title}</Text>
-      <Text style={styles.mainNewsSource}>{articals.authorName}</Text>
-    </LinearGradient>
-  </TouchableOpacity>
-)}
-
-
-
       {/* Trending Collection */}
-      <Text style={styles.sectionTitle}>Trending Collection</Text>
+      <Text style={styles.sectionTitle}>
+        {selectedCategoryId ? `${categories.find(cat => cat.id === selectedCategoryId)?.name} Trending` : 'Trending Collection'}
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
-        { trending.map((item) => (
+        {(selectedCategoryId ? categoryTrendingArticles : trending).map((item, index) => (
           <TouchableOpacity 
-            key={item.id} 
+            key={item.id || index} 
             style={styles.trendingItem}
             onPress={() => onArticlePress(item)}
           >
-            <Image source={{ uri: item.image }} style={styles.trendingImage} />
+            <Image 
+              source={{ uri: item.featuredImage || item.image }} 
+              style={styles.trendingImage} 
+            />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.6)']}
               style={styles.trendingGradient}
@@ -210,16 +290,21 @@ const fetchTrendingArtical = async () => {
         ))}
       </ScrollView>
 
-      {/* Second Trending Collection */}
-      <Text style={styles.sectionTitle}>Latest Updates</Text>
+      {/* Latest Updates */}
+      <Text style={styles.sectionTitle}>
+        {selectedCategoryId ? `${categories.find(cat => cat.id === selectedCategoryId)?.name} Latest Updates` : 'Latest Updates'}
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
-        {bottomNews.map((item) => (
+        {(selectedCategoryId ? categoryLatestArticles : bottomNews).map((item, index) => (
           <TouchableOpacity 
-            key={item.id} 
+            key={item.id || index} 
             style={styles.trendingItem}
             onPress={() => onArticlePress(item)}
           >
-            <Image source={{ uri: item.image }} style={styles.trendingImage} />
+            <Image 
+              source={{ uri: item.featuredImage || item.image }} 
+              style={styles.trendingImage} 
+            />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.6)']}
               style={styles.trendingGradient}
@@ -237,14 +322,17 @@ const fetchTrendingArtical = async () => {
 };
 
 const styles = StyleSheet.create({
-
-    content: {
+  content: {
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
   // HOME SCREEN STYLES
+  mainNewsContainer: {
+    marginHorizontal: 20,
+    marginVertical: 10,
+  },
   mainNewsCard: {
-    margin: 20,
+    width: width - 40,
     borderRadius: 15,
     overflow: 'hidden',
     elevation: 5,
@@ -252,6 +340,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+    marginRight: 15,
   },
   mainNewsImage: {
     width: '100%',
@@ -265,6 +354,10 @@ const styles = StyleSheet.create({
     height: '60%',
     justifyContent: 'flex-end',
     padding: 20,
+  },
+  noNewsFullScreen:{
+    marginHorizontal: 'auto',
+    marginVertical:'auto'
   },
   exclusiveTag: {
     backgroundColor: '#FF4444',
@@ -339,28 +432,42 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 14,
   },
-   // TAB STYLES
+  // TAB STYLES
   tabsContainer: {
     backgroundColor: '#fff',
     paddingVertical: 15,
   },
   tab: {
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 4,
     marginHorizontal: 5,
     borderRadius: 20,
     backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   activeTab: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
   },
   tabText: {
     fontSize: 14,
     color: '#666',
   },
   activeTabText: {
-    color: '#333',
+    color: '#fff',
     fontWeight: '600',
+  },
+  noNewsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    marginHorizontal: 20,
+  },
+  noNewsText: {
+    fontSize: 16,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });
 

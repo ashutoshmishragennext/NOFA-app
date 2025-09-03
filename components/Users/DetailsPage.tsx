@@ -1,31 +1,235 @@
-// NEWS DETAIL PAGE COMPONENT WITH SWIPE NAVIGATION
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
+  FlatList,
   Image,
+  Modal,
   PanResponder,
   SafeAreaView,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import RenderHtml from "react-native-render-html";
 import Navbar from '../Navbar';
+import { apiService } from '@/api';
 
 const { width } = Dimensions.get('window');
 
-const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
+const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(article.likeCount || 0);
+  const [shareCount, setShareCount] = useState(article.shareCount || 0);
+  console.warn(commentText);
+  
   const pan = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(1)).current;
+
+  // Fetch comments when component mounts or when comments modal opens
+  useEffect(() => {
+    if (showComments && article.id) {
+      fetchComments();
+    }
+  }, [showComments, article.id]);
+
+  // const fetchComments = async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     const response = await fetch(`/api/comments?articleId=${article.id}`);
+  //     const data = await response.json();
+      
+  //     if (response.ok) {
+  //       // Organize comments with nested structure
+  //       const organizedComments = organizeComments(data.comments);
+  //       getComments
+  //       setComments(organizedComments);
+  //     } else {
+  //       Alert.alert('Error', 'Failed to fetch comments');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching comments:', error);
+  //     Alert.alert('Error', 'Failed to fetch comments');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+const fetchComments = async () => {
+  try {
+    const response = await apiService.getComments({
+      "articleId":article.id
+    });
+    
+    // Check if response has the expected structure
+    if (response && response.comments) {
+      const organizedComments = organizeComments(response.comments);
+      setComments(organizedComments);
+    } else {
+      console.error('Unexpected response format:', response);
+      setComments([]);
+    }
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    Alert.alert('Error', 'Failed to fetch comments');
+  }
+};
+
+const organizeComments = (commentsData) => {
+  const commentMap = {};
+  const rootComments = [];
+
+  // First pass: create a map of all comments
+  commentsData.forEach(comment => {
+    commentMap[comment.id] = { ...comment, replies: [] };
+  });
+
+  // Second pass: organize into parent-child structure
+  commentsData.forEach(comment => {
+    if (comment.parentId && commentMap[comment.parentId]) {
+      // This is a reply, add it to its parent's replies array
+      commentMap[comment.parentId].replies.push(commentMap[comment.id]);
+    } else {
+      // This is a root-level comment
+      rootComments.push(commentMap[comment.id]);
+    }
+  });
+
+  return rootComments;
+};
+
+  const handleLike = async () => {
+    try {
+      const response = await fetch(`/api/articles/${article.id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLiked(!liked);
+        setLikeCount(data.likeCount);
+      }
+    } catch (error) {
+      console.error('Error liking article:', error);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const shareOptions = {
+        message: `Check out this article: ${article.title}`,
+        url: `https://yourapp.com/article/${article.id}`,
+        title: article.title,
+      };
+
+      await Share.share(shareOptions);
+      
+      // Update share count
+      const response = await fetch(`/api/articles/${article.id}/share`, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setShareCount(data.shareCount);
+      }
+    } catch (error) {
+      console.error('Error sharing article:', error);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (commentText.trim() === '') {
+      Alert.alert('Error', 'Please enter a comment');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId: article.id,
+          content: commentText.trim(),
+          authorName: 'You', // Replace with actual user data
+          authorEmail: 'user@example.com', // Replace with actual user data
+        }),
+      });
+
+      if (response.ok) {
+        setCommentText('');
+        await fetchComments(); // Refresh comments
+        Alert.alert('Success', 'Comment added successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to add comment');
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddReply = async (parentId) => {
+    if (replyText.trim() === '') {
+      Alert.alert('Error', 'Please enter a reply');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId: article.id,
+          content: replyText.trim(),
+          parentId: parentId,
+          authorName: 'You', // Replace with actual user data
+          authorEmail: 'user@example.com', // Replace with actual user data
+        }),
+      });
+
+      if (response.ok) {
+        setReplyText('');
+        setReplyingTo(null);
+        await fetchComments(); // Refresh comments
+        Alert.alert('Success', 'Reply added successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to add reply');
+      }
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      Alert.alert('Error', 'Failed to add reply');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to horizontal swipes
         return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
       },
       onPanResponderGrant: () => {
@@ -35,7 +239,6 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
         });
       },
       onPanResponderMove: (evt, gestureState) => {
-        // Update position and opacity based on swipe
         pan.setValue({ x: gestureState.dx, y: 0 });
         const progress = Math.abs(gestureState.dx) / width;
         opacity.setValue(1 - progress * 0.3);
@@ -47,7 +250,6 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
         const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0;
 
         if (shouldGoBack) {
-          // Swipe right - go back
           Animated.parallel([
             Animated.timing(pan.x, {
               toValue: width,
@@ -63,7 +265,6 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
             if (onBack) onBack();
           });
         } else if (shouldGoNext && hasNext) {
-          // Swipe left - go to next
           Animated.parallel([
             Animated.timing(pan.x, {
               toValue: -width,
@@ -79,7 +280,6 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
             if (onNext) onNext();
           });
         } else {
-          // Spring back to original position
           Animated.parallel([
             Animated.spring(pan.x, {
               toValue: 0,
@@ -95,164 +295,418 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }:any) => {
     })
   ).current;
 
-  
-   
-
-// Then your SafeAreaView component stays exactly the same:
-return (
-  <SafeAreaView style={styles.container}>
-    <StatusBar barStyle="light-content" backgroundColor="#000" />
-    
-    <Animated.View 
-      style={[
-        styles.container, 
-        {
-          transform: [{ translateX: pan.x }],
-          opacity: opacity,
-        }
-      ]}
-      {...panResponder.panHandlers}
-    >
-      {/* Header */}
-      <Navbar/>
-
-      <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
-        {/* Article Image */}
-        <View style={styles.articleImageContainer}>
-          <Image source={{ uri: article.featuredImage}} style={styles.articleImage} />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.3)']}
-            style={styles.articleImageGradient}
-          />
-          {article.isExclusive && (
-            <View style={styles.exclusiveTagDetail}>
-              <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
-            </View>
-          )}
-          
-          {/* Swipe Indicators */}
-          <View style={styles.swipeIndicators}>
-            <View style={styles.swipeIndicator}>
-              <Text style={styles.swipeText}>← Swipe to go back</Text>
-            </View>
-            {/* {hasNext && (
-              <View style={styles.swipeIndicator}>
-                <Text style={styles.swipeText}>Swipe for next →</Text>
-              </View>
-            )} */}
-          </View>
-        </View>
-
-        {/* Article Content */}
-        <View style={styles.articleContentContainer}>
-          {/* Source and Time */}
-          <View style={styles.articleMeta}>
-            <Text style={styles.articleSource}>📺 {article.source || "Unknown"}</Text>
-            <Text style={styles.articleTime}>2 hours ago</Text>
-          </View>
-
-          {/* Title */}
-          <Text style={styles.articleTitle}>{article.title}</Text>
-
-          {/* Author and Location */}
-          <View style={styles.authorSection}>
-            <Text style={styles.authorText}>By {article.authorName}</Text>
-            <Text style={styles.locationText}>📍 {article.location || "Unknown"}</Text>
-          </View>
-
-          {/* Tags */}
-          <View style={styles.tagsContainer}>
-            {article.tags && article.tags.split(',').map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag.trim()}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Article Body */}
-          <Text style={styles.articleLead}>{article.summary}</Text>
-          <Text style={styles.articleBody}>{article.content}</Text>
-        </View>
-      </ScrollView>
-
-      {/* Bottom Action Bar */}
-      <View style={styles.actionBar}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>👍</Text>
-          <Text style={styles.actionText}>{article.viewCount}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>👎</Text>
-          <Text style={styles.actionText}>12</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>💬</Text>
-          <Text style={styles.actionText}>{article.commentCount}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>📤</Text>
-          <Text style={styles.actionText}>Share</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.saveButton}>
-          <Text style={styles.saveIcon}>🔖</Text>
+  const renderReply = (reply, depth = 1) => (
+    <View key={reply.id} style={[styles.replyItem, { marginLeft: depth * 20 }]}>
+      <View style={styles.commentHeader}>
+        <Text style={styles.commentAuthor}>{reply.authorName}</Text>
+        <Text style={styles.commentTime}>
+          {new Date(reply.createdAt).toLocaleDateString()}
+        </Text>
+      </View>
+      <Text style={styles.commentText}>{reply.content}</Text>
+      <View style={styles.commentActions}>
+        <TouchableOpacity
+          style={styles.commentReplyButton}
+          onPress={() => setReplyingTo(reply.id)}
+        >
+          <Text style={styles.commentReply}>Reply</Text>
         </TouchableOpacity>
       </View>
-    </Animated.View>
-  </SafeAreaView>
-);
+      
+      {reply.replies && reply.replies.length > 0 && (
+        <View style={styles.repliesContainer}>
+          {reply.replies.map(nestedReply => renderReply(nestedReply, depth + 1))}
+        </View>
+      )}
+      
+      {replyingTo === reply.id && (
+        <View style={styles.replyInputContainer}>
+          <TextInput
+            style={styles.replyInput}
+            placeholder={`Reply to ${reply.authorName}...`}
+            value={replyText}
+            onChangeText={setReplyText}
+            multiline
+            maxLength={500}
+          />
+          <View style={styles.replyActions}>
+            <TouchableOpacity
+              style={styles.cancelReplyButton}
+              onPress={() => {
+                setReplyingTo(null);
+                setReplyText('');
+              }}
+            >
+              <Text style={styles.cancelReplyText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sendReplyButton}
+              onPress={() => handleAddReply(reply.id)}
+              disabled={isLoading}
+            >
+              <Text style={styles.sendReplyText}>
+                {isLoading ? 'Sending...' : 'Send'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
+  );
 
+  const renderCommentItem = ({ item }) => (
+    <View style={styles.commentItem}>
+      <View style={styles.commentHeader}>
+        <Text style={styles.commentAuthor}>{item.authorName}</Text>
+        <Text style={styles.commentTime}>
+          {new Date(item.createdAt).toLocaleDateString()}
+        </Text>
+      </View>
+      <Text style={styles.commentText}>{item.content}</Text>
+      <View style={styles.commentActions}>
+        <TouchableOpacity
+          style={styles.commentReplyButton}
+          onPress={() => setReplyingTo(item.id)}
+        >
+          <Text style={styles.commentReply}>Reply</Text>
+        </TouchableOpacity>
+        {item.replies && item.replies.length > 0 && (
+          <Text style={styles.replyCount}>
+            {item.replies.length} {item.replies.length === 1 ? 'reply' : 'replies'}
+          </Text>
+        )}
+      </View>
 
+      {/* Render replies */}
+      {item.replies && item.replies.length > 0 && (
+        <View style={styles.repliesContainer}>
+          {item.replies.map(reply => renderReply(reply))}
+        </View>
+      )}
+
+      {/* Reply input for main comment */}
+      {replyingTo === item.id && (
+        <View style={styles.replyInputContainer}>
+          <TextInput
+            style={styles.replyInput}
+            placeholder={`Reply to ${item.authorName}...`}
+            value={replyText}
+            onChangeText={setReplyText}
+            multiline
+            maxLength={500}
+          />
+          <View style={styles.replyActions}>
+            <TouchableOpacity
+              style={styles.cancelReplyButton}
+              onPress={() => {
+                setReplyingTo(null);
+                setReplyText('');
+              }}
+            >
+              <Text style={styles.cancelReplyText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sendReplyButton}
+              onPress={() => handleAddReply(item.id)}
+              disabled={isLoading}
+            >
+              <Text style={styles.sendReplyText}>
+                {isLoading ? 'Sending...' : 'Send'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
+  // Function to process tags - handle both string and array formats
+  const processTags = (tags) => {
+    if (!tags) return [];
+    
+    if (typeof tags === 'string') {
+      return tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+    }
+    
+    if (Array.isArray(tags)) {
+      return tags.filter(tag => tag && tag.trim());
+    }
+    
+    return [];
+  };
+
+  // Function to process keywords similarly
+  const processKeywords = (keywords) => {
+    if (!keywords) return [];
+    
+    if (typeof keywords === 'string') {
+      return keywords.split(',').map(keyword => keyword.trim()).filter(keyword => keyword);
+    }
+    
+    if (Array.isArray(keywords)) {
+      return keywords.filter(keyword => keyword && keyword.trim());
+    }
+    
+    return [];
+  };
+
+  const tagsArray = processTags(article.tags);
+  const keywordsArray = processKeywords(article.keywords);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      
+      <Animated.View 
+        style={[
+          styles.container, 
+          {
+            transform: [{ translateX: pan.x }],
+            opacity: opacity,
+          }
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <Navbar/>
+
+        <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
+          {/* Article Image */}
+          <View style={styles.articleImageContainer}>
+            <Image 
+              source={{ uri: article.featuredImage || 'https://via.placeholder.com/800x400' }} 
+              style={styles.articleImage} 
+            />
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.3)']}
+              style={styles.articleImageGradient}
+            />
+            {article.isTrending && (
+              <View style={styles.exclusiveTagDetail}>
+                <Text style={styles.exclusiveText}>TRENDING</Text>
+              </View>
+            )}
+            
+            <View style={styles.swipeIndicators}>
+              <View style={styles.swipeIndicator}>
+                <Text style={styles.swipeText}>← Swipe to go back</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Article Content */}
+          <View style={styles.articleContentContainer}>
+            {/* Source and Time */}
+            <View style={styles.articleMeta}>
+              <Text style={styles.articleSource}>📺 {article.authorName || "Unknown Author"}</Text>
+              <Text style={styles.articleTime}>
+                {article.publicationDate ? 
+                  new Date(article.publicationDate).toLocaleDateString() : 
+                  'Recently'
+                }
+              </Text>
+            </View>
+
+            {/* Title */}
+            <Text style={styles.articleTitle}>{article.title}</Text>
+
+            {/* Author and Location */}
+            <View style={styles.authorSection}>
+              <Text style={styles.authorText}>By {article.authorName}</Text>
+              <Text style={styles.locationText}>📍 {article.location || "Global"}</Text>
+            </View>
+
+            {/* Tags */}
+            {tagsArray.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {tagsArray.map((tag, index) => (
+                  <View key={index} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Keywords */}
+            {keywordsArray.length > 0 && (
+              <View style={styles.keywordsContainer}>
+                <Text style={styles.keywordsLabel}>Keywords:</Text>
+                <View style={styles.keywordsWrapper}>
+                  {keywordsArray.map((keyword, index) => (
+                    <View key={index} style={styles.keyword}>
+                      <Text style={styles.keywordText}>{keyword}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Article Summary */}
+            {article.summary && (
+              <Text style={styles.articleLead}>{article.summary}</Text>
+            )}
+
+            {/* Article Body - HTML Content */}
+            <View style={styles.htmlContentContainer}>
+              <RenderHtml
+                contentWidth={width - 40}
+                source={{ html: article.content || '<p>No content available</p>' }}
+                tagsStyles={{
+                  p: { 
+                    fontSize: 16, 
+                    lineHeight: 24, 
+                    color: '#444',
+                    marginBottom: 15,
+                    textAlign: 'justify'
+                  },
+                  h1: { 
+                    fontSize: 24, 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    marginBottom: 15,
+                    marginTop: 10
+                  },
+                  h2: { 
+                    fontSize: 20, 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    marginBottom: 12,
+                    marginTop: 8
+                  },
+                  h3: { 
+                    fontSize: 18, 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    marginBottom: 10
+                  },
+                  img: {
+                    marginVertical: 10
+                  }
+                }}
+              />
+            </View>
+
+            {/* Article Stats */}
+            <View style={styles.statsSection}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{article.viewCount || 0}</Text>
+                <Text style={styles.statLabel}>Views</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{shareCount}</Text>
+                <Text style={styles.statLabel}>Shares</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{comments.length}</Text>
+                <Text style={styles.statLabel}>Comments</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{article.readingTime || 'N/A'}</Text>
+                <Text style={styles.statLabel}>Min Read</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Enhanced Professional Bottom Action Bar */}
+        <View style={styles.actionBar}>
+          <TouchableOpacity 
+            style={[styles.actionButton, liked && styles.likedButton]}
+            onPress={handleLike}
+          >
+            <Text style={[styles.actionIcon, liked && styles.likedIcon]}>
+              {liked ? '❤️' : '🤍'}
+            </Text>
+            <Text style={[styles.actionText, liked && styles.likedText]}>
+              {likeCount}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton}>
+            <Text style={styles.actionIcon}>👎</Text>
+            <Text style={styles.actionText}>12</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => setShowComments(true)}
+          >
+            <Text style={styles.actionIcon}>💬</Text>
+            <Text style={styles.actionText}>{comments.length}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.shareActionButton}
+            onPress={handleShare}
+          >
+            <Text style={styles.shareIcon}>📤</Text>
+            <Text style={styles.shareText}>Share</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.saveButton}>
+            <Text style={styles.saveIcon}>🔖</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* Enhanced Comments Modal with Nested Replies */}
+      <Modal
+        visible={showComments}
+        animationType="slide"
+        onRequestClose={() => setShowComments(false)}
+      >
+        <SafeAreaView style={styles.commentsModal}>
+          <View style={styles.commentsHeader}>
+            <Text style={styles.commentsTitle}>Comments ({comments.length})</Text>
+            <TouchableOpacity onPress={() => setShowComments(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text>Loading comments...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderCommentItem}
+              style={styles.commentsList}
+              showsVerticalScrollIndicator={false}
+              refreshing={isLoading}
+              onRefresh={fetchComments}
+            />
+          )}
+
+          <View style={styles.commentInputContainer}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Add a comment..."
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity 
+              style={styles.sendButton} 
+              onPress={handleAddComment}
+              disabled={isLoading}
+            >
+              <Text style={styles.sendButtonText}>
+                {isLoading ? 'Sending...' : 'Send'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    </SafeAreaView>
+  );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-
-  // DETAIL SCREEN STYLES
-  detailHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  exclusiveText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  backButton: {
-    padding: 10,
-    borderRadius: 25,
-    backgroundColor: '#f8f9fa',
-  },
-  backIcon: {
-    fontSize: 18,
-    color: '#333',
-    fontWeight: 'bold',
-  },
-  detailHeaderTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  shareButton: {
-    padding: 10,
-    borderRadius: 25,
-    backgroundColor: '#f8f9fa',
-  },
-  shareIcon: {
-    fontSize: 16,
   },
   detailContent: {
     flex: 1,
@@ -288,8 +742,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 2,
   },
-  
-  // New Swipe Indicators
+  exclusiveText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
   swipeIndicators: {
     position: 'absolute',
     bottom: 20,
@@ -310,7 +767,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-
   articleContentContainer: {
     padding: 20,
   },
@@ -356,7 +812,7 @@ const styles = StyleSheet.create({
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 25,
+    marginBottom: 15,
   },
   tag: {
     backgroundColor: '#e8f5e8',
@@ -373,6 +829,34 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
+  keywordsContainer: {
+    marginBottom: 20,
+  },
+  keywordsLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 8,
+  },
+  keywordsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  keyword: {
+    backgroundColor: '#f0f8ff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  keywordText: {
+    fontSize: 10,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
   articleLead: {
     fontSize: 18,
     lineHeight: 26,
@@ -381,19 +865,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'justify',
   },
-  articleBody: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#444',
-    marginBottom: 20,
-    textAlign: 'justify',
-  },
-  articleSubheading: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 10,
-    marginBottom: 15,
+  htmlContentContainer: {
+    marginBottom: 25,
   },
   statsSection: {
     flexDirection: 'row',
@@ -416,102 +889,273 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  relatedSection: {
-    marginTop: 30,
-    paddingTop: 25,
-    borderTopWidth: 2,
-    borderTopColor: '#f0f0f0',
-  },
-  relatedTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-  },
-  relatedItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 15,
-    marginBottom: 10,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-  },
-  relatedImage: {
-    width: 80,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 15,
-  },
-  relatedTextContainer: {
-    flex: 1,
-  },
-  relatedItemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  relatedItemSource: {
-    fontSize: 12,
-    color: '#999',
-  },
-  relatedArrow: {
-    fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
+  // Enhanced Professional Action Bar Styles
   actionBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    elevation: 5,
+    borderTopColor: '#e0e0e0',
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 25,
+    backgroundColor: '#f5f5f5',
+    minWidth: 65,
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  likedButton: {
+    backgroundColor: '#ffe6e6',
+    borderColor: '#ff6b6b',
+    borderWidth: 1,
+  },
+  shareActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    backgroundColor: '#2196F3',
+    elevation: 3,
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
   actionIcon: {
     fontSize: 16,
-    marginRight: 5,
+    marginRight: 6,
+  },
+  likedIcon: {
+    fontSize: 16,
+  },
+  shareIcon: {
+    fontSize: 14,
+    marginRight: 6,
+    color: '#fff',
   },
   actionText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#333',
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  likedText: {
+    color: '#ff6b6b',
+  },
+  shareText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
   },
   saveButton: {
     padding: 12,
     borderRadius: 25,
     backgroundColor: '#4CAF50',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    elevation: 3,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
   saveIcon: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  // Enhanced Comments Modal Styles
+  commentsModal: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  commentsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+  },
+  commentsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    fontSize: 20,
+    color: '#666',
+    fontWeight: 'bold',
+    padding: 5,
+  },
+  commentsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  commentItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  commentAuthor: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  commentTime: {
+    fontSize: 12,
+    color: '#999',
+  },
+  commentText: {
+    fontSize: 14,
+    color: '#444',
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  commentReplyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 15,
+  },
+  commentReply: {
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  replyCount: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  // Nested Replies Styles
+  repliesContainer: {
+    marginTop: 10,
+    paddingLeft: 0,
+  },
+  replyItem: {
+    paddingVertical: 12,
+    paddingLeft: 15,
+    marginTop: 8,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#e0e0e0',
+  },
+  replyInputContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  replyInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginBottom: 10,
+    backgroundColor: '#fff',
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  replyActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  cancelReplyButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderRadius: 15,
+    backgroundColor: '#f0f0f0',
+  },
+  cancelReplyText: {
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  sendReplyButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 15,
+    backgroundColor: '#4CAF50',
+  },
+  sendReplyText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    backgroundColor: '#fff',
+  },
+  commentInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginRight: 10,
+    maxHeight: 100,
+    fontSize: 14,
+    backgroundColor: '#f9f9f9',
+  },
+  sendButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    elevation: 2,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });
 

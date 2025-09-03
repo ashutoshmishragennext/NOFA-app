@@ -365,9 +365,13 @@ export interface ContractExtractionFields {
   value: number;
 }
 class ApiService {
+  getCurrentUser() {
+    throw new Error('Method not implemented.');
+  }
   private baseURL: string;
   private timeout: number;
   private isLoggedIn: boolean = false;
+  getBookmarks: any;
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -587,7 +591,7 @@ async getDocuments(params?: SearchDocumentsRequest): Promise<any> {
     
     if (params.query) searchParams.append('query', params.query);
     if (params.isTrending) searchParams.append('isTrending', params.isTrending);
-    if (params.verificationStatus) searchParams.append('verificationStatus', params.verificationStatus);
+    if (params.categoryId) searchParams.append('categoryId', params.categoryId);
     if (params.folderId) searchParams.append('folderId', params.folderId);
     if (params.startDate) searchParams.append('startDate', params.startDate);
     if (params.endDate) searchParams.append('endDate', params.endDate);
@@ -654,17 +658,79 @@ async deleteDocument(documentId: string): Promise<DeleteDocumentResponse> {
   return result;
 }
 
-
+async createBookmark(documentData: CreateDocumentRequest): Promise<CreateDocumentResponse> {
+  console.log("Creating document:", documentData);
+  
+  const response = await this.fetchWithTimeout('/api/documents', {
+    method: 'POST',
+    body: JSON.stringify(documentData),
+  });
+  
+  const result = await this.handleResponse<CreateDocumentResponse>(response);
+  console.log("Document created:", result);
+  
+  return result;
+}
 // Add to your ApiService class
-
-// GET /api/folders - Get folders with statistics
-async getCategories(params: GetFoldersRequest): Promise<GetFoldersResponse> {
+async getBookMark(params:any): Promise<GetFoldersResponse> {
   const searchParams = new URLSearchParams();
   
-  if (params.userId) searchParams.append('userId', params.userId);
-  if (params.organizationId) searchParams.append('organizationId', params.organizationId);
+  // if (params.id) searchParams.append('id', params.id);
+  if (params.userID) searchParams.append('userID', params.userId);
   
-  const url = `/api/categories?${searchParams.toString()}`;
+  const url = `/api/bookmarks?${searchParams.toString()}`;
+  
+  console.log("Fetching folders with URL:", url);
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<GetFoldersResponse>(response);
+  console.log("Folders fetched:", result);
+  
+  return result;
+}
+async getComments(params:any): Promise<GetFoldersResponse> {
+  const searchParams = new URLSearchParams();
+  
+  // if (params.id) searchParams.append('id', params.id);
+  if (params.articleId) searchParams.append('articleId', params.articleId);
+  
+  const url = `/api/comments?${searchParams.toString()}`;
+  
+  console.log("Fetching folders with URL:", url);
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<GetFoldersResponse>(response);
+  console.log("Folders fetched:", result);
+  
+  return result;
+}
+
+// async createComments(documentData: any): Promise<CreateDocumentResponse> {
+  
+//   const response = await this.fetchWithTimeout('/api/comments', {
+//     method: 'POST',
+//     body: JSON.stringify(documentData),
+//   });
+  
+//   const result = await this.handleResponse<any>(response);
+//   console.log("Document created:", result);
+  
+//   return result;
+// }
+// GET /api/folders - Get folders with statistics
+async getCategories(): Promise<GetFoldersResponse> {
+  const searchParams = new URLSearchParams();
+  
+  // if (params.userId) searchParams.append('userId', params.userId);
+  // if (params.organizationId) searchParams.append('organizationId', params.organizationId);
+  
+  const url = `/api/categories`;
   
   console.log("Fetching folders with URL:", url);
   
