@@ -21,6 +21,7 @@ import {
 import RenderHtml from "react-native-render-html";
 import Navbar from '../Navbar';
 import { apiService } from '@/api';
+import { useAuth } from '@/context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -31,13 +32,37 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [comments, setComments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(article.likeCount || 0);
-  const [shareCount, setShareCount] = useState(article.shareCount || 0);
+const [liked, setLiked] = useState(false);
+const [likeCount, setLikeCount] = useState(article.likeCount || 0);
+const [shareCount, setShareCount] = useState(article.shareCount || 0);
+  const currentUser = useAuth().user;
   console.warn(commentText);
   
   const pan = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(1)).current;
+
+  // Add at the top with other state
+const [isBookmarked, setIsBookmarked] = useState(false);
+const [bookmarkLoading, setBookmarkLoading] = useState(false);
+
+// Add useEffect to load initial bookmark status
+useEffect(() => {
+  const loadBookmarkStatus = async () => {
+    try {
+      if (currentUser && article.id) {
+        const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
+        setIsBookmarked(bookmarked);
+      }
+    } catch (error) {
+      console.error('Error loading bookmark status:', error);
+    }
+  };
+
+  if (article.id) {
+    loadBookmarkStatus();
+  }
+}, [article.id]);
+
 
   // Fetch comments when component mounts or when comments modal opens
   useEffect(() => {
@@ -46,27 +71,76 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
     }
   }, [showComments, article.id]);
 
-  // const fetchComments = async () => {
-  //   setIsLoading(true);
-  //   try {
-  //     const response = await fetch(`/api/comments?articleId=${article.id}`);
-  //     const data = await response.json();
-      
-  //     if (response.ok) {
-  //       // Organize comments with nested structure
-  //       const organizedComments = organizeComments(data.comments);
-  //       getComments
-  //       setComments(organizedComments);
-  //     } else {
-  //       Alert.alert('Error', 'Failed to fetch comments');
-  //     }
-  //   } catch (error) {
-  //     console.error('Error fetching comments:', error);
-  //     Alert.alert('Error', 'Failed to fetch comments');
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+  useEffect(() => {
+  const loadShareCount = async () => {
+    try {
+      if (article.id) {
+        const shareData = await apiService.getArticleShares(article.id);
+        setShareCount(shareData.shareCount);
+      }
+    } catch (error) {
+      console.error('Error loading share count:', error);
+    }
+  };
+
+  if (article.id) {
+    loadShareCount();
+  }
+}, [article.id]);
+  // Add this useEffect after your existing useEffect
+useEffect(() => {
+  const loadLikeStatus = async () => {
+    try {
+      if (currentUser && article.id) {
+        const status = await apiService.getArticleLikes(article.id, currentUser.id);
+        setLiked(status.userLiked);
+        setLikeCount(status.likeCount);
+      }
+    } catch (error) {
+      console.error('Error loading like status:', error);
+    }
+  };
+
+  if (article.id) {
+    loadLikeStatus();
+  }
+}, [article.id]);
+
+
+// Add handleBookmark function
+const handleBookmark = async () => {
+  if (bookmarkLoading) return;
+  
+  try {
+    setBookmarkLoading(true);
+    
+    if (!currentUser) {
+      Alert.alert('Login Required', 'Please login to bookmark articles');
+      return;
+    }
+
+    // Optimistic UI update
+    setIsBookmarked(!isBookmarked);
+
+    // Make API call
+    const result = await apiService.toggleBookmark(currentUser.id, article.id);
+    
+    // Update with actual server response
+    setIsBookmarked(result.bookmarked);
+    
+    // Remove the Alert.alert - no success message needed
+
+  } catch (error) {
+    // Revert optimistic update on error
+    setIsBookmarked(!isBookmarked);
+    
+    console.error('Error toggling bookmark:', error);
+    Alert.alert('Error', 'Failed to update bookmark');
+  } finally {
+    setBookmarkLoading(false);
+  }
+};
+
 const fetchComments = async () => {
   try {
     const response = await apiService.getComments({
@@ -110,48 +184,93 @@ const organizeComments = (commentsData) => {
   return rootComments;
 };
 
-  const handleLike = async () => {
-    try {
-      const response = await fetch(`/api/articles/${article.id}/like`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setLiked(!liked);
-        setLikeCount(data.likeCount);
-      }
-    } catch (error) {
-      console.error('Error liking article:', error);
+// Replace the existing handleLike function with this:
+const handleLike = async () => {
+  try {
+    
+    if (!currentUser) {
+      Alert.alert('Login Required', 'Please login to like articles');
+      return;
     }
-  };
 
-  const handleShare = async () => {
-    try {
-      const shareOptions = {
-        message: `Check out this article: ${article.title}`,
-        url: `https://yourapp.com/article/${article.id}`,
-        title: article.title,
-      };
+    // Optimistic UI update
+    const newLiked = !liked;
+    const newCount = newLiked ? likeCount + 1 : likeCount - 1;
+    setLiked(newLiked);
+    setLikeCount(newCount);
 
-      await Share.share(shareOptions);
+    // Make API call
+    const result = await apiService.toggleArticleLike(article.id, currentUser.id);
+    
+    // Update with actual server response
+    setLiked(result.liked);
+    setLikeCount(result.likeCount);
+
+  } catch (error) {
+    // Revert optimistic update on error
+    setLiked(!liked);
+    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
+    
+    console.error('Error toggling like:', error);
+    Alert.alert('Error', 'Failed to update like status');
+  }
+};
+// Add this with your other state declarations:
+const [shareLoading, setShareLoading] = useState(false);
+const handleShare = async () => {
+  if (shareLoading) return;
+  
+  try {
+    setShareLoading(true);
+    
+    const shareOptions = {
+      message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
+      url: `https://nofa-sepia.vercel.app/article/${article.id}`,
+      title: article.title,
+    };
+
+    const result = await Share.share(shareOptions);
+    
+    // Only record share if user actually completed the share action
+    if (result.action === Share.sharedAction) {
       
-      // Update share count
-      const response = await fetch(`/api/articles/${article.id}/share`, {
-        method: 'POST',
-      });
+      let platform = 'other';
       
-      if (response.ok) {
-        const data = await response.json();
-        setShareCount(data.shareCount);
+      if (result.activityType) {
+        const activityType = result.activityType.toLowerCase();
+        if (activityType.includes('twitter') || activityType.includes('com.twitter')) platform = 'twitter';
+        else if (activityType.includes('facebook') || activityType.includes('com.facebook')) platform = 'facebook';
+        else if (activityType.includes('whatsapp') || activityType.includes('net.whatsapp')) platform = 'whatsapp';
+        else if (activityType.includes('linkedin') || activityType.includes('com.linkedin')) platform = 'linkedin';
+        else if (activityType.includes('mail') || activityType.includes('message')) platform = 'email';
+        else if (activityType.includes('copy') || activityType.includes('pasteboard')) platform = 'copy_link';
+        else platform = 'other';
       }
-    } catch (error) {
-      console.error('Error sharing article:', error);
+
+      // Record the share after completion
+      try {
+        const shareResult = await apiService.recordArticleShare(
+          article.id, 
+          platform, 
+          currentUser?.id
+        );
+        setShareCount(shareResult.shareCount);
+        
+        // Remove the success alert or make it generic
+        // Alert.alert('Success', 'Article shared successfully!');
+      } catch (error) {
+        console.error('Error recording share:', error);
+        setShareCount(prev => prev + 1);
+      }
     }
-  };
+    
+  } catch (error) {
+    console.error('Error sharing article:', error);
+    Alert.alert('Error', 'Failed to share article');
+  } finally {
+    setShareLoading(false);
+  }
+};
 
   const handleAddComment = async () => {
     if (commentText.trim() === '') {
@@ -585,67 +704,74 @@ const organizeComments = (commentsData) => {
               />
             </View>
 
-            {/* Article Stats */}
-            <View style={styles.statsSection}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{article.viewCount || 0}</Text>
-                <Text style={styles.statLabel}>Views</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{shareCount}</Text>
-                <Text style={styles.statLabel}>Shares</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{comments.length}</Text>
-                <Text style={styles.statLabel}>Comments</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{article.readingTime || 'N/A'}</Text>
-                <Text style={styles.statLabel}>Min Read</Text>
-              </View>
-            </View>
+        <View style={styles.statsSection}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{article.viewCount || 0}</Text>
+            <Text style={styles.statLabel}>Views</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{likeCount}</Text>
+            <Text style={styles.statLabel}>Likes</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{shareCount}</Text>
+            <Text style={styles.statLabel}>Shares</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{comments.length}</Text>
+            <Text style={styles.statLabel}>Comments</Text>
+          </View>
+        </View>
+
           </View>
         </ScrollView>
+{/* Enhanced Professional Bottom Action Bar */}
+<View style={styles.actionBar}>
+  <TouchableOpacity 
+    style={[styles.actionButton, liked && styles.likedButton]}
+    onPress={handleLike}
+  >
+    <Text style={[styles.actionIcon, liked && styles.likedIcon]}>
+      {liked ? '♥' : '♡'}
+    </Text>
+    <Text style={[styles.actionText, liked && styles.likedText]}>
+      {likeCount}
+    </Text>
+  </TouchableOpacity>
 
-        {/* Enhanced Professional Bottom Action Bar */}
-        <View style={styles.actionBar}>
-          <TouchableOpacity 
-            style={[styles.actionButton, liked && styles.likedButton]}
-            onPress={handleLike}
-          >
-            <Text style={[styles.actionIcon, liked && styles.likedIcon]}>
-              {liked ? '❤️' : '🤍'}
-            </Text>
-            <Text style={[styles.actionText, liked && styles.likedText]}>
-              {likeCount}
-            </Text>
-          </TouchableOpacity>
+  <TouchableOpacity 
+    style={styles.actionButton}
+    onPress={() => setShowComments(true)}
+  >
+    <Text style={styles.actionIcon}>💬</Text>
+    <Text style={styles.actionText}>{comments.length}</Text>
+  </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionIcon}>👎</Text>
-            <Text style={styles.actionText}>12</Text>
-          </TouchableOpacity>
+  <TouchableOpacity 
+    style={styles.enhancedShareButton}
+    onPress={handleShare}
+    disabled={shareLoading}
+  >
+    <Text style={styles.enhancedShareIcon}>
+      {shareLoading ? '⏳' : '🚀'}
+    </Text>
+    <Text style={styles.enhancedShareText}>
+      {shareLoading ? 'Sharing...' : `Share ${shareCount > 0 ? `(${shareCount})` : ''}`}
+    </Text>
+  </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => setShowComments(true)}
-          >
-            <Text style={styles.actionIcon}>💬</Text>
-            <Text style={styles.actionText}>{comments.length}</Text>
-          </TouchableOpacity>
+  <TouchableOpacity 
+  style={[styles.saveButton, isBookmarked && styles.bookmarkedButton]}
+  onPress={handleBookmark}
+  disabled={bookmarkLoading}
+>
+  <Text style={[styles.saveIcon, isBookmarked && styles.bookmarkedIcon]}>
+    {bookmarkLoading ? '⏳' : (isBookmarked ? '🔖' : '🏷️')}
+  </Text>
+</TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.shareActionButton}
-            onPress={handleShare}
-          >
-            <Text style={styles.shareIcon}>📤</Text>
-            <Text style={styles.shareText}>Share</Text>
-          </TouchableOpacity>
+</View>
 
-          <TouchableOpacity style={styles.saveButton}>
-            <Text style={styles.saveIcon}>🔖</Text>
-          </TouchableOpacity>
-        </View>
       </Animated.View>
 
       {/* Enhanced Comments Modal with Nested Replies */}
@@ -890,21 +1016,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   // Enhanced Professional Action Bar Styles
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-  },
+  // actionBar: {
+  //   flexDirection: 'row',
+  //   justifyContent: 'space-between',
+  //   alignItems: 'center',
+  //   paddingHorizontal: 15,
+  //   paddingVertical: 12,
+  //   backgroundColor: '#fff',
+  //   borderTopWidth: 1,
+  //   borderTopColor: '#e0e0e0',
+  //   elevation: 8,
+  //   shadowColor: '#000',
+  //   shadowOffset: { width: 0, height: -3 },
+  //   shadowOpacity: 0.15,
+  //   shadowRadius: 5,
+  // },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -919,6 +1045,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    borderWidth: 0, // Add this to ensure no border
   },
   likedButton: {
     backgroundColor: '#ffe6e6',
@@ -962,20 +1089,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#fff',
     fontWeight: '600',
-  },
-  saveButton: {
-    padding: 12,
-    borderRadius: 25,
-    backgroundColor: '#4CAF50',
-    elevation: 3,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-  },
-  saveIcon: {
-    fontSize: 16,
-    color: '#fff',
   },
   loadingContainer: {
     flex: 1,
@@ -1156,6 +1269,79 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  enhancedShareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10, // Reduced from 18
+    paddingVertical: 8,    // Reduced from 12
+    borderRadius: 25,
+    backgroundColor: '#4CAF50',
+    elevation: 3,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    marginHorizontal: 4,   // Reduced from 8
+    // Remove flex: 1 to prevent taking full width
+  },
+  
+  enhancedShareIcon: {
+    fontSize: 16,
+    marginRight: 8,
+    color: '#fff',
+  },
+  
+  enhancedShareText: {
+    fontSize: 13,
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  
+  // Update actionBar to better space the buttons:
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+  },saveButton: {
+    padding: 12,
+    borderRadius: 25,
+    backgroundColor: '#f5f5f5', // Changed to neutral when not bookmarked
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  bookmarkedButton: {
+    backgroundColor: '#FFD700', // Golden background when bookmarked
+    borderColor: '#FFA500',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.4,
+    elevation: 3,
+  },
+  
+  saveIcon: {
+    fontSize: 18,
+    color: '#666', // Gray when not bookmarked
+    textAlign: 'center',
+  },
+  
+  bookmarkedIcon: {
+    color: '#B8860B', // Darker gold when bookmarked
   },
 });
 
