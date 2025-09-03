@@ -225,9 +225,7 @@ const TrendingScreen = () => {
             <Ionicons name="trending-up" size={24} color="#4CAF50" />
           </View>
           
-          <Text style={styles.trendingScreenSubtitle}>
-            Discover what's capturing attention in our community
-          </Text>
+          
 
           {renderTimeRangeButtons()}
 
@@ -263,7 +261,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   trendingScreenTitle: {
-    fontSize: 30,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1A1A1A',
     marginRight: 12,
@@ -277,28 +275,26 @@ const styles = StyleSheet.create({
   timeRangeContainer: {
     flexDirection: 'row',
     marginBottom: 20,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+          
     padding: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
+    
   },
   timeRangeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 4,
+    marginHorizontal: 5,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   timeRangeButtonActive: {
     backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
   },
   timeRangeText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
     color: '#5F5F5F',
   },
   timeRangeTextActive: {
