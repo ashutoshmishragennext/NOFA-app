@@ -272,79 +272,107 @@ const handleShare = async () => {
   }
 };
 
-  const handleAddComment = async () => {
-    if (commentText.trim() === '') {
-      Alert.alert('Error', 'Please enter a comment');
+// Update the handleAddComment function
+const handleAddComment = async () => {
+  if (commentText.trim() === '') {
+    Alert.alert('Error', 'Please enter a comment');
+    return;
+  }
+
+  if (commentText.trim().length < 3) {
+    Alert.alert('Error', 'Comment must be at least 3 characters long');
+    return;
+  }
+
+  if (commentText.length > 500) {
+    Alert.alert('Error', 'Comment must be less than 500 characters');
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    
+    if (!currentUser) {
+      Alert.alert('Login Required', 'Please login to add comments');
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          articleId: article.id,
-          content: commentText.trim(),
-          authorName: 'You', // Replace with actual user data
-          authorEmail: 'user@example.com', // Replace with actual user data
-        }),
-      });
+    const commentData = {
+      articleId: article.id,
+      content: commentText.trim(),
+      authorName: currentUser.name  || 'Anonymous User',
+      authorEmail: currentUser.email || '',
+      userId: currentUser.id,
+    };
 
-      if (response.ok) {
-        setCommentText('');
-        await fetchComments(); // Refresh comments
-        Alert.alert('Success', 'Comment added successfully!');
-      } else {
-        Alert.alert('Error', 'Failed to add comment');
-      }
-    } catch (error) {
-      console.error('Error adding comment:', error);
+    const result = await apiService.createComment(commentData);
+
+    if (result.success) {
+      setCommentText('');
+      await fetchComments(); // Refresh comments
+      
+    } else {
       Alert.alert('Error', 'Failed to add comment');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    Alert.alert('Error', error.message || 'Failed to add comment');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-  const handleAddReply = async (parentId) => {
-    if (replyText.trim() === '') {
-      Alert.alert('Error', 'Please enter a reply');
+// Update the handleAddReply function
+const handleAddReply = async (parentId) => {
+  if (replyText.trim() === '') {
+    Alert.alert('Error', 'Please enter a reply');
+    return;
+  }
+
+  if (replyText.trim().length < 3) {
+    Alert.alert('Error', 'Reply must be at least 3 characters long');
+    return;
+  }
+
+  if (replyText.length > 500) {
+    Alert.alert('Error', 'Reply must be less than 500 characters');
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    
+    if (!currentUser) {
+      Alert.alert('Login Required', 'Please login to reply to comments');
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          articleId: article.id,
-          content: replyText.trim(),
-          parentId: parentId,
-          authorName: 'You', // Replace with actual user data
-          authorEmail: 'user@example.com', // Replace with actual user data
-        }),
-      });
+    const replyData = {
+      articleId: article.id,
+      content: replyText.trim(),
+      parentId: parentId,
+      authorName: currentUser.name || 'Anonymous User',
+      authorEmail: currentUser.email || '',
+      userId: currentUser.id,
+    };
 
-      if (response.ok) {
-        setReplyText('');
-        setReplyingTo(null);
-        await fetchComments(); // Refresh comments
-        Alert.alert('Success', 'Reply added successfully!');
-      } else {
-        Alert.alert('Error', 'Failed to add reply');
-      }
-    } catch (error) {
-      console.error('Error adding reply:', error);
+    const result = await apiService.createComment(replyData);
+
+    if (result.success) {
+      setReplyText('');
+      setReplyingTo(null);
+      await fetchComments(); // Refresh comments
+      
+    } else {
       Alert.alert('Error', 'Failed to add reply');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Error adding reply:', error);
+    Alert.alert('Error', error.message || 'Failed to add reply');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const panResponder = useRef(
     PanResponder.create({
@@ -725,7 +753,6 @@ const handleShare = async () => {
 
           </View>
         </ScrollView>
-{/* Enhanced Professional Bottom Action Bar */}
 <View style={styles.actionBar}>
   <TouchableOpacity 
     style={[styles.actionButton, liked && styles.likedButton]}
@@ -748,28 +775,27 @@ const handleShare = async () => {
   </TouchableOpacity>
 
   <TouchableOpacity 
-    style={styles.enhancedShareButton}
+    style={[styles.actionButton, shareLoading && styles.shareButtonLoading]}
     onPress={handleShare}
     disabled={shareLoading}
   >
-    <Text style={styles.enhancedShareIcon}>
-      {shareLoading ? '⏳' : '🚀'}
+    <Text style={styles.actionIcon}>
+      {shareLoading ? '⏳' : '⬆️'}
     </Text>
-    <Text style={styles.enhancedShareText}>
-      {shareLoading ? 'Sharing...' : `Share ${shareCount > 0 ? `(${shareCount})` : ''}`}
+    <Text style={styles.actionText}>
+      {shareLoading ? 'Sharing...' : `Share${shareCount > 0 ? ` (${shareCount})` : ''}`}
     </Text>
   </TouchableOpacity>
 
   <TouchableOpacity 
-  style={[styles.saveButton, isBookmarked && styles.bookmarkedButton]}
-  onPress={handleBookmark}
-  disabled={bookmarkLoading}
->
-  <Text style={[styles.saveIcon, isBookmarked && styles.bookmarkedIcon]}>
-    {bookmarkLoading ? '⏳' : (isBookmarked ? '🔖' : '🏷️')}
-  </Text>
-</TouchableOpacity>
-
+    style={[styles.saveButton, isBookmarked && styles.bookmarkedButton]}
+    onPress={handleBookmark}
+    disabled={bookmarkLoading}
+  >
+    <Text style={[styles.saveIcon, isBookmarked && styles.bookmarkedIcon]}>
+      {bookmarkLoading ? '⏳' : (isBookmarked ? '★' : '☆')}
+    </Text>
+  </TouchableOpacity>
 </View>
 
       </Animated.View>
@@ -803,26 +829,34 @@ const handleShare = async () => {
               onRefresh={fetchComments}
             />
           )}
+<View style={styles.commentInputContainer}>
+  <TextInput
+    style={styles.commentInput}
+    placeholder="Add a comment..."
+    value={commentText}
+    onChangeText={setCommentText}
+    multiline
+    maxLength={500}
+  />
+  <View style={styles.commentInputFooter}>
+    <Text style={styles.characterCount}>
+      {commentText.length}/500
+    </Text>
+    <TouchableOpacity 
+      style={[
+        styles.sendButton, 
+        (commentText.trim().length < 3 || isLoading) && styles.sendButtonDisabled
+      ]} 
+      onPress={handleAddComment}
+      disabled={commentText.trim().length < 3 || isLoading}
+    >
+      <Text style={styles.sendButtonText}>
+        {isLoading ? 'Sending...' : 'Send'}
+      </Text>
+    </TouchableOpacity>
+  </View>
+</View>
 
-          <View style={styles.commentInputContainer}>
-            <TextInput
-              style={styles.commentInput}
-              placeholder="Add a comment..."
-              value={commentText}
-              onChangeText={setCommentText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity 
-              style={styles.sendButton} 
-              onPress={handleAddComment}
-              disabled={isLoading}
-            >
-              <Text style={styles.sendButtonText}>
-                {isLoading ? 'Sending...' : 'Send'}
-              </Text>
-            </TouchableOpacity>
-          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -1031,27 +1065,27 @@ const styles = StyleSheet.create({
   //   shadowOpacity: 0.15,
   //   shadowRadius: 5,
   // },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 25,
-    backgroundColor: '#f5f5f5',
-    minWidth: 65,
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    borderWidth: 0, // Add this to ensure no border
-  },
-  likedButton: {
-    backgroundColor: '#ffe6e6',
-    borderColor: '#ff6b6b',
-    borderWidth: 1,
-  },
+  // actionButton: {
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   paddingHorizontal: 14,
+  //   paddingVertical: 10,
+  //   borderRadius: 25,
+  //   backgroundColor: '#f5f5f5',
+  //   minWidth: 65,
+  //   justifyContent: 'center',
+  //   elevation: 2,
+  //   shadowColor: '#000',
+  //   shadowOffset: { width: 0, height: 1 },
+  //   shadowOpacity: 0.1,
+  //   shadowRadius: 2,
+  //   borderWidth: 0, // Add this to ensure no border
+  // },
+  // likedButton: {
+  //   backgroundColor: '#ffe6e6',
+  //   borderColor: '#ff6b6b',
+  //   borderWidth: 1,
+  // },
   shareActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1233,26 +1267,197 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  commentInputContainer: {
+  // commentInputContainer: {
+  //   flexDirection: 'row',
+  //   alignItems: 'flex-end',
+  //   paddingHorizontal: 20,
+  //   paddingVertical: 15,
+  //   borderTopWidth: 1,
+  //   borderTopColor: '#f0f0f0',
+  //   backgroundColor: '#fff',
+  // },
+  // commentInput: {
+  //   flex: 1,
+  //   borderWidth: 1,
+  //   borderColor: '#ddd',
+  //   borderRadius: 20,
+  //   paddingHorizontal: 15,
+  //   paddingVertical: 10,
+  //   marginRight: 10,
+  //   maxHeight: 100,
+  //   fontSize: 14,
+  //   backgroundColor: '#f9f9f9',
+  // },
+  // sendButton: {
+  //   backgroundColor: '#4CAF50',
+  //   paddingHorizontal: 20,
+  //   paddingVertical: 12,
+  //   borderRadius: 20,
+  //   elevation: 2,
+  //   shadowColor: '#4CAF50',
+  //   shadowOffset: { width: 0, height: 1 },
+  //   shadowOpacity: 0.3,
+  //   shadowRadius: 2,
+  // },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  enhancedShareButton: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 25,
+    elevation: 3,
+    shadowColor: '#848e96ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    marginHorizontal: 4,
+    minWidth: 80,
+    justifyContent: 'center',
+  },
+  
+  shareButtonLoading: {
+    backgroundColor: '#90CAF9',
+    elevation: 1,
+  },
+  
+  enhancedShareIcon: {
+    fontSize: 16,
+    marginRight: 6,
+    fontWeight: 'bold',
+    transform: [{ rotate: '0deg' }], // You can animate this
+  },
+  
+  enhancedShareText: {
+    fontSize: 12,
+    color: '#000',
+    fontWeight: '600',
+  },
+  
+  // Enhanced Bookmark/Save Button
+  saveButton: {
+    padding: 10,
+    borderRadius: 25,
+    backgroundColor: '#f8f9fa',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  bookmarkedButton: {
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFEAA7',
+    shadowColor: '#FDCB6E',
+    shadowOpacity: 0.3,
+    elevation: 3,
+    transform: [{ scale: 1.05 }], // Slight scale up when bookmarked
+  },
+  
+  saveIcon: {
+    fontSize: 20,
+    color: '#6c757d',
+    textAlign: 'center',
+  },
+  
+  bookmarkedIcon: {
+    color: '#F39C12',
+    textShadowColor: '#E67E22',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  
+  // Updated Action Bar for better spacing
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  
+  shareButtonModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#6c757d',
+    minWidth: 75,
+    justifyContent: 'center',
+  },
+  
+  shareIconModern: {
+    fontSize: 16,
+    marginRight: 5,
+    color: '#6c757d',
+  },
+  
+  shareTextModern: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontWeight: '600',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 25,
+    backgroundColor: '#f8f9fa',
+    minWidth: 65,
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  
+  likedButton: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#F8BBD9',
+    shadowColor: '#E91E63',
+    shadowOpacity: 0.2,
+  },
+  commentInputContainer: {
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
     backgroundColor: '#fff',
   },
-  commentInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
-    maxHeight: 100,
-    fontSize: 14,
-    backgroundColor: '#f9f9f9',
+  commentInputFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: '#999',
   },
   sendButton: {
     backgroundColor: '#4CAF50',
@@ -1265,83 +1470,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 2,
   },
-  sendButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
+  sendButtonDisabled: {
+    backgroundColor: '#ccc',
+    elevation: 0,
+    shadowOpacity: 0,
   },
-  enhancedShareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10, // Reduced from 18
-    paddingVertical: 8,    // Reduced from 12
-    borderRadius: 25,
-    backgroundColor: '#4CAF50',
-    elevation: 3,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    marginHorizontal: 4,   // Reduced from 8
-    // Remove flex: 1 to prevent taking full width
-  },
-  
-  enhancedShareIcon: {
-    fontSize: 16,
-    marginRight: 8,
-    color: '#fff',
-  },
-  
-  enhancedShareText: {
-    fontSize: 13,
-    color: '#fff',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  
-  // Update actionBar to better space the buttons:
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-  },saveButton: {
-    padding: 12,
-    borderRadius: 25,
-    backgroundColor: '#f5f5f5', // Changed to neutral when not bookmarked
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+  commentInput: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  bookmarkedButton: {
-    backgroundColor: '#FFD700', // Golden background when bookmarked
-    borderColor: '#FFA500',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.4,
-    elevation: 3,
-  },
-  
-  saveIcon: {
-    fontSize: 18,
-    color: '#666', // Gray when not bookmarked
-    textAlign: 'center',
-  },
-  
-  bookmarkedIcon: {
-    color: '#B8860B', // Darker gold when bookmarked
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    maxHeight: 100,
+    fontSize: 14,
+    backgroundColor: '#f9f9f9',
   },
 });
 
