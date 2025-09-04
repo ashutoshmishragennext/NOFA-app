@@ -241,8 +241,6 @@ useEffect(() => {
       };
 
       await AsyncStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(localLikeData));
-      console.log('Stored pending like data:', localLikeData);
-
       // Schedule sync
       scheduleLikeSync();
 
@@ -477,12 +475,8 @@ useEffect(() => {
 
   return (
  <SafeAreaView style={styles.container}>
-      {/* Add navigation indicator */}
-      <View style={styles.navigationIndicator}>
-        <Text style={styles.navText}>
-          {currentIndex + 1} of {totalArticles} • {sourceTab}
-        </Text>
-      </View>      <StatusBar barStyle="light-content" backgroundColor="#000" />
+           
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
       
       <Animated.View 
         style={[
