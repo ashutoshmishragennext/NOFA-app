@@ -375,6 +375,25 @@ async getComments(params:any): Promise<GetFoldersResponse> {
   
   return result;
 }
+async getTerending(params:any): Promise<GetFoldersResponse> {
+  const searchParams = new URLSearchParams();
+  
+  // if (params.id) searchParams.append('id', params.id);
+  if (params.timeRange) searchParams.append('timeRange', params.timeRange);
+  
+  const url = `/api/trending?limit=11&timeRange=${searchParams.toString()}`;
+  
+  console.log("Fetching folders with URL:", url);
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<GetFoldersResponse>(response);
+  console.log("Folders fetched:", result);
+  
+  return result;
+}
 
 // async createComments(documentData: any): Promise<CreateDocumentResponse> {
   

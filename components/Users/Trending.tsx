@@ -1,22 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Dimensions,
+  ActivityIndicator,
+  Alert,
   Image,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
+  View
 } from 'react-native';
 
 // TRENDING SCREEN COMPONENT
-const TrendingScreen = () => {
+const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
   const [trendingArticles, setTrendingArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,7 +22,7 @@ const TrendingScreen = () => {
   const [error, setError] = useState(null);
 
   // Replace with your actual API base URL
-  const API_BASE_URL = 'http://192.168.0.101:3000'; 
+  const API_BASE_URL = 'https://nofa-sepia.vercel.app'; 
 
   const fetchTrendingArticles = async (refresh = false) => {
     try {
@@ -42,7 +40,7 @@ const TrendingScreen = () => {
           headers: {
             'Content-Type': 'application/json',
             // Add any authentication headers if needed
-            // 'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiI5MzI4ZmRjNC03ZThmLTQ1NTgtOTA4MS0xNjE3MDc4YTMyMDYiLCJleHAiOjE3NTYyNzYwNTl9.8T7NYohV7U3QROwubIyptIjDBbB49zVVMwE-0foZ6j0`,
           },
         }
       );
@@ -75,7 +73,25 @@ const TrendingScreen = () => {
       setRefreshing(false);
     }
   };
-
+const fetchComments = async () => {
+  try {
+    const response = await apiService.getComments({
+      "articleId":article.id
+    });
+    
+    // Check if response has the expected structure
+    if (response && response.comments) {
+      const organizedComments = organizeComments(response.comments);
+      setComments(organizedComments);
+    } else {
+      console.error('Unexpected response format:', response);
+      setComments([]);
+    }
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    Alert.alert('Error', 'Failed to fetch comments');
+  }
+};
   useEffect(() => {
     fetchTrendingArticles();
   }, [timeRange]);
@@ -162,53 +178,57 @@ const TrendingScreen = () => {
     </View>
   );
 
-  const renderTrendingItem = (article) => (
-    <TouchableOpacity key={article.id} style={styles.trendingListItem}>
-      {article.featuredImage && (
-        <Image 
-          source={{ uri: article.featuredImage }} 
-          style={styles.articleImage}
-          resizeMode="cover"
-        />
-      )}
-      
-      <View style={styles.trendingItemContent}>
-        <View style={styles.titleScoreContainer}>
-          <Text style={styles.trendingItemTitle} numberOfLines={2}>
-            {article.title}
+const renderTrendingItem = (article) => (
+  <TouchableOpacity 
+    key={article.id} 
+    style={styles.trendingListItem}
+    onPress={() => onArticlePress(article)}  // ✅ call onArticlePress
+  >
+    {article.featuredImage && (
+      <Image 
+        source={{ uri: article.featuredImage }} 
+        style={styles.articleImage}
+        resizeMode="cover"
+      />
+    )}
+    
+    <View style={styles.trendingItemContent}>
+      <View style={styles.titleScoreContainer}>
+        <Text style={styles.trendingItemTitle} numberOfLines={2}>
+          {article.title}
+        </Text>
+        <View style={styles.trendingScoreContainer}>
+          <Ionicons name="trending-up" size={16} color="#4CAF50" />
+          <Text style={styles.trendingScore}>
+            {formatTrendingScore(article.trendingScore)}
           </Text>
-          <View style={styles.trendingScoreContainer}>
-            <Ionicons name="trending-up" size={16} color="#4CAF50" />
-            <Text style={styles.trendingScore}>
-              {formatTrendingScore(article.trendingScore)}
-            </Text>
-          </View>
         </View>
-        <Text style={styles.trendingItemAuthor}>by {article.authorName}</Text>
+      </View>
+      <Text style={styles.trendingItemAuthor}>by {article.authorName}</Text>
+      
+      <View style={styles.metricsTimeContainer}>
+        <Text style={styles.trendingItemTime}>
+          {getTimeAgo(article.publicationDate)}
+        </Text>
         
-        <View style={styles.metricsTimeContainer}>
-          <Text style={styles.trendingItemTime}>
-            {getTimeAgo(article.publicationDate)}
-          </Text>
-          
-          <View style={styles.metricsContainer}>
-            <View style={styles.metricItem}>
-              <Ionicons name="eye" size={14} color="#1E88E5" />
-              <Text style={styles.metricText}>{formatNumber(article.viewCount)}</Text>
-            </View>
-            <View style={styles.metricItem}>
-              <Ionicons name="heart" size={14} color={article.likeCount > 0 ? "#E91E63" : "#999"} />
-              <Text style={styles.metricText}>{formatNumber(article.likeCount)}</Text>
-            </View>
-            <View style={styles.metricItem}>
-              <Ionicons name="chatbubble" size={14} color="#4CAF50" />
-              <Text style={styles.metricText}>{formatNumber(article.commentCount)}</Text>
-            </View>
+        <View style={styles.metricsContainer}>
+          <View style={styles.metricItem}>
+            <Ionicons name="eye" size={14} color="#1E88E5" />
+            <Text style={styles.metricText}>{formatNumber(article.viewCount)}</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Ionicons name="heart" size={14} color={article.likeCount > 0 ? "#E91E63" : "#999"} />
+            <Text style={styles.metricText}>{formatNumber(article.likeCount)}</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Ionicons name="chatbubble" size={14} color="#4CAF50" />
+            <Text style={styles.metricText}>{formatNumber(article.commentCount)}</Text>
           </View>
         </View>
       </View>
-    </TouchableOpacity>
-  );
+    </View>
+  </TouchableOpacity>
+);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -253,7 +273,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trendingScreenContainer: {
-    padding: 18,
+    padding: 10,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -276,7 +296,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 10,
           
-    padding: 6,
+    padding: 4,
     
   },
   timeRangeButton: {
@@ -304,7 +324,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     
-    elevation: 3,
+    // elevation: 3,
     overflow: 'hidden',
   },
   trendingListItem: {

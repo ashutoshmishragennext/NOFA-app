@@ -1,15 +1,15 @@
 import { apiService } from '@/api';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { 
-  Dimensions, 
-  Image, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View,
-  ActivityIndicator 
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -191,7 +191,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
           </TouchableOpacity>
         ))}
       </ScrollView>
-
+     
       {/* Main News Card */}
       {isLoading ? (
         <View style={styles.placeholderContainer}>
@@ -239,41 +239,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </View>
       )}
 
-      {/* Category Filtered Articles - Only show if there are more than 3 articles */}
-      {!isLoading && filteredArticles.length > 3 && (
-        <>
-          <Text style={styles.sectionTitle}>
-            {selectedCategoryId 
-              ? `More ${categories.find(cat => cat.id === selectedCategoryId)?.name || 'Category'} Articles` 
-              : 'More Articles'}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
-            {filteredArticles.slice(3).map((item, index) => (
-              <TouchableOpacity 
-                key={item.id || index} 
-                style={styles.trendingItem}
-                onPress={() => onArticlePress(item)}
-              >
-                <Image 
-                  source={{ uri: item.featuredImage || item.image }} 
-                  style={styles.trendingImage} 
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.6)']}
-                  style={styles.trendingGradient}
-                />
-                <View style={styles.trendingTextOverlay}>
-                  <Text style={styles.trendingTitle} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </>
-      )}
-
-      {/* Trending Collection */}
+       {/* Trending Collection */}
       {!isLoading && (
         <>
           <Text style={styles.sectionTitle}>
@@ -340,6 +306,42 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
           </ScrollView>
         </>
       )}
+      {/* Category Filtered Articles - Only show if there are more than 3 articles */}
+      {!isLoading && filteredArticles.length > 3 && (
+        <>
+          <Text style={styles.sectionTitle}>
+            {selectedCategoryId 
+              ? `More ${categories.find(cat => cat.id === selectedCategoryId)?.name || 'Category'} Articles` 
+              : 'More Articles'}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
+            {filteredArticles.slice(3).map((item, index) => (
+              <TouchableOpacity 
+                key={item.id || index} 
+                style={styles.trendingItem}
+                onPress={() => onArticlePress(item)}
+              >
+                <Image 
+                  source={{ uri: item.featuredImage || item.image }} 
+                  style={styles.trendingImage} 
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.6)']}
+                  style={styles.trendingGradient}
+                />
+                <View style={styles.trendingTextOverlay}>
+                  <Text style={styles.trendingTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
+     
+      
     </ScrollView>
   );
 };

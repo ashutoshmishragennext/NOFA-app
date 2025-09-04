@@ -57,7 +57,7 @@ const NewsApp = () => {
       case "Explore":
         return <ExploreScreen onArticlePress={handleArticlePress} />;
       case "Trending":
-        return <TrendingScreen />;
+        return <TrendingScreen  onArticlePress={handleArticlePress}/>;
       case "Saved":
         return <SavedScreen  onArticlePress={handleArticlePress}/>;
       case "Profile":
