@@ -99,6 +99,7 @@ const handleNextArticle = () => {
         return <HomeScreen onArticlePress={handleArticlePress} />;
       case "Explore":
         return <ExploreScreen onArticlePress={handleArticlePress} />;
+        return <ExploreScreen onArticlePress={handleArticlePress} />;
       case "Trending":
         return <TrendingScreen onArticlePress={handleArticlePress} />;
       case "Saved":
