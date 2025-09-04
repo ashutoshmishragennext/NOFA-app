@@ -5,7 +5,7 @@ import ProfileScreen from "@/components/Users/Profile";
 import SavedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Image,
   SafeAreaView,
@@ -14,6 +14,8 @@ import {
   Text,
   TouchableOpacity,
   View,
+  BackHandler,  // Add this import
+  Alert,        // Add this import
 } from "react-native";
 
 const NewsApp = () => {
@@ -22,10 +24,10 @@ const NewsApp = () => {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   
-  // NEW: Track articles list and current position
+  // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
-  const [sourceTab, setSourceTab] = useState("Home"); // Track where articles came from
+  const [sourceTab, setSourceTab] = useState("Home");
 
   const bottomTabs = [
     { name: "Home", icon: "home", activeIcon: "home" },
@@ -39,16 +41,52 @@ const NewsApp = () => {
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
-  // UPDATED: Handle article press with articles list context
+  // ADDED: Custom back button handler
+  useEffect(() => {
+    const backAction = () => {
+      // If we're in detail view, close it instead of exiting app
+      if (currentView === "detail" && selectedArticle) {
+        handleBackPress();
+        return true; // Prevent default behavior (app exit)
+      }
+      
+      // If we're on main screen, show exit confirmation (optional)
+      Alert.alert(
+        "Exit App",
+        "Do you want to exit the app?",
+        [
+          {
+            text: "Cancel",
+            onPress: () => null,
+            style: "cancel"
+          },
+          { 
+            text: "Exit", 
+            onPress: () => BackHandler.exitApp() 
+          }
+        ]
+      );
+      return true; // Prevent default behavior
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [currentView, selectedArticle]); // Dependencies to update handler when view changes
+
+  // Handle article press with articles list context
   const handleArticlePress = (article, articlesList = [], articleIndex = 0) => {
     setSelectedArticle(article);
     setArticlesList(articlesList);
     setCurrentArticleIndex(articleIndex);
-    setSourceTab(currentTab); // Remember which tab we came from
+    setSourceTab(currentTab);
     setCurrentView("detail");
   };
 
-  // UPDATED: Handle back press
+  // Handle back press
   const handleBackPress = () => {
     setCurrentView("main");
     setSelectedArticle(null);
@@ -56,36 +94,14 @@ const NewsApp = () => {
     setCurrentArticleIndex(0);
   };
 
-  // NEW: Handle next article navigation
-// In your parent component (NewsApp), update handleNextArticle:
-const handleNextArticle = () => {
-  console.log('=== NEXT ARTICLE DEBUG ===');
-  console.log('Current Index:', currentArticleIndex);
-  console.log('Articles List Length:', articlesList.length);
-  console.log('Has Next:', currentArticleIndex < articlesList.length - 1);
-  
-  if (currentArticleIndex < articlesList.length - 1) {
-    const nextIndex = currentArticleIndex + 1;
-    const nextArticle = articlesList[nextIndex];
-    
-    console.log('Next Index:', nextIndex);
-    console.log('Next Article:', nextArticle);
-    
-    setSelectedArticle(nextArticle);
-    setCurrentArticleIndex(nextIndex);
-  } else {
-    console.log('No next article available');
-  }
-};
-
-  // NEW: Handle previous article navigation (optional, if you want both directions)
-  const handlePrevArticle = () => {
-    if (currentArticleIndex > 0) {
-      const prevIndex = currentArticleIndex - 1;
-      const prevArticle = articlesList[prevIndex];
+  // Handle next article navigation
+  const handleNextArticle = () => {
+    if (currentArticleIndex < articlesList.length - 1) {
+      const nextIndex = currentArticleIndex + 1;
+      const nextArticle = articlesList[nextIndex];
       
-      setSelectedArticle(prevArticle);
-      setCurrentArticleIndex(prevIndex);
+      setSelectedArticle(nextArticle);
+      setCurrentArticleIndex(nextIndex);
     }
   };
 
@@ -99,7 +115,6 @@ const handleNextArticle = () => {
         return <HomeScreen onArticlePress={handleArticlePress} />;
       case "Explore":
         return <ExploreScreen onArticlePress={handleArticlePress} />;
-        return <ExploreScreen onArticlePress={handleArticlePress} />;
       case "Trending":
         return <TrendingScreen onArticlePress={handleArticlePress} />;
       case "Saved":
@@ -112,25 +127,38 @@ const handleNextArticle = () => {
   };
 
   // Show Detail Screen if article is selected
-// In your NewsApp component, update the detail screen render:
-if (currentView === "detail" && selectedArticle) {
-  const hasNext = currentArticleIndex < articlesList.length - 1;
-  const hasPrev = currentArticleIndex > 0;
+  const handlePrevArticle = () => {
+    if (currentArticleIndex > 0) {
+      const prevIndex = currentArticleIndex - 1;
+      const prevArticle = articlesList[prevIndex];
+      
+      setSelectedArticle(prevArticle);
+      setCurrentArticleIndex(prevIndex);
+    }
+  };
 
-  return (
-    <NewsDetailScreen 
-      key={selectedArticle.id} // 👈 ADD THIS KEY PROP
-      article={selectedArticle} 
-      onBack={handleBackPress}
-      onNext={hasNext ? handleNextArticle : null}
-      hasNext={hasNext}
-      currentIndex={currentArticleIndex}
-      totalArticles={articlesList.length}
-      sourceTab={sourceTab}
-    />
-  );
-}
+  // ... existing handlers
 
+  // Show Detail Screen if article is selected
+  if (currentView === "detail" && selectedArticle) {
+    const hasNext = currentArticleIndex < articlesList.length - 1;
+    const hasPrev = currentArticleIndex > 0; // NEW: Check if has previous
+
+    return (
+      <NewsDetailScreen 
+        key={selectedArticle.id}
+        article={selectedArticle} 
+        onBack={handleBackPress}
+        onNext={hasNext ? handleNextArticle : null}
+        onPrev={hasPrev ? handlePrevArticle : handleBackPress} // NEW: Previous handler
+        hasNext={hasNext}
+        hasPrev={hasPrev} // NEW: Has previous flag
+        currentIndex={currentArticleIndex}
+        totalArticles={articlesList.length}
+        sourceTab={sourceTab}
+      />
+    );
+  }
   // MAIN APP SCREEN
   return (
     <SafeAreaView style={styles.container}>

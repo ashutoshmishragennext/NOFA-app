@@ -30,6 +30,8 @@ const NewsDetailScreen = ({
   onBack, 
   onNext, 
   hasNext, 
+  onPrev, // NEW: Previous handler
+  hasPrev = false, // NEW: Has previous flag
   currentIndex, 
   totalArticles,
   sourceTab 
@@ -357,7 +359,7 @@ useEffect(() => {
   };
 
   // Pan responder for swipe gestures
-  const panResponder = useRef(
+    const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
@@ -376,31 +378,46 @@ useEffect(() => {
       onPanResponderRelease: (evt, gestureState) => {
         pan.flattenOffset();
         
-        const shouldGoBack = gestureState.dx > width * 0.3 && gestureState.vx > 0;
-        const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0;
+        const shouldGoBack = gestureState.dx > width * 0.3 && gestureState.vx > 0; // Right swipe
+        const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0; // Left swipe
 
         if (shouldGoBack) {
-          // Force sync likes before navigation
-          forceSyncLikes();
-          
-          Animated.parallel([
-            Animated.timing(pan.x, {
-              toValue: width,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]).start(() => {
-            if (onBack) onBack();
-          });
+          // Right swipe - go to previous article or home
+          if (currentIndex === 0) {
+            // First article - go back to home screen
+            Animated.parallel([
+              Animated.timing(pan.x, {
+                toValue: width,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              Animated.timing(opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+            ]).start(() => {
+              if (onBack) onBack();
+            });
+          } else {
+            // Has previous article - go to previous
+            Animated.parallel([
+              Animated.timing(pan.x, {
+                toValue: width,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              Animated.timing(opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+            ]).start(() => {
+              if (onPrev) onPrev();
+            });
+          }
         } else if (shouldGoNext && hasNext) {
-          // Force sync likes before navigation
-          forceSyncLikes();
-          
+          // Left swipe - go to next article
           Animated.parallel([
             Animated.timing(pan.x, {
               toValue: -width,
@@ -416,6 +433,7 @@ useEffect(() => {
             if (onNext) onNext();
           });
         } else {
+          // Snap back if gesture is not strong enough
           Animated.parallel([
             Animated.spring(pan.x, {
               toValue: 0,

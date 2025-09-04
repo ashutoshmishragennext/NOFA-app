@@ -17,13 +17,26 @@ import {
 
 const { width } = Dimensions.get('window');
 
-const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
+// UPDATED: prop type to support navigation
+const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [pagination, setPagination] = useState<any>(null);
- 
+
+  // ADDED: Handle article press with navigation context
+  const handleArticlePress = (article: any, index: number) => {
+    console.log('Search result article pressed:', article.title, 'Index:', index);
+    
+    // Pass all search results for navigation
+    const allSearchResults = [...searchResults];
+    
+    console.log('Search results for navigation:', allSearchResults.length);
+    console.log('Selected article index:', index);
+    
+    onArticlePress(article, allSearchResults, index);
+  };
   
   // Debounce search to avoid too many API calls
   useEffect(() => {
@@ -47,8 +60,13 @@ const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => v
     
     try {
       const response = await apiService.searchArticles({'q':query});
-       console.warn(response.articles);
-      setSearchResults(response.articles || []);
+      console.warn(response.articles);
+      
+      // Filter out invalid articles for navigation
+      const validArticles = (response.articles || []).filter(article => article && article.id);
+      console.log('Valid search results:', validArticles.length);
+      
+      setSearchResults(validArticles);
       // setPagination(response.data.pagination || null);
     } catch (error) {
       console.error("Error searching articles:", error);
@@ -103,10 +121,10 @@ const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => v
                 Found {pagination?.totalItems || searchResults.length} results for "{searchQuery}"
               </Text>
               
-              {/* Main Featured Result */}
+              {/* Main Featured Result - UPDATED */}
               {searchResults[0] && (
                 <TouchableOpacity 
-                  onPress={() => onArticlePress(searchResults[0])} 
+                  onPress={() => handleArticlePress(searchResults[0], 0)} 
                   style={styles.featuredResult}
                 >
                   <Image 
@@ -132,13 +150,13 @@ const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => v
                 </TouchableOpacity>
               )}
 
-              {/* Other Results */}
+              {/* Other Results - UPDATED */}
               <Text style={styles.sectionTitle}>More Results</Text>
               {searchResults.slice(1).map((article, index) => (
                 <TouchableOpacity 
                   key={article.id || index} 
                   style={styles.resultItem}
-                  onPress={() => onArticlePress(article)}
+                  onPress={() => handleArticlePress(article, index + 1)} // index + 1 because we sliced from 1
                 >
                   <View style={styles.resultContent}>
                     <View style={styles.resultText}>
@@ -178,7 +196,6 @@ const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => v
         </ScrollView>
       ) : (
         <View style={styles.initialStateContainer}>
-          {/* <Ionicons name="search-outline" size={50} color="#e0e0e0" /> */}
           <Text style={styles.initialStateTitle}>Search for articles</Text>
           <Text style={styles.initialStateText}>
             Find news, topics, and stories by typing in the search bar above
@@ -205,6 +222,7 @@ const ExploreScreen = ({ onArticlePress }: { onArticlePress: (article: any) => v
   );
 };
 
+// Keep all your existing styles unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
