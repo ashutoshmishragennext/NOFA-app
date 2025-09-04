@@ -16,12 +16,16 @@ import {
   View,
 } from "react-native";
 
-
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  
+  // NEW: Track articles list and current position
+  const [articlesList, setArticlesList] = useState([]);
+  const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
+  const [sourceTab, setSourceTab] = useState("Home"); // Track where articles came from
 
   const bottomTabs = [
     { name: "Home", icon: "home", activeIcon: "home" },
@@ -35,18 +39,57 @@ const NewsApp = () => {
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
-  // Navigation Functions
-  const handleArticlePress = (article: any) => {
+  // UPDATED: Handle article press with articles list context
+  const handleArticlePress = (article, articlesList = [], articleIndex = 0) => {
     setSelectedArticle(article);
+    setArticlesList(articlesList);
+    setCurrentArticleIndex(articleIndex);
+    setSourceTab(currentTab); // Remember which tab we came from
     setCurrentView("detail");
   };
 
+  // UPDATED: Handle back press
   const handleBackPress = () => {
     setCurrentView("main");
     setSelectedArticle(null);
+    setArticlesList([]);
+    setCurrentArticleIndex(0);
   };
 
-  const handleTabPress = (tabName: string) => {
+  // NEW: Handle next article navigation
+// In your parent component (NewsApp), update handleNextArticle:
+const handleNextArticle = () => {
+  console.log('=== NEXT ARTICLE DEBUG ===');
+  console.log('Current Index:', currentArticleIndex);
+  console.log('Articles List Length:', articlesList.length);
+  console.log('Has Next:', currentArticleIndex < articlesList.length - 1);
+  
+  if (currentArticleIndex < articlesList.length - 1) {
+    const nextIndex = currentArticleIndex + 1;
+    const nextArticle = articlesList[nextIndex];
+    
+    console.log('Next Index:', nextIndex);
+    console.log('Next Article:', nextArticle);
+    
+    setSelectedArticle(nextArticle);
+    setCurrentArticleIndex(nextIndex);
+  } else {
+    console.log('No next article available');
+  }
+};
+
+  // NEW: Handle previous article navigation (optional, if you want both directions)
+  const handlePrevArticle = () => {
+    if (currentArticleIndex > 0) {
+      const prevIndex = currentArticleIndex - 1;
+      const prevArticle = articlesList[prevIndex];
+      
+      setSelectedArticle(prevArticle);
+      setCurrentArticleIndex(prevIndex);
+    }
+  };
+
+  const handleTabPress = (tabName) => {
     setCurrentTab(tabName);
   };
 
@@ -55,11 +98,11 @@ const NewsApp = () => {
       case "Home":
         return <HomeScreen onArticlePress={handleArticlePress} />;
       case "Explore":
-        return <ExploreScreen />;
+        return <ExploreScreen onArticlePress={handleArticlePress} />;
       case "Trending":
-        return <TrendingScreen />;
+        return <TrendingScreen onArticlePress={handleArticlePress} />;
       case "Saved":
-        return <SavedScreen  onArticlePress={handleArticlePress}/>;
+        return <SavedScreen onArticlePress={handleArticlePress} />;
       case "Profile":
         return <ProfileScreen />;
       default:
@@ -68,16 +111,29 @@ const NewsApp = () => {
   };
 
   // Show Detail Screen if article is selected
-  if (currentView === "detail" && selectedArticle) {
-    return (
-      <NewsDetailScreen article={selectedArticle} onBack={handleBackPress} />
-    );
-  }
+// In your NewsApp component, update the detail screen render:
+if (currentView === "detail" && selectedArticle) {
+  const hasNext = currentArticleIndex < articlesList.length - 1;
+  const hasPrev = currentArticleIndex > 0;
+
+  return (
+    <NewsDetailScreen 
+      key={selectedArticle.id} // 👈 ADD THIS KEY PROP
+      article={selectedArticle} 
+      onBack={handleBackPress}
+      onNext={hasNext ? handleNextArticle : null}
+      hasNext={hasNext}
+      currentIndex={currentArticleIndex}
+      totalArticles={articlesList.length}
+      sourceTab={sourceTab}
+    />
+  );
+}
 
   // MAIN APP SCREEN
   return (
     <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Image
             source={require("../../assets/images/logo.png")}
@@ -92,9 +148,6 @@ const NewsApp = () => {
         </TouchableOpacity>
       </View>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* Header */}
-      {/* <Navbar/> */}
 
       {/* Menu Dropdown */}
       {menuVisible && (
@@ -145,6 +198,7 @@ const NewsApp = () => {
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

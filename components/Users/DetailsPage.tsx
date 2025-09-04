@@ -25,7 +25,15 @@ import { useAuth } from '@/context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
-const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
+const NewsDetailScreen = ({ 
+  article, 
+  onBack, 
+  onNext, 
+  hasNext, 
+  currentIndex, 
+  totalArticles,
+  sourceTab 
+}) => {
   const [showComments, setShowComments] = useState(false);
   const [commentsCount, setCommentsCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -161,6 +169,16 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
       throw error; // Re-throw to handle in caller
     }
   };
+
+useEffect(() => {
+  // Only run cleanup, the article-specific initialization is handled above
+  return () => {
+    if (likeUpdateTimer.current) {
+      clearTimeout(likeUpdateTimer.current);
+    }
+  };
+}, []);
+
 
   // Load share count
   useEffect(() => {
@@ -440,8 +458,13 @@ const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
   const keywordsArray = processKeywords(article.keywords);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+ <SafeAreaView style={styles.container}>
+      {/* Add navigation indicator */}
+      <View style={styles.navigationIndicator}>
+        <Text style={styles.navText}>
+          {currentIndex + 1} of {totalArticles} • {sourceTab}
+        </Text>
+      </View>      <StatusBar barStyle="light-content" backgroundColor="#000" />
       
       <Animated.View 
         style={[
@@ -900,6 +923,19 @@ const styles = StyleSheet.create({
     color: '#ae0202ff',
     fontWeight: '600',
   },
+   navigationIndicator : {
+  paddingHorizontal: 20,
+  paddingVertical: 8,
+  backgroundColor: '#f8f9fa',
+  borderBottomWidth: 1,
+  borderBottomColor: '#f0f0f0',
+},
+
+ navText : {
+  fontSize: 12,
+  color: '#666',
+  textAlign: 'center',
+},
 });
 
 export default NewsDetailScreen;

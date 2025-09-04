@@ -1,6 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-
 import { apiService } from '@/api';
 import {
   Dimensions,
@@ -14,7 +13,7 @@ import {
 
 const { width } = Dimensions.get('window');
 
-const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
+const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   const [articals, setArticals] = useState<any>();
   const [trending, setTrending] = useState<any>([]);
   const [categories, setCategories] = useState<any>([]);
@@ -23,13 +22,60 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
   const [categoryTrendingArticles, setCategoryTrendingArticles] = useState<any>([]);
   const [categoryLatestArticles, setCategoryLatestArticles] = useState<any>([]);
 
+  // NEW: Create combined articles array for navigation
+  const getAllCurrentArticles = () => {
+    const allArticles = [];
+    
+    // Add main articles first
+    if (filteredArticles && filteredArticles.length > 0) {
+      allArticles.push(...filteredArticles);
+    } else if (articals) {
+      allArticles.push(articals);
+    }
+    
+    // Add trending articles
+    const trendingToAdd = selectedCategoryId ? categoryTrendingArticles : trending;
+    if (trendingToAdd && trendingToAdd.length > 0) {
+      allArticles.push(...trendingToAdd);
+    }
+    
+    // Add latest articles
+    const latestToAdd = selectedCategoryId ? categoryLatestArticles : [];
+    if (latestToAdd && latestToAdd.length > 0) {
+      allArticles.push(...latestToAdd);
+    }
+    
+    // Remove duplicates based on ID
+    const uniqueArticles = allArticles.filter((article, index, self) => 
+      index === self.findIndex(a => a.id === article.id)
+    );
+    
+    return uniqueArticles;
+  };
+
+  // UPDATED: Handle article press with proper navigation context
+  const handleArticlePress = (article: any, section: 'main' | 'trending' | 'latest' | 'filtered', sectionIndex: number) => {
+    const allArticles = getAllCurrentArticles();
+    
+    // Find the actual index of this article in the combined array
+    const globalIndex = allArticles.findIndex(a => a.id === article.id);
+    
+    if (globalIndex !== -1) {
+      onArticlePress(article, allArticles, globalIndex);
+    } else {
+      // Fallback: if not found, just pass the article with its section
+      const fallbackArticles = [article];
+      onArticlePress(article, fallbackArticles, 0);
+    }
+  };
+
+  // Your existing fetch functions remain the same
   const fetchgetCategories = async () => {
     try {
       const response = await apiService.getCategories();
       const Categories = response.data; 
       setCategories(Categories);
       
-      // Set first category as selected by default
       if (Categories && Categories.length > 0) {
         setSelectedCategoryId(Categories[0].id);
       }
@@ -70,21 +116,18 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
       const articles = response.data;
       setFilteredArticles(articles);
       
-      // Update main article to first article of selected category
       if (articles && articles.length > 0) {
         setArticals(articles[0]);
       }
 
-      // Fetch trending articles for this category
       const trendingResponse = await apiService.getDocuments({
         categoryId: categoryId,
         isTrending: true
       });
       setCategoryTrendingArticles(trendingResponse.data || []);
 
-      // Use remaining articles as latest updates for this category
       if (articles && articles.length > 1) {
-        setCategoryLatestArticles(articles.slice(-5)); // Last 5 articles as latest
+        setCategoryLatestArticles(articles.slice(-5));
       }
     } catch (error) {
       console.error("Error fetching articles by category:", error);
@@ -105,19 +148,11 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
     fetchgetCategories();
   }, []);
 
-  // Fetch articles when selectedCategoryId changes
   useEffect(() => {
     if (selectedCategoryId !== null) {
       fetchArticlesByCategory(selectedCategoryId);
     }
   }, [selectedCategoryId]);
-
-  const mainNews = {
-    title: "Trump Dials PM Modi, shares insight on Alaska summit",
-    source: "Republic TV",
-    image: "https://fortune.com/img-assets/wp-content/uploads/2024/11/GettyImages-1203050488-e1730968620314.jpg?w=1440&q=75",
-    isExclusive: true
-  };
 
   const bottomNews = [
     {
@@ -163,7 +198,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         ))}
       </ScrollView>
 
-      {/* Main News Card */}
+      {/* Main News Card - UPDATED with proper navigation */}
       {filteredArticles && filteredArticles.length > 0 ? (
         <ScrollView 
           horizontal 
@@ -174,7 +209,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
           {filteredArticles.slice(0, 3).map((article, index) => (
             <TouchableOpacity 
               key={article.id || index}
-              onPress={() => onArticlePress(article)} 
+              onPress={() => handleArticlePress(article, 'filtered', index)} 
               style={styles.mainNewsCard}
             >
               <Image 
@@ -206,7 +241,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </View>
       ) : articals ? (
         <TouchableOpacity 
-          onPress={() => onArticlePress(articals)} 
+          onPress={() => handleArticlePress(articals, 'main', 0)} 
           style={styles.mainNewsCard}
         >
           <Image 
@@ -230,7 +265,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </TouchableOpacity>
       ) : null}
 
-      {/* Category Filtered Articles - Only show if there are more than 3 articles */}
+      {/* Category Filtered Articles - UPDATED */}
       {filteredArticles.length > 3 && (
         <>
           <Text style={styles.sectionTitle}>
@@ -241,7 +276,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
               <TouchableOpacity 
                 key={item.id || index} 
                 style={styles.trendingItem}
-                onPress={() => onArticlePress(item)}
+                onPress={() => handleArticlePress(item, 'filtered', index + 3)}
               >
                 <Image 
                   source={{ uri: item.featuredImage || item.image }} 
@@ -262,7 +297,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </>
       )}
 
-      {/* Trending Collection */}
+      {/* Trending Collection - UPDATED */}
       <Text style={styles.sectionTitle}>
         {selectedCategoryId ? `${categories.find(cat => cat.id === selectedCategoryId)?.name} Trending` : 'Trending Collection'}
       </Text>
@@ -271,7 +306,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
           <TouchableOpacity 
             key={item.id || index} 
             style={styles.trendingItem}
-            onPress={() => onArticlePress(item)}
+            onPress={() => handleArticlePress(item, 'trending', index)}
           >
             <Image 
               source={{ uri: item.featuredImage || item.image }} 
@@ -290,7 +325,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         ))}
       </ScrollView>
 
-      {/* Latest Updates */}
+      {/* Latest Updates - UPDATED */}
       <Text style={styles.sectionTitle}>
         {selectedCategoryId ? `${categories.find(cat => cat.id === selectedCategoryId)?.name} Latest Updates` : 'Latest Updates'}
       </Text>
@@ -299,7 +334,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
           <TouchableOpacity 
             key={item.id || index} 
             style={styles.trendingItem}
-            onPress={() => onArticlePress(item)}
+            onPress={() => handleArticlePress(item, 'latest', index)}
           >
             <Image 
               source={{ uri: item.featuredImage || item.image }} 
@@ -320,6 +355,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
     </ScrollView>
   );
 };
+
 
 const styles = StyleSheet.create({
   content: {

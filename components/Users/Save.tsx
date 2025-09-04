@@ -15,10 +15,33 @@ import {
 
 const { width } = Dimensions.get('window');
 
-const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
+// Updated prop type to match the new signature
+const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   const [bookmarkedArticles, setBookmarkedArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Updated handleArticlePress function
+  const handleArticlePress = (article: any, section: 'featured' | 'all', sectionIndex: number) => {
+    console.log('Bookmark article pressed:', article.title, 'Section:', section);
+    
+    // Create navigation context with all bookmarked articles
+    const allArticles = [...bookmarkedArticles]; // Use all bookmarked articles for navigation
+    
+    // Find the actual index of this article in the full bookmarked articles array
+    const globalIndex = allArticles.findIndex(a => a.id === article.id);
+    
+    console.log('Bookmarked articles for navigation:', allArticles.length);
+    console.log('Global index:', globalIndex);
+    
+    if (globalIndex !== -1) {
+      onArticlePress(article, allArticles, globalIndex);
+    } else {
+      // Fallback: if not found, just pass the article alone
+      console.warn('Article not found in bookmarked list, using fallback');
+      onArticlePress(article, [article], 0);
+    }
+  };
 
   const fetchBookmarkedArticles = async (userID: any) => {
     try {
@@ -31,8 +54,9 @@ const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any) =
       const articles = bookmarks.map((item: any) => ({
         ...item.article,
         bookmarkId: item.bookmarkId // Keep the bookmark ID for potential removal
-      }));
+      })).filter((article: any) => article && article.id); // Filter out invalid articles
       
+      console.log('Fetched bookmarked articles:', articles.length);
       setBookmarkedArticles(articles);
     } catch (err) {
       console.error("Error fetching bookmarked articles:", err);
@@ -91,13 +115,7 @@ const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any) =
 
   return (
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Header Section */}
-      {/* <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Your Bookmarked Articles</Text>
-        <Text style={styles.headerSubtitle}>{bookmarkedArticles.length} saved stories</Text>
-      </View> */}
-
-      {/* Main Bookmarked Articles - Horizontal Scroll */}
+      {/* Main Bookmarked Articles - Horizontal Scroll - UPDATED */}
       <Text style={styles.sectionTitle}>Featured Bookmarks</Text>
       <ScrollView 
         horizontal 
@@ -107,7 +125,7 @@ const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any) =
         {bookmarkedArticles.slice(0, 3).map((article, index) => (
           <TouchableOpacity 
             key={article.id || index}
-            onPress={() => onArticlePress(article)} 
+            onPress={() => handleArticlePress(article, 'featured', index)} 
             style={styles.mainNewsCard}
           >
             <Image 
@@ -132,14 +150,14 @@ const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any) =
         ))}
       </ScrollView>
 
-      {/* All Bookmarked Articles - Grid Layout */}
+      {/* All Bookmarked Articles - Grid Layout - UPDATED */}
       <Text style={styles.sectionTitle}>All Saved Articles</Text>
       <View style={styles.gridContainer}>
         {bookmarkedArticles.map((article, index) => (
           <TouchableOpacity 
             key={article.id || index} 
             style={styles.gridItem}
-            onPress={() => onArticlePress(article)}
+            onPress={() => handleArticlePress(article, 'all', index)}
           >
             <Image 
               source={{ uri: article.featuredImage || article.image }} 
@@ -178,6 +196,7 @@ const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any) =
   );
 };
 
+// Keep all your existing styles - no changes needed
 const styles = StyleSheet.create({
   content: {
     flex: 1,
