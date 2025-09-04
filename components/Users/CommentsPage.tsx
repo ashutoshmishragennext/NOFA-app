@@ -9,41 +9,50 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 
-const CommentsSection = ({ 
-  visible, 
-  onClose, 
-  articleId, 
-  onCommentsCountChange 
+const CommentsSection = ({
+  visible,
+  onClose,
+  articleId,
+  onCommentsCountChange
 }) => {
-  const [commentText, setCommentText] = useState('');
-  const [replyText, setReplyText] = useState('');
-  const [replyingTo, setReplyingTo] = useState(null);
+  const [inputText, setInputText] = useState(''); // Single input for all
+  const [replyingTo, setReplyingTo] = useState(null); // Who we're replying to
   const [comments, setComments] = useState([]);
+  const [loadedReplies, setLoadedReplies] = useState({});
+  const [loadingReplies, setLoadingReplies] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(false);
   const currentUser = useAuth().user;
 
-  // Fetch comments when component mounts or when modal opens
   useEffect(() => {
     if (visible && articleId) {
-      fetchComments();
+      fetchRootComments();
+    } else {
+      // Reset state when modal closes
+      setComments([]);
+      setLoadedReplies({});
+      setLoadingReplies({});
+      setReplyingTo(null);
+      setInputText('');
     }
   }, [visible, articleId]);
 
-  const fetchComments = async () => {
+  const fetchRootComments = async () => {
+    setIsInitialLoading(true);
     try {
       const response = await apiService.getComments({
-        "articleId": articleId
+        articleId: articleId
       });
-      
+
       if (response && response.comments) {
-        const organizedComments = organizeComments(response.comments);
-        setComments(organizedComments);
-        // Notify parent component about comments count change
-        onCommentsCountChange && onCommentsCountChange(organizedComments.length);
+        console.log('First comment structure:', JSON.stringify(response.comments[0], null, 2));
+        setComments(response.comments);
+        onCommentsCountChange && onCommentsCountChange(response.count);
       } else {
         console.error('Unexpected response format:', response);
         setComments([]);
@@ -51,44 +60,49 @@ const CommentsSection = ({
     } catch (error) {
       console.error("Error fetching comments:", error);
       Alert.alert('Error', 'Failed to fetch comments');
+    } finally {
+      setIsInitialLoading(false);
     }
   };
 
-  const organizeComments = (commentsData) => {
-    const commentMap = {};
-    const rootComments = [];
+  const loadReplies = async (commentId) => {
+    if (loadedReplies[commentId] || loadingReplies[commentId]) return;
 
-    // First pass: create a map of all comments
-    commentsData.forEach(comment => {
-      commentMap[comment.id] = { ...comment, replies: [] };
-    });
+    setLoadingReplies(prev => ({ ...prev, [commentId]: true }));
 
-    // Second pass: organize into parent-child structure
-    commentsData.forEach(comment => {
-      if (comment.parentId && commentMap[comment.parentId]) {
-        // This is a reply, add it to its parent's replies array
-        commentMap[comment.parentId].replies.push(commentMap[comment.id]);
-      } else {
-        // This is a root-level comment
-        rootComments.push(commentMap[comment.id]);
+    try {
+      const response = await apiService.getCommentReplies(commentId);
+
+      if (response && response.comments) {
+        setComments(prevComments =>
+          prevComments.map(comment =>
+            comment.id === commentId
+              ? { ...comment, replies: response.comments }
+              : comment
+          )
+        );
+        setLoadedReplies(prev => ({ ...prev, [commentId]: true }));
       }
-    });
-
-    return rootComments;
+    } catch (error) {
+      console.error("Error loading replies:", error);
+      Alert.alert('Error', 'Failed to load replies');
+    } finally {
+      setLoadingReplies(prev => ({ ...prev, [commentId]: false }));
+    }
   };
 
-  const handleAddComment = async () => {
-    if (commentText.trim() === '') {
+  const handleSubmit = async () => {
+    if (inputText.trim() === '') {
       Alert.alert('Error', 'Please enter a comment');
       return;
     }
 
-    if (commentText.trim().length < 3) {
+    if (inputText.trim().length < 3) {
       Alert.alert('Error', 'Comment must be at least 3 characters long');
       return;
     }
 
-    if (commentText.length > 500) {
+    if (inputText.length > 500) {
       Alert.alert('Error', 'Comment must be less than 500 characters');
       return;
     }
@@ -102,17 +116,48 @@ const CommentsSection = ({
 
       const commentData = {
         articleId: articleId,
-        content: commentText.trim(),
+        content: inputText.trim(),
         authorName: currentUser.name || 'Anonymous User',
         authorEmail: currentUser.email || '',
         userId: currentUser.id,
+        ...(replyingTo && { parentId: replyingTo.id }) // Add parentId if replying
       };
 
       const result = await apiService.createComment(commentData);
 
       if (result.success) {
-        setCommentText('');
-        await fetchComments(); // Refresh comments
+        setInputText('');
+
+        if (replyingTo) {
+  // Handle reply
+  setComments(prevComments => 
+    prevComments.map(comment => {
+      if (comment.id === replyingTo.id) {
+        const currentCount = parseInt(comment.replyCount) || 0;
+        const updatedComment = { 
+          ...comment, 
+          replyCount: (currentCount + 1).toString() // Keep as string to match API format
+        };
+        
+        // If replies are loaded, add the new reply
+        if (loadedReplies[replyingTo.id] && comment.replies) {
+          updatedComment.replies = [...comment.replies, result.comment];
+        }
+        
+        return updatedComment;
+      }
+      return comment;
+    })
+  );
+  setReplyingTo(null);
+}
+
+        else {
+          // Handle new comment
+          const newComment = { ...result.comment, replyCount: 0 };
+          setComments(prev => [newComment, ...prev]);
+          onCommentsCountChange && onCommentsCountChange(comments.length + 1);
+        }
       } else {
         Alert.alert('Error', 'Failed to add comment');
       }
@@ -124,57 +169,18 @@ const CommentsSection = ({
     }
   };
 
-  const handleAddReply = async (parentId) => {
-    if (replyText.trim() === '') {
-      Alert.alert('Error', 'Please enter a reply');
-      return;
-    }
-
-    if (replyText.trim().length < 3) {
-      Alert.alert('Error', 'Reply must be at least 3 characters long');
-      return;
-    }
-
-    if (replyText.length > 500) {
-      Alert.alert('Error', 'Reply must be less than 500 characters');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      if (!currentUser) {
-        Alert.alert('Login Required', 'Please login to reply to comments');
-        return;
-      }
-
-      const replyData = {
-        articleId: articleId,
-        content: replyText.trim(),
-        parentId: parentId,
-        authorName: currentUser.name || 'Anonymous User',
-        authorEmail: currentUser.email || '',
-        userId: currentUser.id,
-      };
-
-      const result = await apiService.createComment(replyData);
-
-      if (result.success) {
-        setReplyText('');
-        setReplyingTo(null);
-        await fetchComments(); // Refresh comments
-      } else {
-        Alert.alert('Error', 'Failed to add reply');
-      }
-    } catch (error) {
-      console.error('Error adding reply:', error);
-      Alert.alert('Error', error.message || 'Failed to add reply');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleReply = (comment) => {
+    setReplyingTo(comment);
+    setInputText(''); // Clear input when starting reply
   };
 
-  const renderReply = (reply, depth = 1) => (
-    <View key={reply.id} style={[styles.replyItem, { marginLeft: depth * 20 }]}>
+  const cancelReply = () => {
+    setReplyingTo(null);
+    setInputText('');
+  };
+
+  const renderReply = (reply) => (
+    <View key={reply.id} style={styles.replyItem}>
       <View style={styles.commentHeader}>
         <Text style={styles.commentAuthor}>{reply.authorName}</Text>
         <Text style={styles.commentTime}>
@@ -182,57 +188,20 @@ const CommentsSection = ({
         </Text>
       </View>
       <Text style={styles.commentText}>{reply.content}</Text>
-      <View style={styles.commentActions}>
-        <TouchableOpacity
-          style={styles.commentReplyButton}
-          onPress={() => setReplyingTo(reply.id)}
-        >
-          <Text style={styles.commentReply}>Reply</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {reply.replies && reply.replies.length > 0 && (
-        <View style={styles.repliesContainer}>
-          {reply.replies.map(nestedReply => renderReply(nestedReply, depth + 1))}
-        </View>
-      )}
-      
-      {replyingTo === reply.id && (
-        <View style={styles.replyInputContainer}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder={`Reply to ${reply.authorName}...`}
-            value={replyText}
-            onChangeText={setReplyText}
-            multiline
-            maxLength={500}
-          />
-          <View style={styles.replyActions}>
-            <TouchableOpacity
-              style={styles.cancelReplyButton}
-              onPress={() => {
-                setReplyingTo(null);
-                setReplyText('');
-              }}
-            >
-              <Text style={styles.cancelReplyText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sendReplyButton}
-              onPress={() => handleAddReply(reply.id)}
-              disabled={isLoading}
-            >
-              <Text style={styles.sendReplyText}>
-                {isLoading ? 'Sending...' : 'Send'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <TouchableOpacity
+        style={styles.replyButton}
+        onPress={() => handleReply(reply)}
+      >
+        <Text style={styles.replyButtonText}>Reply</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  const renderCommentItem = ({ item }) => (
+const renderCommentItem = ({ item }) => {
+  // Convert string to number for proper comparison
+  const replyCount = parseInt(item.replyCount) || 0;
+  
+  return (
     <View style={styles.commentItem}>
       <View style={styles.commentHeader}>
         <Text style={styles.commentAuthor}>{item.authorName}</Text>
@@ -241,62 +210,48 @@ const CommentsSection = ({
         </Text>
       </View>
       <Text style={styles.commentText}>{item.content}</Text>
+      
       <View style={styles.commentActions}>
         <TouchableOpacity
-          style={styles.commentReplyButton}
-          onPress={() => setReplyingTo(item.id)}
+          style={styles.replyButton}
+          onPress={() => handleReply(item)}
         >
-          <Text style={styles.commentReply}>Reply</Text>
+          <Text style={styles.replyButtonText}>Reply</Text>
         </TouchableOpacity>
-        {item.replies && item.replies.length > 0 && (
-          <Text style={styles.replyCount}>
-            {item.replies.length} {item.replies.length === 1 ? 'reply' : 'replies'}
-          </Text>
-        )}
       </View>
 
-      {/* Render replies */}
-      {item.replies && item.replies.length > 0 && (
+      {/* Fix: Convert string replyCount to number */}
+      {replyCount > 0 && (
+        <TouchableOpacity
+          style={styles.viewRepliesButton}
+          onPress={() => loadReplies(item.id)}
+          disabled={loadedReplies[item.id] || loadingReplies[item.id]}
+        >
+          {loadingReplies[item.id] ? (
+            <View style={styles.loadingReplies}>
+              <ActivityIndicator size="small" color="#2196F3" />
+              <Text style={styles.loadingText}>Loading replies...</Text>
+            </View>
+          ) : (
+            <Text style={styles.viewRepliesText}>
+              {loadedReplies[item.id] 
+                ? `Hide ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+                : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+              }
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Show loaded replies */}
+      {loadedReplies[item.id] && item.replies && item.replies.length > 0 && (
         <View style={styles.repliesContainer}>
           {item.replies.map(reply => renderReply(reply))}
         </View>
       )}
-
-      {/* Reply input for main comment */}
-      {replyingTo === item.id && (
-        <View style={styles.replyInputContainer}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder={`Reply to ${item.authorName}...`}
-            value={replyText}
-            onChangeText={setReplyText}
-            multiline
-            maxLength={500}
-          />
-          <View style={styles.replyActions}>
-            <TouchableOpacity
-              style={styles.cancelReplyButton}
-              onPress={() => {
-                setReplyingTo(null);
-                setReplyText('');
-              }}
-            >
-              <Text style={styles.cancelReplyText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sendReplyButton}
-              onPress={() => handleAddReply(item.id)}
-              disabled={isLoading}
-            >
-              <Text style={styles.sendReplyText}>
-                {isLoading ? 'Sending...' : 'Send'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
+};
 
   return (
     <Modal
@@ -312,9 +267,10 @@ const CommentsSection = ({
           </TouchableOpacity>
         </View>
 
-        {isLoading && comments.length === 0 ? (
+        {isInitialLoading ? (
           <View style={styles.loadingContainer}>
-            <Text>Loading comments...</Text>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Loading comments...</Text>
           </View>
         ) : (
           <FlatList
@@ -323,37 +279,52 @@ const CommentsSection = ({
             renderItem={renderCommentItem}
             style={styles.commentsList}
             showsVerticalScrollIndicator={false}
-            refreshing={isLoading}
-            onRefresh={fetchComments}
+            refreshing={false}
+            onRefresh={fetchRootComments}
+            extraData={comments} // Add this to force re-render
           />
         )}
 
-        <View style={styles.commentInputContainer}>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Add a comment..."
-            value={commentText}
-            onChangeText={setCommentText}
-            multiline
-            maxLength={500}
-          />
-          <View style={styles.commentInputFooter}>
-            <Text style={styles.characterCount}>
-              {commentText.length}/500
-            </Text>
-            <TouchableOpacity 
+        {/* Single Input Section - Instagram Style */}
+        <View style={styles.inputSection}>
+          {/* Show reply context if replying */}
+          {replyingTo && (
+            <View style={styles.replyContext}>
+              <Text style={styles.replyContextText}>
+                Replying to @{replyingTo.authorName}
+              </Text>
+              <TouchableOpacity onPress={cancelReply} style={styles.cancelReplyBtn}>
+                <Text style={styles.cancelReplyText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder={replyingTo ? `Reply to ${replyingTo.authorName}...` : "Add a comment..."}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
               style={[
-                styles.sendButton, 
-                (commentText.trim().length < 3 || isLoading) && styles.sendButtonDisabled
-              ]} 
-              onPress={handleAddComment}
-              disabled={commentText.trim().length < 3 || isLoading}
+                styles.sendButton,
+                (inputText.trim().length < 3 || isLoading) && styles.sendButtonDisabled
+              ]}
+              onPress={handleSubmit}
+              disabled={inputText.trim().length < 3 || isLoading}
             >
               <Text style={styles.sendButtonText}>
-                {isLoading ? 'Sending...' : 'Send'}
+                {isLoading ? 'Posting...' : (replyingTo ? 'Reply' : 'Post')}
               </Text>
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.characterCount}>
+            {inputText.length}/500
+          </Text>
         </View>
       </SafeAreaView>
     </Modal>
@@ -419,136 +390,120 @@ const styles = StyleSheet.create({
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  commentReplyButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 15,
+  replyButton: {
+    marginRight: 15,
   },
-  commentReply: {
+  replyButtonText: {
     fontSize: 12,
     color: '#2196F3',
     fontWeight: '600',
   },
-  replyCount: {
-    fontSize: 12,
-    color: '#666',
-    fontStyle: 'italic',
+  viewRepliesButton: {
+    paddingVertical: 5,
+  },
+  viewRepliesText: {
+    fontSize: 13,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
+  loadingReplies: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   repliesContainer: {
     marginTop: 10,
-    paddingLeft: 0,
-  },
-  replyItem: {
-    paddingVertical: 12,
-    paddingLeft: 15,
-    marginTop: 8,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderLeftWidth: 3,
+    paddingLeft: 20,
+    borderLeftWidth: 2,
     borderLeftColor: '#e0e0e0',
   },
-  replyInputContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  replyInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 15,
-    paddingHorizontal: 15,
+  replyItem: {
     paddingVertical: 10,
-    marginBottom: 10,
-    backgroundColor: '#fff',
-    fontSize: 14,
-    maxHeight: 80,
-  },
-  replyActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  cancelReplyButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
-    borderRadius: 15,
-    backgroundColor: '#f0f0f0',
-  },
-  cancelReplyText: {
-    color: '#666',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  sendReplyButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 15,
-    backgroundColor: '#4CAF50',
-  },
-  sendReplyText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  commentInputContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    backgroundColor: '#fff',
-  },
-  commentInputFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  characterCount: {
-    fontSize: 12,
-    color: '#999',
-  },
-  sendButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    elevation: 2,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
-    elevation: 0,
-    shadowOpacity: 0,
-  },
-  sendButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    maxHeight: 100,
-    fontSize: 14,
+    paddingLeft: 10,
     backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#666',
+  },
+
+  // Instagram-style input section
+  inputSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  replyContext: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#e8f4f8',
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  replyContextText: {
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
+  cancelReplyBtn: {
+    padding: 4,
+  },
+  cancelReplyText: {
+    fontSize: 14,
+    color: '#999',
+    fontWeight: 'bold',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginRight: 10,
+    maxHeight: 100,
+    fontSize: 14,
+    backgroundColor: '#f9f9f9',
+  },
+  sendButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  characterCount: {
+    fontSize: 11,
+    color: '#999',
+    textAlign: 'right',
+    marginTop: 5,
   },
 });
 

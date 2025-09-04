@@ -356,25 +356,64 @@ async searchArticles(params:any): Promise<GetFoldersResponse> {
   
   return result;
 }
-async getComments(params:any): Promise<GetFoldersResponse> {
+// Updated: Get comments with optional parentId for replies
+async getComments(params: {
+  articleId: string;
+  parentId?: string;
+}): Promise<{
+  success: boolean;
+  comments: any[];
+  count: number;
+  parentId?: string;
+  isReplies: boolean;
+}> {
+  console.log("Fetching comments:", params);
+  
   const searchParams = new URLSearchParams();
+  searchParams.append('articleId', params.articleId);
+  if (params.parentId) {
+    searchParams.append('parentId', params.parentId);
+  }
   
-  // if (params.id) searchParams.append('id', params.id);
-  if (params.articleId) searchParams.append('articleId', params.articleId);
-  
-  const url = `/api/comments?${searchParams.toString()}`;
-  
-  console.log("Fetching folders with URL:", url);
-  
-  const response = await this.fetchWithTimeout(url, {
+  const response = await this.fetchWithTimeout(`/api/comments?${searchParams.toString()}`, {
     method: 'GET',
   });
   
-  const result = await this.handleResponse<GetFoldersResponse>(response);
-  console.log("Folders fetched:", result);
+  const result = await this.handleResponse<{
+    success: boolean;
+    comments: any[];
+    count: number;
+    parentId?: string;
+    isReplies: boolean;
+  }>(response);
   
+console.log("API Response:", JSON.stringify(result, null, 2));
+  console.log("First comment keys:", result.comments[0] ? Object.keys(result.comments[0]) : 'No comments');
+    return result;
+}
+
+// New: Get replies for a specific comment
+async getCommentReplies(commentId: string): Promise<{
+  success: boolean;
+  comments: any[];
+  count: number;
+}> {
+  console.log("Fetching replies for comment:", commentId);
+  
+  const response = await this.fetchWithTimeout(`/api/comments?parentId=${commentId}`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    comments: any[];
+    count: number;
+  }>(response);
+  
+  console.log("Replies fetched:", result);
   return result;
 }
+
 async getTerending(params:any): Promise<GetFoldersResponse> {
   const searchParams = new URLSearchParams();
   
@@ -691,6 +730,111 @@ async createComment(commentData: {
   const result = await this.handleResponse<{success: boolean, comment: any, message: string}>(response);
   console.log("Comment created:", result);
   
+  return result;
+}
+
+// POST /api/articles/[id]/views - Record an article view
+async recordArticleView(articleId: string, userId?: string, referrer?: string): Promise<{
+  success: boolean;
+  incrementedCount: boolean;
+  isDuplicate: boolean;
+  message: string;
+  debounced?: boolean;
+}> {
+  console.log("Recording article view:", articleId, userId);
+  
+  const response = await this.fetchWithTimeout(`/api/articles/${articleId}/views`, {
+    method: 'POST',
+    body: JSON.stringify({ 
+      userId: userId || null,
+      referrer: referrer || null,
+      // ipAddress and userAgent will be auto-detected by the server
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    incrementedCount: boolean;
+    isDuplicate: boolean;
+    message: string;
+    debounced?: boolean;
+  }>(response);
+  
+  console.log("Article view recorded:", result);
+  return result;
+}
+
+// GET /api/articles/[id]/views - Get article view count and analytics
+async getArticleViews(articleId: string, includeAnalytics: boolean = false): Promise<{
+  viewCount: number;
+  analytics?: {
+    totalViews: number;
+    uniqueUsers: number;
+    uniqueIPs: number;
+    todayViews: number;
+    weekViews: number;
+  };
+}> {
+  console.log("Fetching article views:", articleId, includeAnalytics);
+  
+  const url = `/api/articles/${articleId}/views${includeAnalytics ? '?analytics=true' : ''}`;
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{
+    viewCount: number;
+    analytics?: {
+      totalViews: number;
+      uniqueUsers: number;
+      uniqueIPs: number;
+      todayViews: number;
+      weekViews: number;
+    };
+  }>(response);
+  
+  console.log("Article views fetched:", result);
+  return result;
+}
+
+// PUT /api/articles/[id]/views - Admin action to reset view count
+async resetArticleViews(articleId: string): Promise<{success: boolean, message: string}> {
+  console.log("Resetting article views:", articleId);
+  
+  const response = await this.fetchWithTimeout(`/api/articles/${articleId}/views`, {
+    method: 'PUT',
+    body: JSON.stringify({ 
+      articleId,
+      action: 'reset'
+    }),
+  });
+  
+  const result = await this.handleResponse<{success: boolean, message: string}>(response);
+  console.log("Article views reset:", result);
+  
+  return result;
+}
+
+// GET /api/articles/[id]/comments - Get comment count for a specific article
+async getArticleCommentCount(articleId: string): Promise<{
+  commentCount: number;
+  actualCount: number;
+  synced: boolean;
+}> {
+  console.log("Fetching article comment count:", articleId);
+  
+  const response = await this.fetchWithTimeout(`/api/articles/${articleId}/comments`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{
+    commentCount: number;
+    actualCount: number;
+    synced: boolean;
+  }>(response);
+  
+  console.log("Article comment count fetched:", result);
   return result;
 }
 
