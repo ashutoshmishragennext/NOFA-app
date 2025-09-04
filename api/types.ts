@@ -409,3 +409,10 @@ export interface ToggleBookmarkResponse {
   bookmarkId?: string;
   message: string;
 }
+
+// Comment count related types
+export interface GetArticleCommentCountResponse {
+  commentCount: number;
+  actualCount: number;
+  synced: boolean;
+}

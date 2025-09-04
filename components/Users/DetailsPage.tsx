@@ -306,6 +306,108 @@ useEffect(() => {
     }
   };
 
+  // In your NewsDetailScreen, add this useEffect to load comment count
+useEffect(() => {
+  const loadCommentCount = async () => {
+    try {      
+      if (article.id) {
+        const commentData = await apiService.getArticleCommentCount(article.id);
+        setCommentsCount(commentData.commentCount);
+      }
+    } catch (error) {
+      console.error('Error loading comment count:', error);
+    }
+  };
+
+  if (article.id) {
+    loadCommentCount();
+  }
+}, [article.id]);
+
+  // Add this with your other states
+const [viewRecorded, setViewRecorded] = useState(false);
+const [viewCount, setViewCount] = useState(article.viewCount || 0);
+// Add this useEffect to handle unique view recording
+useEffect(() => {
+  const checkAndRecordUniqueView = async () => {
+    // Don't proceed if already recorded or article ID missing
+    if (!article.id || viewRecorded) return;
+
+    try {
+      // Wait for all other counts to load first
+      if (likeLoading || bookmarkLoading) {
+        console.log('Waiting for like/bookmark states to load...');
+        return;
+      }
+
+      console.log('Checking if view already recorded for article:', article.id);
+
+      // Check if view is already recorded in AsyncStorage
+      const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
+      const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
+
+      if (viewedArticles.includes(article.id)) {
+        console.log('View already recorded for this article, skipping...');
+        setViewRecorded(true);
+        return;
+      }
+
+      console.log('Recording new view for article:', article.id);
+
+      // Record the view via API
+      const userId = currentUser?.id || null;
+      const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
+      
+      const result = await apiService.recordArticleView(article.id, userId, referrer);
+      
+      if (result.success) {
+        console.log('View recorded successfully:', result.message);
+        
+        // Store the article id locally to prevent future posts
+        const updatedViewedArticles = [...viewedArticles, article.id];
+        await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
+        
+        setViewRecorded(true);
+        
+        // Update view count only if it was actually incremented
+        if (result.incrementedCount) {
+          setViewCount(prev => prev + 1);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to record unique view:', error);
+      // Still mark as recorded to prevent retry loops
+      setViewRecorded(true);
+    }
+  };
+
+  // Add a small delay to ensure all other loading is complete
+  const timer = setTimeout(() => {
+    checkAndRecordUniqueView();
+  }, 1000);
+
+  return () => clearTimeout(timer);
+}, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
+// Load initial view count
+useEffect(() => {
+  const loadInitialViewCount = async () => {
+    try {
+      if (article.id) {
+        const viewData = await apiService.getArticleViews(article.id);
+        setViewCount(viewData.viewCount);
+        console.log('Initial view count loaded:', viewData.viewCount);
+      }
+    } catch (error) {
+      console.error('Error loading initial view count:', error);
+    }
+  };
+
+  if (article.id) {
+    loadInitialViewCount();
+  }
+}, [article.id]);
+
+
   // Share handler
   const handleShare = async () => {
     if (shareLoading) return;
@@ -608,7 +710,7 @@ useEffect(() => {
 
             <View style={styles.statsSection}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{article.viewCount || 0}</Text>
+                <Text style={styles.statNumber}>{viewCount}</Text>
                 <Text style={styles.statLabel}>Views</Text>
               </View>
               <View style={styles.statItem}>
@@ -624,6 +726,7 @@ useEffect(() => {
                 <Text style={styles.statLabel}>Comments</Text>
               </View>
             </View>
+
           </View>
         </ScrollView>
 
@@ -636,7 +739,11 @@ useEffect(() => {
             disabled={likeLoading}
           >
             {likeLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
+              <Ionicons 
+                name={"heart-outline"} 
+                size={24} 
+                color={"#999"} 
+              />
             ) : (
               <Ionicons 
                 name={liked ? "heart" : "heart-outline"} 
@@ -645,9 +752,10 @@ useEffect(() => {
               />
             )}
             <Text style={[
-              styles.actionText,
-              liked && styles.activeActionTextRed,
-            ]}>
+                styles.actionText,
+                // liked && styles.activeActionTextRed,
+                liked ? { color: "#ae0202ff" } : { color: "#999" }
+              ]}>
               {likeCount}
             </Text>
           </TouchableOpacity>
@@ -932,7 +1040,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeActionTextRed: {
-    color: '#ae0202ff',
+    // color: '#ae0202ff',
     fontWeight: '600',
   },
    navigationIndicator : {
