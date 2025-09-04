@@ -672,6 +672,28 @@ async isArticleBookmarked(userId: string, articleId: string): Promise<boolean> {
 }
 
 
+// POST /api/comments - Add a new comment or reply
+async createComment(commentData: {
+  articleId: string;
+  content: string;
+  authorName: string;
+  authorEmail?: string;
+  parentId?: string;
+  userId?: string;
+}): Promise<{success: boolean, comment: any, message: string}> {
+  console.log("Creating comment:", commentData);
+  
+  const response = await this.fetchWithTimeout('/api/comments', {
+    method: 'POST',
+    body: JSON.stringify(commentData),
+  });
+  
+  const result = await this.handleResponse<{success: boolean, comment: any, message: string}>(response);
+  console.log("Comment created:", result);
+  
+  return result;
+}
+
 
   // Getter to check if user is logged in
   get isAuthenticated(): boolean {

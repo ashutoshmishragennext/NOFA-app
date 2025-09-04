@@ -13,8 +13,8 @@ import {
   View
 } from 'react-native';
 
-// TRENDING SCREEN COMPONENT
-const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
+// TRENDING SCREEN COMPONENT - Updated with navigation support
+const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   const [trendingArticles, setTrendingArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,6 +23,19 @@ const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any) => 
 
   // Replace with your actual API base URL
   const API_BASE_URL = 'https://nofa-sepia.vercel.app'; 
+
+  // ADDED: Handle article press with navigation context
+  const handleArticlePress = (article: any, index: number) => {
+    console.log('Trending article pressed:', article.title, 'Index:', index);
+    
+    // Pass all trending articles for navigation
+    const allTrendingArticles = [...trendingArticles];
+    
+    console.log('Trending articles for navigation:', allTrendingArticles.length);
+    console.log('Selected article index:', index);
+    
+    onArticlePress(article, allTrendingArticles, index);
+  };
 
   const fetchTrendingArticles = async (refresh = false) => {
     try {
@@ -52,10 +65,14 @@ const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any) => 
       const data = await response.json();
       
       if (data.trendingArticles) {
-        // Sort articles by trendingScore in descending order
-        const sortedArticles = data.trendingArticles.sort((a, b) => {
-          return (b.trendingScore || 0) - (a.trendingScore || 0);
-        });
+        // Sort articles by trendingScore in descending order and filter valid articles
+        const sortedArticles = data.trendingArticles
+          .filter(article => article && article.id) // Filter out invalid articles
+          .sort((a, b) => {
+            return (b.trendingScore || 0) - (a.trendingScore || 0);
+          });
+        
+        console.log('Fetched trending articles:', sortedArticles.length);
         setTrendingArticles(sortedArticles);
       } else {
         setTrendingArticles([]);
@@ -73,25 +90,10 @@ const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any) => 
       setRefreshing(false);
     }
   };
-const fetchComments = async () => {
-  try {
-    const response = await apiService.getComments({
-      "articleId":article.id
-    });
-    
-    // Check if response has the expected structure
-    if (response && response.comments) {
-      const organizedComments = organizeComments(response.comments);
-      setComments(organizedComments);
-    } else {
-      console.error('Unexpected response format:', response);
-      setComments([]);
-    }
-  } catch (error) {
-    console.error("Error fetching comments:", error);
-    Alert.alert('Error', 'Failed to fetch comments');
-  }
-};
+
+  // REMOVED: This fetchComments function seems to be mistakenly added and isn't related to trending screen
+  // const fetchComments = async () => { ... }
+
   useEffect(() => {
     fetchTrendingArticles();
   }, [timeRange]);
@@ -178,57 +180,58 @@ const fetchComments = async () => {
     </View>
   );
 
-const renderTrendingItem = (article) => (
-  <TouchableOpacity 
-    key={article.id} 
-    style={styles.trendingListItem}
-    onPress={() => onArticlePress(article)}  // ✅ call onArticlePress
-  >
-    {article.featuredImage && (
-      <Image 
-        source={{ uri: article.featuredImage }} 
-        style={styles.articleImage}
-        resizeMode="cover"
-      />
-    )}
-    
-    <View style={styles.trendingItemContent}>
-      <View style={styles.titleScoreContainer}>
-        <Text style={styles.trendingItemTitle} numberOfLines={2}>
-          {article.title}
-        </Text>
-        <View style={styles.trendingScoreContainer}>
-          <Ionicons name="trending-up" size={16} color="#4CAF50" />
-          <Text style={styles.trendingScore}>
-            {formatTrendingScore(article.trendingScore)}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.trendingItemAuthor}>by {article.authorName}</Text>
+  // UPDATED: renderTrendingItem to use handleArticlePress with proper index
+  const renderTrendingItem = (article, index) => (
+    <TouchableOpacity 
+      key={article.id} 
+      style={styles.trendingListItem}
+      onPress={() => handleArticlePress(article, index)} // ✅ Updated to pass index
+    >
+      {article.featuredImage && (
+        <Image 
+          source={{ uri: article.featuredImage }} 
+          style={styles.articleImage}
+          resizeMode="cover"
+        />
+      )}
       
-      <View style={styles.metricsTimeContainer}>
-        <Text style={styles.trendingItemTime}>
-          {getTimeAgo(article.publicationDate)}
-        </Text>
+      <View style={styles.trendingItemContent}>
+        <View style={styles.titleScoreContainer}>
+          <Text style={styles.trendingItemTitle} numberOfLines={2}>
+            {article.title}
+          </Text>
+          <View style={styles.trendingScoreContainer}>
+            <Ionicons name="trending-up" size={16} color="#4CAF50" />
+            <Text style={styles.trendingScore}>
+              {formatTrendingScore(article.trendingScore)}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.trendingItemAuthor}>by {article.authorName}</Text>
         
-        <View style={styles.metricsContainer}>
-          <View style={styles.metricItem}>
-            <Ionicons name="eye" size={14} color="#1E88E5" />
-            <Text style={styles.metricText}>{formatNumber(article.viewCount)}</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Ionicons name="heart" size={14} color={article.likeCount > 0 ? "#E91E63" : "#999"} />
-            <Text style={styles.metricText}>{formatNumber(article.likeCount)}</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Ionicons name="chatbubble" size={14} color="#4CAF50" />
-            <Text style={styles.metricText}>{formatNumber(article.commentCount)}</Text>
+        <View style={styles.metricsTimeContainer}>
+          <Text style={styles.trendingItemTime}>
+            {getTimeAgo(article.publicationDate)}
+          </Text>
+          
+          <View style={styles.metricsContainer}>
+            <View style={styles.metricItem}>
+              <Ionicons name="eye" size={14} color="#1E88E5" />
+              <Text style={styles.metricText}>{formatNumber(article.viewCount)}</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Ionicons name="heart" size={14} color={article.likeCount > 0 ? "#E91E63" : "#999"} />
+              <Text style={styles.metricText}>{formatNumber(article.likeCount)}</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Ionicons name="chatbubble" size={14} color="#4CAF50" />
+              <Text style={styles.metricText}>{formatNumber(article.commentCount)}</Text>
+            </View>
           </View>
         </View>
       </View>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -244,8 +247,6 @@ const renderTrendingItem = (article) => (
             <Text style={styles.trendingScreenTitle}>Trending Now</Text>
             <Ionicons name="trending-up" size={24} color="#4CAF50" />
           </View>
-          
-          
 
           {renderTimeRangeButtons()}
 
@@ -255,7 +256,8 @@ const renderTrendingItem = (article) => (
             renderEmptyState()
           ) : (
             <View style={styles.trendingList}>
-              {trendingArticles.map((article) => renderTrendingItem(article))}
+              {/* UPDATED: map function to pass index */}
+              {trendingArticles.map((article, index) => renderTrendingItem(article, index))}
             </View>
           )}
         </View>
@@ -264,6 +266,7 @@ const renderTrendingItem = (article) => (
   );
 };
 
+// Keep all your existing styles unchanged
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -295,9 +298,7 @@ const styles = StyleSheet.create({
   timeRangeContainer: {
     flexDirection: 'row',
     marginBottom: 10,
-          
     padding: 4,
-    
   },
   timeRangeButton: {
     paddingHorizontal: 40,
@@ -323,8 +324,6 @@ const styles = StyleSheet.create({
   trendingList: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    
-    // elevation: 3,
     overflow: 'hidden',
   },
   trendingListItem: {

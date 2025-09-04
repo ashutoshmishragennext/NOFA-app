@@ -5,7 +5,7 @@ import ProfileScreen from "@/components/Users/Profile";
 import SavedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Image,
   SafeAreaView,
@@ -14,14 +14,20 @@ import {
   Text,
   TouchableOpacity,
   View,
+  BackHandler,  // Add this import
+  Alert,        // Add this import
 } from "react-native";
-
 
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  
+  // Article navigation states
+  const [articlesList, setArticlesList] = useState([]);
+  const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
+  const [sourceTab, setSourceTab] = useState("Home");
 
   const bottomTabs = [
     { name: "Home", icon: "home", activeIcon: "home" },
@@ -35,18 +41,71 @@ const NewsApp = () => {
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
-  // Navigation Functions
-  const handleArticlePress = (article: any) => {
+  // ADDED: Custom back button handler
+  useEffect(() => {
+    const backAction = () => {
+      // If we're in detail view, close it instead of exiting app
+      if (currentView === "detail" && selectedArticle) {
+        handleBackPress();
+        return true; // Prevent default behavior (app exit)
+      }
+      
+      // If we're on main screen, show exit confirmation (optional)
+      Alert.alert(
+        "Exit App",
+        "Do you want to exit the app?",
+        [
+          {
+            text: "Cancel",
+            onPress: () => null,
+            style: "cancel"
+          },
+          { 
+            text: "Exit", 
+            onPress: () => BackHandler.exitApp() 
+          }
+        ]
+      );
+      return true; // Prevent default behavior
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [currentView, selectedArticle]); // Dependencies to update handler when view changes
+
+  // Handle article press with articles list context
+  const handleArticlePress = (article, articlesList = [], articleIndex = 0) => {
     setSelectedArticle(article);
+    setArticlesList(articlesList);
+    setCurrentArticleIndex(articleIndex);
+    setSourceTab(currentTab);
     setCurrentView("detail");
   };
 
+  // Handle back press
   const handleBackPress = () => {
     setCurrentView("main");
     setSelectedArticle(null);
+    setArticlesList([]);
+    setCurrentArticleIndex(0);
   };
 
-  const handleTabPress = (tabName: string) => {
+  // Handle next article navigation
+  const handleNextArticle = () => {
+    if (currentArticleIndex < articlesList.length - 1) {
+      const nextIndex = currentArticleIndex + 1;
+      const nextArticle = articlesList[nextIndex];
+      
+      setSelectedArticle(nextArticle);
+      setCurrentArticleIndex(nextIndex);
+    }
+  };
+
+  const handleTabPress = (tabName) => {
     setCurrentTab(tabName);
   };
 
@@ -57,9 +116,9 @@ const NewsApp = () => {
       case "Explore":
         return <ExploreScreen onArticlePress={handleArticlePress} />;
       case "Trending":
-        return <TrendingScreen  onArticlePress={handleArticlePress}/>;
+        return <TrendingScreen onArticlePress={handleArticlePress} />;
       case "Saved":
-        return <SavedScreen  onArticlePress={handleArticlePress}/>;
+        return <SavedScreen onArticlePress={handleArticlePress} />;
       case "Profile":
         return <ProfileScreen />;
       default:
@@ -68,16 +127,42 @@ const NewsApp = () => {
   };
 
   // Show Detail Screen if article is selected
+  const handlePrevArticle = () => {
+    if (currentArticleIndex > 0) {
+      const prevIndex = currentArticleIndex - 1;
+      const prevArticle = articlesList[prevIndex];
+      
+      setSelectedArticle(prevArticle);
+      setCurrentArticleIndex(prevIndex);
+    }
+  };
+
+  // ... existing handlers
+
+  // Show Detail Screen if article is selected
   if (currentView === "detail" && selectedArticle) {
+    const hasNext = currentArticleIndex < articlesList.length - 1;
+    const hasPrev = currentArticleIndex > 0; // NEW: Check if has previous
+
     return (
-      <NewsDetailScreen article={selectedArticle} onBack={handleBackPress} />
+      <NewsDetailScreen 
+        key={selectedArticle.id}
+        article={selectedArticle} 
+        onBack={handleBackPress}
+        onNext={hasNext ? handleNextArticle : null}
+        onPrev={hasPrev ? handlePrevArticle : handleBackPress} // NEW: Previous handler
+        hasNext={hasNext}
+        hasPrev={hasPrev} // NEW: Has previous flag
+        currentIndex={currentArticleIndex}
+        totalArticles={articlesList.length}
+        sourceTab={sourceTab}
+      />
     );
   }
-
   // MAIN APP SCREEN
   return (
     <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Image
             source={require("../../assets/images/logo.png")}
@@ -92,9 +177,6 @@ const NewsApp = () => {
         </TouchableOpacity>
       </View>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* Header */}
-      {/* <Navbar/> */}
 
       {/* Menu Dropdown */}
       {menuVisible && (
@@ -145,6 +227,7 @@ const NewsApp = () => {
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

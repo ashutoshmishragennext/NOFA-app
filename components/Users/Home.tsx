@@ -14,7 +14,8 @@ import {
 
 const { width } = Dimensions.get('window');
 
-const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void }) => {
+// FIXED: Updated prop type to support navigation
+const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   const [articles, setArticles] = useState<any>([]);
   const [trending, setTrending] = useState<any>([]);
   const [categories, setCategories] = useState<any>([]);
@@ -23,6 +24,62 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
   const [categoryTrendingArticles, setCategoryTrendingArticles] = useState<any>([]);
   const [categoryLatestArticles, setCategoryLatestArticles] = useState<any>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // FIXED: Create combined articles array for navigation
+  const getAllCurrentArticles = () => {
+    const allArticles = [];
+    
+    try {
+      // Add main/filtered articles first
+      if (filteredArticles && Array.isArray(filteredArticles) && filteredArticles.length > 0) {
+        allArticles.push(...filteredArticles);
+      }
+      
+      // Add trending articles
+      const trendingToAdd = selectedCategoryId ? categoryTrendingArticles : trending;
+      if (trendingToAdd && Array.isArray(trendingToAdd) && trendingToAdd.length > 0) {
+        // Filter out articles that are already in allArticles
+        const newTrending = trendingToAdd.filter(article => 
+          article && article.id && !allArticles.find(existing => existing.id === article.id)
+        );
+        allArticles.push(...newTrending);
+      }
+      
+      // Add latest articles
+      const latestToAdd = selectedCategoryId ? categoryLatestArticles : articles.slice(-5);
+      if (latestToAdd && Array.isArray(latestToAdd) && latestToAdd.length > 0) {
+        // Filter out articles that are already in allArticles
+        const newLatest = latestToAdd.filter(article => 
+          article && article.id && !allArticles.find(existing => existing.id === article.id)
+        );
+        allArticles.push(...newLatest);
+      }
+      
+      return allArticles.filter(article => article && article.id); // Ensure valid articles only
+      
+    } catch (error) {
+      console.error('Error in getAllCurrentArticles:', error);
+      return [];
+    }
+  };
+
+  // FIXED: Handle article press with proper navigation context
+  const handleArticlePress = (article: any, section: 'main' | 'trending' | 'latest' | 'more', sectionIndex: number) => {
+    const allArticles = getAllCurrentArticles();
+    
+    // Find the actual index of this article in the combined array
+    const globalIndex = allArticles.findIndex(a => a.id === article.id);
+    
+    console.log(`Article pressed: ${article.title}, Section: ${section}, Global Index: ${globalIndex}`);
+    
+    if (globalIndex !== -1) {
+      onArticlePress(article, allArticles, globalIndex);
+    } else {
+      // Fallback: if not found, just pass the article with its section
+      console.warn('Article not found in combined list, using fallback');
+      onArticlePress(article, [article], 0);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -192,7 +249,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         ))}
       </ScrollView>
      
-      {/* Main News Card */}
+      {/* Main News Card - FIXED */}
       {isLoading ? (
         <View style={styles.placeholderContainer}>
           <ActivityIndicator size="large" color="#4CAF50" />
@@ -207,7 +264,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
           {filteredArticles.slice(0, 3).map((article, index) => (
             <TouchableOpacity 
               key={article.id || index}
-              onPress={() => onArticlePress(article)} 
+              onPress={() => handleArticlePress(article, 'main', index)} 
               style={styles.mainNewsCard}
             >
               <Image 
@@ -239,7 +296,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </View>
       )}
 
-       {/* Trending Collection */}
+       {/* Trending Collection - FIXED */}
       {!isLoading && (
         <>
           <Text style={styles.sectionTitle}>
@@ -252,7 +309,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
               <TouchableOpacity 
                 key={item.id || index} 
                 style={styles.trendingItem}
-                onPress={() => onArticlePress(item)}
+                onPress={() => handleArticlePress(item, 'trending', index)}
               >
                 <Image 
                   source={{ uri: item.featuredImage || item.image }} 
@@ -273,7 +330,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </>
       )}
 
-      {/* Latest Updates */}
+      {/* Latest Updates - FIXED */}
       {!isLoading && (
         <>
           <Text style={styles.sectionTitle}>
@@ -286,40 +343,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
               <TouchableOpacity 
                 key={item.id || index} 
                 style={styles.trendingItem}
-                onPress={() => onArticlePress(item)}
-              >
-                <Image 
-                  source={{ uri: item.featuredImage || item.image }} 
-                  style={styles.trendingImage} 
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.6)']}
-                  style={styles.trendingGradient}
-                />
-                <View style={styles.trendingTextOverlay}>
-                  <Text style={styles.trendingTitle} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </>
-      )}
-      {/* Category Filtered Articles - Only show if there are more than 3 articles */}
-      {!isLoading && filteredArticles.length > 3 && (
-        <>
-          <Text style={styles.sectionTitle}>
-            {selectedCategoryId 
-              ? `More ${categories.find(cat => cat.id === selectedCategoryId)?.name || 'Category'} Articles` 
-              : 'More Articles'}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
-            {filteredArticles.slice(3).map((item, index) => (
-              <TouchableOpacity 
-                key={item.id || index} 
-                style={styles.trendingItem}
-                onPress={() => onArticlePress(item)}
+                onPress={() => handleArticlePress(item, 'latest', index)}
               >
                 <Image 
                   source={{ uri: item.featuredImage || item.image }} 
@@ -340,8 +364,39 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any) => void
         </>
       )}
 
-     
-      
+      {/* Category Filtered Articles - FIXED */}
+      {!isLoading && filteredArticles.length > 3 && (
+        <>
+          <Text style={styles.sectionTitle}>
+            {selectedCategoryId 
+              ? `More ${categories.find(cat => cat.id === selectedCategoryId)?.name || 'Category'} Articles` 
+              : 'More Articles'}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingContainer}>
+            {filteredArticles.slice(3).map((item, index) => (
+              <TouchableOpacity 
+                key={item.id || index} 
+                style={styles.trendingItem}
+                onPress={() => handleArticlePress(item, 'more', index + 3)}
+              >
+                <Image 
+                  source={{ uri: item.featuredImage || item.image }} 
+                  style={styles.trendingImage} 
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.6)']}
+                  style={styles.trendingGradient}
+                />
+                <View style={styles.trendingTextOverlay}>
+                  <Text style={styles.trendingTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
+      )}
     </ScrollView>
   );
 };

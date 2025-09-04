@@ -4,9 +4,7 @@ import {
   Alert,
   Animated,
   Dimensions,
-  FlatList,
   Image,
-  Modal,
   PanResponder,
   SafeAreaView,
   ScrollView,
@@ -14,339 +12,354 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import RenderHtml from "react-native-render-html";
 import Navbar from '../Navbar';
+import CommentsSection from './CommentsPage';
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
-const NewsDetailScreen = ({ article, onBack, onNext, hasNext = true }) => {
+const NewsDetailScreen = ({ 
+  article, 
+  onBack, 
+  onNext, 
+  hasNext, 
+  onPrev, // NEW: Previous handler
+  hasPrev = false, // NEW: Has previous flag
+  currentIndex, 
+  totalArticles,
+  sourceTab 
+}) => {
   const [showComments, setShowComments] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [replyText, setReplyText] = useState('');
-  const [replyingTo, setReplyingTo] = useState(null);
-  const [comments, setComments] = useState([]);
+  const [commentsCount, setCommentsCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-const [liked, setLiked] = useState(false);
-const [likeCount, setLikeCount] = useState(article.likeCount || 0);
-const [shareCount, setShareCount] = useState(article.shareCount || 0);
-  const currentUser = useAuth().user;
-  console.warn(commentText);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(article.likeCount || 0);
+  const [shareCount, setShareCount] = useState(article.shareCount || 0);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
   
+  // Local state for pending likes
+  const [pendingLikeAction, setPendingLikeAction] = useState(null);
+  const [lastLikeUpdate, setLastLikeUpdate] = useState(null);
+  
+  const currentUser = useAuth().user;
   const pan = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(1)).current;
-
-  // Add at the top with other state
-const [isBookmarked, setIsBookmarked] = useState(false);
-const [bookmarkLoading, setBookmarkLoading] = useState(false);
-
-// Add useEffect to load initial bookmark status
-useEffect(() => {
-  const loadBookmarkStatus = async () => {
-    try {
-      if (currentUser && article.id) {
-        const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
-        setIsBookmarked(bookmarked);
-      }
-    } catch (error) {
-      console.error('Error loading bookmark status:', error);
-    }
-  };
-
-  if (article.id) {
-    loadBookmarkStatus();
-  }
-}, [article.id]);
-
-
-  // Fetch comments when component mounts or when comments modal opens
-  useEffect(() => {
-    if (showComments && article.id) {
-      fetchComments();
-    }
-  }, [showComments, article.id]);
-
-  useEffect(() => {
-  const loadShareCount = async () => {
-    try {
-      if (article.id) {
-        const shareData = await apiService.getArticleShares(article.id);
-        setShareCount(shareData.shareCount);
-      }
-    } catch (error) {
-      console.error('Error loading share count:', error);
-    }
-  };
-
-  if (article.id) {
-    loadShareCount();
-  }
-}, [article.id]);
-  // Add this useEffect after your existing useEffect
-useEffect(() => {
-  const loadLikeStatus = async () => {
-    try {
-      if (currentUser && article.id) {
-        const status = await apiService.getArticleLikes(article.id, currentUser.id);
-        setLiked(status.userLiked);
-        setLikeCount(status.likeCount);
-      }
-    } catch (error) {
-      console.error('Error loading like status:', error);
-    }
-  };
-
-  if (article.id) {
-    loadLikeStatus();
-  }
-}, [article.id]);
-
-
-// Add handleBookmark function
-const handleBookmark = async () => {
-  if (bookmarkLoading) return;
   
-  try {
-    setBookmarkLoading(true);
-    
-    if (!currentUser) {
-      Alert.alert('Login Required', 'Please login to bookmark articles');
-      return;
-    }
+  // Timer ref for batching like updates
+  const likeUpdateTimer = useRef(null);
 
-    // Optimistic UI update
-    setIsBookmarked(!isBookmarked);
+  const LIKE_BATCH_DELAY = 1 * 60 * 1000; // 1 minute in milliseconds
+  const LIKE_STORAGE_KEY = `article_likes_${article.id}`;
 
-    // Make API call
-    const result = await apiService.toggleBookmark(currentUser.id, article.id);
-    
-    // Update with actual server response
-    setIsBookmarked(result.bookmarked);
-    
-    // Remove the Alert.alert - no success message needed
-
-  } catch (error) {
-    // Revert optimistic update on error
-    setIsBookmarked(!isBookmarked);
-    
-    console.error('Error toggling bookmark:', error);
-    Alert.alert('Error', 'Failed to update bookmark');
-  } finally {
-    setBookmarkLoading(false);
-  }
-};
-
-const fetchComments = async () => {
-  try {
-    const response = await apiService.getComments({
-      "articleId":article.id
-    });
-    
-    // Check if response has the expected structure
-    if (response && response.comments) {
-      const organizedComments = organizeComments(response.comments);
-      setComments(organizedComments);
-    } else {
-      console.error('Unexpected response format:', response);
-      setComments([]);
-    }
-  } catch (error) {
-    console.error("Error fetching comments:", error);
-    Alert.alert('Error', 'Failed to fetch comments');
-  }
-};
-
-const organizeComments = (commentsData) => {
-  const commentMap = {};
-  const rootComments = [];
-
-  // First pass: create a map of all comments
-  commentsData.forEach(comment => {
-    commentMap[comment.id] = { ...comment, replies: [] };
-  });
-
-  // Second pass: organize into parent-child structure
-  commentsData.forEach(comment => {
-    if (comment.parentId && commentMap[comment.parentId]) {
-      // This is a reply, add it to its parent's replies array
-      commentMap[comment.parentId].replies.push(commentMap[comment.id]);
-    } else {
-      // This is a root-level comment
-      rootComments.push(commentMap[comment.id]);
-    }
-  });
-
-  return rootComments;
-};
-
-// Replace the existing handleLike function with this:
-const handleLike = async () => {
-  try {
-    
-    if (!currentUser) {
-      Alert.alert('Login Required', 'Please login to like articles');
-      return;
-    }
-
-    // Optimistic UI update
-    const newLiked = !liked;
-    const newCount = newLiked ? likeCount + 1 : likeCount - 1;
-    setLiked(newLiked);
-    setLikeCount(newCount);
-
-    // Make API call
-    const result = await apiService.toggleArticleLike(article.id, currentUser.id);
-    
-    // Update with actual server response
-    setLiked(result.liked);
-    setLikeCount(result.likeCount);
-
-  } catch (error) {
-    // Revert optimistic update on error
-    setLiked(!liked);
-    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
-    
-    console.error('Error toggling like:', error);
-    Alert.alert('Error', 'Failed to update like status');
-  }
-};
-// Add this with your other state declarations:
-const [shareLoading, setShareLoading] = useState(false);
-const handleShare = async () => {
-  if (shareLoading) return;
-  
-  try {
-    setShareLoading(true);
-    
-    const shareOptions = {
-      message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
-      url: `https://nofa-sepia.vercel.app/article/${article.id}`,
-      title: article.title,
+  // Load initial states including local like state
+  useEffect(() => {
+    const initializeLikeState = async () => {
+      try {
+        if (currentUser && article.id) {
+          setLikeLoading(true);
+          
+          // STEP 1: Check for pending likes in AsyncStorage FIRST
+          const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
+          
+          if (localLikeData) {
+            const parsedData = JSON.parse(localLikeData);
+            
+            // Verify this is for the same user and article
+            if (parsedData.userId === currentUser.id && parsedData.articleId === article.id) {
+              console.log('Found pending likes, syncing to server first...');
+              
+              // STEP 2: Sync pending likes to server immediately
+              await syncPendingLikesToServer(parsedData);
+            } else {
+              // Different user/article, clear stale data
+              await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
+            }
+          }
+          
+          // STEP 3: Now load fresh server state
+          await loadServerLikeState();
+          
+          // Load bookmark status
+          const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
+          setIsBookmarked(bookmarked);
+          
+          setLikeLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing like state:', error);
+        setLikeLoading(false);
+      }
     };
 
-    const result = await Share.share(shareOptions);
-    
-    // Only record share if user actually completed the share action
-    if (result.action === Share.sharedAction) {
+    if (article.id) {
+      initializeLikeState();
+    }
+
+    // Cleanup timer on unmount
+    return () => {
+      if (likeUpdateTimer.current) {
+        clearTimeout(likeUpdateTimer.current);
+      }
+    };
+  }, [article.id, currentUser?.id]);
+
+  // Separate function to load server state
+  const loadServerLikeState = async () => {
+    try {
+      const status = await apiService.getArticleLikes(article.id, currentUser.id);
+      setLiked(status.userLiked);
+      setLikeCount(status.likeCount);
+      console.log('Loaded server state:', status);
+    } catch (error) {
+      console.error('Error loading server like state:', error);
+    }
+  };
+
+  // Updated sync function for pending likes
+  const syncPendingLikesToServer = async (pendingData = null) => {
+    try {
+      let dataToSync = pendingData;
       
-      let platform = 'other';
-      
-      if (result.activityType) {
-        const activityType = result.activityType.toLowerCase();
-        if (activityType.includes('twitter') || activityType.includes('com.twitter')) platform = 'twitter';
-        else if (activityType.includes('facebook') || activityType.includes('com.facebook')) platform = 'facebook';
-        else if (activityType.includes('whatsapp') || activityType.includes('net.whatsapp')) platform = 'whatsapp';
-        else if (activityType.includes('linkedin') || activityType.includes('com.linkedin')) platform = 'linkedin';
-        else if (activityType.includes('mail') || activityType.includes('message')) platform = 'email';
-        else if (activityType.includes('copy') || activityType.includes('pasteboard')) platform = 'copy_link';
-        else platform = 'other';
+      if (!dataToSync) {
+        const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
+        if (!localLikeData) return;
+        dataToSync = JSON.parse(localLikeData);
       }
 
-      // Record the share after completion
-      try {
-        const shareResult = await apiService.recordArticleShare(
-          article.id, 
-          platform, 
-          currentUser?.id
-        );
-        setShareCount(shareResult.shareCount);
+      console.log('Syncing pending data:', dataToSync);
+
+      // Get current server state
+      const currentServerState = await apiService.getArticleLikes(article.id, currentUser?.id);
+      console.log('Current server state:', currentServerState);
+
+      // Compare final local state with server state
+      if (dataToSync.finalLikedState !== currentServerState.userLiked) {
+        console.log('States differ, making API call...');
         
-        // Remove the success alert or make it generic
-        // Alert.alert('Success', 'Article shared successfully!');
+        const result = await apiService.toggleArticleLike(article.id, currentUser ? currentUser.id : '');
+        console.log('API result:', result);
+        
+        // Update UI with server response
+        setLiked(result.liked);
+        setLikeCount(result.likeCount);
+      } else {
+        console.log('States match, no API call needed');
+        // States match, just update UI with server data
+        setLiked(currentServerState.userLiked);
+        setLikeCount(currentServerState.likeCount);
+      }
+      
+      // Clear AsyncStorage after successful sync
+      await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
+      setPendingLikeAction(null);
+      setLastLikeUpdate(null);
+      
+      console.log('Pending likes synced and cleared');
+      
+    } catch (error) {
+      console.error('Error syncing pending likes:', error);
+      throw error; // Re-throw to handle in caller
+    }
+  };
+
+useEffect(() => {
+  // Only run cleanup, the article-specific initialization is handled above
+  return () => {
+    if (likeUpdateTimer.current) {
+      clearTimeout(likeUpdateTimer.current);
+    }
+  };
+}, []);
+
+
+  // Load share count
+  useEffect(() => {
+    const loadShareCount = async () => {
+      try {
+        if (article.id) {
+          const shareData = await apiService.getArticleShares(article.id);
+          setShareCount(shareData.shareCount);
+        }
       } catch (error) {
-        console.error('Error recording share:', error);
-        setShareCount(prev => prev + 1);
+        console.error('Error loading share count:', error);
       }
+    };
+
+    if (article.id) {
+      loadShareCount();
     }
+  }, [article.id]);
+
+  // Schedule like sync with server
+  const scheduleLikeSync = () => {
+    if (likeUpdateTimer.current) {
+      clearTimeout(likeUpdateTimer.current);
+    }
+
+    likeUpdateTimer.current = setTimeout(() => {
+      syncLikesToServer();
+    }, LIKE_BATCH_DELAY);
+  };
+
+  // Updated handleLike with better data structure
+  const handleLike = async () => {
+    try {
+      if (!currentUser) {
+        Alert.alert('Login Required', 'Please login to like articles');
+        return;
+      }
+
+      // Calculate new state
+      const newLiked = !liked;
+      const newCount = newLiked ? likeCount + 1 : likeCount - 1;
+      const timestamp = Date.now();
+
+      // Immediate UI update
+      setLiked(newLiked);
+      setLikeCount(newCount);
+      setLastLikeUpdate(timestamp);
+      setPendingLikeAction('pending');
+
+      // Store in AsyncStorage with proper structure
+      const localLikeData = {
+        userId: currentUser.id,
+        articleId: article.id,
+        finalLikedState: newLiked,
+        finalCount: newCount,
+        timestamp: timestamp,
+        needsSync: true
+      };
+
+      await AsyncStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(localLikeData));
+      console.log('Stored pending like data:', localLikeData);
+
+      // Schedule sync
+      scheduleLikeSync();
+
+    } catch (error) {
+      console.error('Error handling like:', error);
+      // Revert on error
+      setLiked(!liked);
+      setLikeCount(!liked ? likeCount - 1 : likeCount + 1);
+      Alert.alert('Error', 'Failed to update like status');
+    }
+  };
+
+  // Updated regular sync (called by timer)
+  const syncLikesToServer = async () => {
+    try {
+      await syncPendingLikesToServer();
+    } catch (error) {
+      console.error('Error in scheduled sync:', error);
+      // Retry after delay
+      setTimeout(() => {
+        syncLikesToServer();
+      }, 30000);
+    }
+  };
+
+  // Force sync likes (can be called manually if needed)
+  const forceSyncLikes = async () => {
+    if (pendingLikeAction) {
+      if (likeUpdateTimer.current) {
+        clearTimeout(likeUpdateTimer.current);
+      }
+      await syncLikesToServer();
+    }
+  };
+
+  // Callback to update comments count from CommentsSection
+  const handleCommentsCountChange = (count) => {
+    setCommentsCount(count);
+  };
+
+  // Updated bookmark handler
+  const handleBookmark = async () => {
+    if (bookmarkLoading) return;
     
-  } catch (error) {
-    console.error('Error sharing article:', error);
-    Alert.alert('Error', 'Failed to share article');
-  } finally {
-    setShareLoading(false);
-  }
-};
-
-  const handleAddComment = async () => {
-    if (commentText.trim() === '') {
-      Alert.alert('Error', 'Please enter a comment');
-      return;
-    }
-
-    setIsLoading(true);
     try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          articleId: article.id,
-          content: commentText.trim(),
-          authorName: 'You', // Replace with actual user data
-          authorEmail: 'user@example.com', // Replace with actual user data
-        }),
-      });
-
-      if (response.ok) {
-        setCommentText('');
-        await fetchComments(); // Refresh comments
-        Alert.alert('Success', 'Comment added successfully!');
-      } else {
-        Alert.alert('Error', 'Failed to add comment');
+      setBookmarkLoading(true);
+      
+      if (!currentUser) {
+        Alert.alert('Login Required', 'Please login to bookmark articles');
+        return;
       }
+
+      setIsBookmarked(!isBookmarked);
+      const result = await apiService.toggleBookmark(currentUser.id, article.id);
+      setIsBookmarked(result.bookmarked);
+
     } catch (error) {
-      console.error('Error adding comment:', error);
-      Alert.alert('Error', 'Failed to add comment');
+      setIsBookmarked(!isBookmarked);
+      console.error('Error toggling bookmark:', error);
+      Alert.alert('Error', 'Failed to update bookmark');
     } finally {
-      setIsLoading(false);
+      setBookmarkLoading(false);
     }
   };
 
-  const handleAddReply = async (parentId) => {
-    if (replyText.trim() === '') {
-      Alert.alert('Error', 'Please enter a reply');
-      return;
-    }
-
-    setIsLoading(true);
+  // Share handler
+  const handleShare = async () => {
+    if (shareLoading) return;
+    
     try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          articleId: article.id,
-          content: replyText.trim(),
-          parentId: parentId,
-          authorName: 'You', // Replace with actual user data
-          authorEmail: 'user@example.com', // Replace with actual user data
-        }),
-      });
+      setShareLoading(true);
+      
+      const shareOptions = {
+        message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
+        url: `https://nofa-sepia.vercel.app/article/${article.id}`,
+        title: article.title,
+      };
 
-      if (response.ok) {
-        setReplyText('');
-        setReplyingTo(null);
-        await fetchComments(); // Refresh comments
-        Alert.alert('Success', 'Reply added successfully!');
-      } else {
-        Alert.alert('Error', 'Failed to add reply');
+      const result = await Share.share(shareOptions);
+      
+      if (result.action === Share.sharedAction) {
+        let platform = 'other';
+        
+        if (result.activityType) {
+          const activityType = result.activityType.toLowerCase();
+          if (activityType.includes('twitter') || activityType.includes('com.twitter')) platform = 'twitter';
+          else if (activityType.includes('facebook') || activityType.includes('com.facebook')) platform = 'facebook';
+          else if (activityType.includes('whatsapp') || activityType.includes('net.whatsapp')) platform = 'whatsapp';
+          else if (activityType.includes('linkedin') || activityType.includes('com.linkedin')) platform = 'linkedin';
+          else if (activityType.includes('mail') || activityType.includes('message')) platform = 'email';
+          else if (activityType.includes('copy') || activityType.includes('pasteboard')) platform = 'copy_link';
+          else platform = 'other';
+        }
+
+        try {
+          const shareResult = await apiService.recordArticleShare(
+            article.id, 
+            platform, 
+            currentUser?.id
+          );
+          setShareCount(shareResult.shareCount);
+        } catch (error) {
+          console.error('Error recording share:', error);
+          setShareCount(prev => prev + 1);
+        }
       }
+      
     } catch (error) {
-      console.error('Error adding reply:', error);
-      Alert.alert('Error', 'Failed to add reply');
+      console.error('Error sharing article:', error);
+      Alert.alert('Error', 'Failed to share article');
     } finally {
-      setIsLoading(false);
+      setShareLoading(false);
     }
   };
 
-  const panResponder = useRef(
+  // Pan responder for swipe gestures
+    const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
@@ -365,25 +378,46 @@ const handleShare = async () => {
       onPanResponderRelease: (evt, gestureState) => {
         pan.flattenOffset();
         
-        const shouldGoBack = gestureState.dx > width * 0.3 && gestureState.vx > 0;
-        const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0;
+        const shouldGoBack = gestureState.dx > width * 0.3 && gestureState.vx > 0; // Right swipe
+        const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0; // Left swipe
 
         if (shouldGoBack) {
-          Animated.parallel([
-            Animated.timing(pan.x, {
-              toValue: width,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]).start(() => {
-            if (onBack) onBack();
-          });
+          // Right swipe - go to previous article or home
+          if (currentIndex === 0) {
+            // First article - go back to home screen
+            Animated.parallel([
+              Animated.timing(pan.x, {
+                toValue: width,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              Animated.timing(opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+            ]).start(() => {
+              if (onBack) onBack();
+            });
+          } else {
+            // Has previous article - go to previous
+            Animated.parallel([
+              Animated.timing(pan.x, {
+                toValue: width,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              Animated.timing(opacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+            ]).start(() => {
+              if (onPrev) onPrev();
+            });
+          }
         } else if (shouldGoNext && hasNext) {
+          // Left swipe - go to next article
           Animated.parallel([
             Animated.timing(pan.x, {
               toValue: -width,
@@ -399,6 +433,7 @@ const handleShare = async () => {
             if (onNext) onNext();
           });
         } else {
+          // Snap back if gesture is not strong enough
           Animated.parallel([
             Animated.spring(pan.x, {
               toValue: 0,
@@ -414,158 +449,26 @@ const handleShare = async () => {
     })
   ).current;
 
-  const renderReply = (reply, depth = 1) => (
-    <View key={reply.id} style={[styles.replyItem, { marginLeft: depth * 20 }]}>
-      <View style={styles.commentHeader}>
-        <Text style={styles.commentAuthor}>{reply.authorName}</Text>
-        <Text style={styles.commentTime}>
-          {new Date(reply.createdAt).toLocaleDateString()}
-        </Text>
-      </View>
-      <Text style={styles.commentText}>{reply.content}</Text>
-      <View style={styles.commentActions}>
-        <TouchableOpacity
-          style={styles.commentReplyButton}
-          onPress={() => setReplyingTo(reply.id)}
-        >
-          <Text style={styles.commentReply}>Reply</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {reply.replies && reply.replies.length > 0 && (
-        <View style={styles.repliesContainer}>
-          {reply.replies.map(nestedReply => renderReply(nestedReply, depth + 1))}
-        </View>
-      )}
-      
-      {replyingTo === reply.id && (
-        <View style={styles.replyInputContainer}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder={`Reply to ${reply.authorName}...`}
-            value={replyText}
-            onChangeText={setReplyText}
-            multiline
-            maxLength={500}
-          />
-          <View style={styles.replyActions}>
-            <TouchableOpacity
-              style={styles.cancelReplyButton}
-              onPress={() => {
-                setReplyingTo(null);
-                setReplyText('');
-              }}
-            >
-              <Text style={styles.cancelReplyText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sendReplyButton}
-              onPress={() => handleAddReply(reply.id)}
-              disabled={isLoading}
-            >
-              <Text style={styles.sendReplyText}>
-                {isLoading ? 'Sending...' : 'Send'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderCommentItem = ({ item }) => (
-    <View style={styles.commentItem}>
-      <View style={styles.commentHeader}>
-        <Text style={styles.commentAuthor}>{item.authorName}</Text>
-        <Text style={styles.commentTime}>
-          {new Date(item.createdAt).toLocaleDateString()}
-        </Text>
-      </View>
-      <Text style={styles.commentText}>{item.content}</Text>
-      <View style={styles.commentActions}>
-        <TouchableOpacity
-          style={styles.commentReplyButton}
-          onPress={() => setReplyingTo(item.id)}
-        >
-          <Text style={styles.commentReply}>Reply</Text>
-        </TouchableOpacity>
-        {item.replies && item.replies.length > 0 && (
-          <Text style={styles.replyCount}>
-            {item.replies.length} {item.replies.length === 1 ? 'reply' : 'replies'}
-          </Text>
-        )}
-      </View>
-
-      {/* Render replies */}
-      {item.replies && item.replies.length > 0 && (
-        <View style={styles.repliesContainer}>
-          {item.replies.map(reply => renderReply(reply))}
-        </View>
-      )}
-
-      {/* Reply input for main comment */}
-      {replyingTo === item.id && (
-        <View style={styles.replyInputContainer}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder={`Reply to ${item.authorName}...`}
-            value={replyText}
-            onChangeText={setReplyText}
-            multiline
-            maxLength={500}
-          />
-          <View style={styles.replyActions}>
-            <TouchableOpacity
-              style={styles.cancelReplyButton}
-              onPress={() => {
-                setReplyingTo(null);
-                setReplyText('');
-              }}
-            >
-              <Text style={styles.cancelReplyText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sendReplyButton}
-              onPress={() => handleAddReply(item.id)}
-              disabled={isLoading}
-            >
-              <Text style={styles.sendReplyText}>
-                {isLoading ? 'Sending...' : 'Send'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-
-  // Function to process tags - handle both string and array formats
+  // Helper functions for processing tags and keywords
   const processTags = (tags) => {
     if (!tags) return [];
-    
     if (typeof tags === 'string') {
       return tags.split(',').map(tag => tag.trim()).filter(tag => tag);
     }
-    
     if (Array.isArray(tags)) {
       return tags.filter(tag => tag && tag.trim());
     }
-    
     return [];
   };
 
-  // Function to process keywords similarly
   const processKeywords = (keywords) => {
     if (!keywords) return [];
-    
     if (typeof keywords === 'string') {
       return keywords.split(',').map(keyword => keyword.trim()).filter(keyword => keyword);
     }
-    
     if (Array.isArray(keywords)) {
       return keywords.filter(keyword => keyword && keyword.trim());
     }
-    
     return [];
   };
 
@@ -573,8 +476,13 @@ const handleShare = async () => {
   const keywordsArray = processKeywords(article.keywords);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+ <SafeAreaView style={styles.container}>
+      {/* Add navigation indicator */}
+      <View style={styles.navigationIndicator}>
+        <Text style={styles.navText}>
+          {currentIndex + 1} of {totalArticles} • {sourceTab}
+        </Text>
+      </View>      <StatusBar barStyle="light-content" backgroundColor="#000" />
       
       <Animated.View 
         style={[
@@ -704,127 +612,109 @@ const handleShare = async () => {
               />
             </View>
 
-        <View style={styles.statsSection}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{article.viewCount || 0}</Text>
-            <Text style={styles.statLabel}>Views</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{likeCount}</Text>
-            <Text style={styles.statLabel}>Likes</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{shareCount}</Text>
-            <Text style={styles.statLabel}>Shares</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{comments.length}</Text>
-            <Text style={styles.statLabel}>Comments</Text>
-          </View>
-        </View>
-
+            <View style={styles.statsSection}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{article.viewCount || 0}</Text>
+                <Text style={styles.statLabel}>Views</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{likeCount}</Text>
+                <Text style={styles.statLabel}>Likes</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{shareCount}</Text>
+                <Text style={styles.statLabel}>Shares</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{commentsCount}</Text>
+                <Text style={styles.statLabel}>Comments</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
-{/* Enhanced Professional Bottom Action Bar */}
-<View style={styles.actionBar}>
-  <TouchableOpacity 
-    style={[styles.actionButton, liked && styles.likedButton]}
-    onPress={handleLike}
-  >
-    <Text style={[styles.actionIcon, liked && styles.likedIcon]}>
-      {liked ? '♥' : '♡'}
-    </Text>
-    <Text style={[styles.actionText, liked && styles.likedText]}>
-      {likeCount}
-    </Text>
-  </TouchableOpacity>
 
-  <TouchableOpacity 
-    style={styles.actionButton}
-    onPress={() => setShowComments(true)}
-  >
-    <Text style={styles.actionIcon}>💬</Text>
-    <Text style={styles.actionText}>{comments.length}</Text>
-  </TouchableOpacity>
+        {/* Updated Action Bar with clean icon design */}
+        <View style={styles.actionBar}>
+          {/* Like Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleLike}
+            disabled={likeLoading}
+          >
+            {likeLoading ? (
+              <Ionicons name="hourglass-outline" size={24} color="#999" />
+            ) : (
+              <Ionicons 
+                name={liked ? "heart" : "heart-outline"} 
+                size={24} 
+                color={liked ? "#ae0202ff" : "#999"} 
+              />
+            )}
+            <Text style={[
+              styles.actionText,
+              liked && styles.activeActionTextRed,
+            ]}>
+              {likeCount}
+            </Text>
+          </TouchableOpacity>
 
-  <TouchableOpacity 
-    style={styles.enhancedShareButton}
-    onPress={handleShare}
-    disabled={shareLoading}
-  >
-    <Text style={styles.enhancedShareIcon}>
-      {shareLoading ? '⏳' : '🚀'}
-    </Text>
-    <Text style={styles.enhancedShareText}>
-      {shareLoading ? 'Sharing...' : `Share ${shareCount > 0 ? `(${shareCount})` : ''}`}
-    </Text>
-  </TouchableOpacity>
+          {/* Comment Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => setShowComments(true)}
+          >
+            <Ionicons name="chatbubble-outline" size={24} color="#999" />
+            <Text style={styles.actionText}>{commentsCount}</Text>
+          </TouchableOpacity>
 
-  <TouchableOpacity 
-  style={[styles.saveButton, isBookmarked && styles.bookmarkedButton]}
-  onPress={handleBookmark}
-  disabled={bookmarkLoading}
->
-  <Text style={[styles.saveIcon, isBookmarked && styles.bookmarkedIcon]}>
-    {bookmarkLoading ? '⏳' : (isBookmarked ? '🔖' : '🏷️')}
-  </Text>
-</TouchableOpacity>
+          {/* Share Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleShare}
+            disabled={shareLoading}
+          >
+            {shareLoading ? (
+              <Ionicons name="hourglass-outline" size={24} color="#999" />
+            ) : (
+              <Ionicons name="share-outline" size={24} color="#999" />
+            )}
+            <Text style={styles.actionText}>
+              {shareLoading ? 'Sharing...' : shareCount > 0 ? shareCount : 'Share'}
+            </Text>
+          </TouchableOpacity>
 
-</View>
-
+          {/* Bookmark Button */}
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleBookmark}
+            disabled={bookmarkLoading}
+          >
+            {bookmarkLoading ? (
+              <Ionicons name="hourglass-outline" size={24} color="#999" />
+            ) : (
+              <Ionicons 
+                name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+                size={24} 
+                color={isBookmarked ? "#4CAF50" : "#999"} 
+              />
+            )}
+            <Text style={[
+              styles.actionText,
+              isBookmarked && styles.activeActionText
+            ]}>
+              Saved
+            </Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
-      {/* Enhanced Comments Modal with Nested Replies */}
-      <Modal
+      {/* Comments Section Component */}
+      <CommentsSection
         visible={showComments}
-        animationType="slide"
-        onRequestClose={() => setShowComments(false)}
-      >
-        <SafeAreaView style={styles.commentsModal}>
-          <View style={styles.commentsHeader}>
-            <Text style={styles.commentsTitle}>Comments ({comments.length})</Text>
-            <TouchableOpacity onPress={() => setShowComments(false)}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text>Loading comments...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={comments}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderCommentItem}
-              style={styles.commentsList}
-              showsVerticalScrollIndicator={false}
-              refreshing={isLoading}
-              onRefresh={fetchComments}
-            />
-          )}
-
-          <View style={styles.commentInputContainer}>
-            <TextInput
-              style={styles.commentInput}
-              placeholder="Add a comment..."
-              value={commentText}
-              onChangeText={setCommentText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity 
-              style={styles.sendButton} 
-              onPress={handleAddComment}
-              disabled={isLoading}
-            >
-              <Text style={styles.sendButtonText}>
-                {isLoading ? 'Sending...' : 'Send'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
+        onClose={() => setShowComments(false)}
+        articleId={article.id}
+        onCommentsCountChange={handleCommentsCountChange}
+      />
     </SafeAreaView>
   );
 };
@@ -1015,334 +905,55 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  // Enhanced Professional Action Bar Styles
-  // actionBar: {
-  //   flexDirection: 'row',
-  //   justifyContent: 'space-between',
-  //   alignItems: 'center',
-  //   paddingHorizontal: 15,
-  //   paddingVertical: 12,
-  //   backgroundColor: '#fff',
-  //   borderTopWidth: 1,
-  //   borderTopColor: '#e0e0e0',
-  //   elevation: 8,
-  //   shadowColor: '#000',
-  //   shadowOffset: { width: 0, height: -3 },
-  //   shadowOpacity: 0.15,
-  //   shadowRadius: 5,
-  // },
-  actionButton: {
+  // Updated Action Bar styles - clean like bottom navigation
+  actionBar: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 25,
-    backgroundColor: '#f5f5f5',
-    minWidth: 65,
-    justifyContent: 'center',
-    elevation: 2,
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    borderWidth: 0, // Add this to ensure no border
-  },
-  likedButton: {
-    backgroundColor: '#ffe6e6',
-    borderColor: '#ff6b6b',
-    borderWidth: 1,
-  },
-  shareActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    backgroundColor: '#2196F3',
-    elevation: 3,
-    shadowColor: '#2196F3',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
     shadowRadius: 3,
   },
-  actionIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  likedIcon: {
-    fontSize: 16,
-  },
-  shareIcon: {
-    fontSize: 14,
-    marginRight: 6,
-    color: '#fff',
+  actionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+    paddingVertical: 4,
   },
   actionText: {
     fontSize: 12,
-    color: '#333',
-    fontWeight: '600',
-  },
-  likedText: {
-    color: '#ff6b6b',
-  },
-  shareText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  // Enhanced Comments Modal Styles
-  commentsModal: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  commentsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: '#fafafa',
-  },
-  commentsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  closeButton: {
-    fontSize: 20,
-    color: '#666',
-    fontWeight: 'bold',
-    padding: 5,
-  },
-  commentsList: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  commentItem: {
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
-  },
-  commentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  commentAuthor: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  commentTime: {
-    fontSize: 12,
     color: '#999',
-  },
-  commentText: {
-    fontSize: 14,
-    color: '#444',
-    lineHeight: 20,
-    marginBottom: 10,
-  },
-  commentActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  commentReplyButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 15,
-  },
-  commentReply: {
-    fontSize: 12,
-    color: '#2196F3',
-    fontWeight: '600',
-  },
-  replyCount: {
-    fontSize: 12,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  // Nested Replies Styles
-  repliesContainer: {
-    marginTop: 10,
-    paddingLeft: 0,
-  },
-  replyItem: {
-    paddingVertical: 12,
-    paddingLeft: 15,
-    marginTop: 8,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#e0e0e0',
-  },
-  replyInputContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  replyInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 15,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginBottom: 10,
-    backgroundColor: '#fff',
-    fontSize: 14,
-    maxHeight: 80,
-  },
-  replyActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  cancelReplyButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
-    borderRadius: 15,
-    backgroundColor: '#f0f0f0',
-  },
-  cancelReplyText: {
-    color: '#666',
-    fontSize: 12,
+    marginTop: 4,
     fontWeight: '500',
   },
-  sendReplyButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 15,
-    backgroundColor: '#4CAF50',
-  },
-  sendReplyText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    backgroundColor: '#fff',
-  },
-  commentInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
-    maxHeight: 100,
-    fontSize: 14,
-    backgroundColor: '#f9f9f9',
-  },
-  sendButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    elevation: 2,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-  },
-  sendButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  enhancedShareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10, // Reduced from 18
-    paddingVertical: 8,    // Reduced from 12
-    borderRadius: 25,
-    backgroundColor: '#4CAF50',
-    elevation: 3,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    marginHorizontal: 4,   // Reduced from 8
-    // Remove flex: 1 to prevent taking full width
-  },
-  
-  enhancedShareIcon: {
-    fontSize: 16,
-    marginRight: 8,
-    color: '#fff',
-  },
-  
-  enhancedShareText: {
-    fontSize: 13,
-    color: '#fff',
+  activeActionText: {
+    color: '#4CAF50',
     fontWeight: '600',
-    textAlign: 'center',
   },
-  
-  // Update actionBar to better space the buttons:
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-  },saveButton: {
-    padding: 12,
-    borderRadius: 25,
-    backgroundColor: '#f5f5f5', // Changed to neutral when not bookmarked
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  activeActionTextRed: {
+    color: '#ae0202ff',
+    fontWeight: '600',
   },
-  bookmarkedButton: {
-    backgroundColor: '#FFD700', // Golden background when bookmarked
-    borderColor: '#FFA500',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.4,
-    elevation: 3,
-  },
-  
-  saveIcon: {
-    fontSize: 18,
-    color: '#666', // Gray when not bookmarked
-    textAlign: 'center',
-  },
-  
-  bookmarkedIcon: {
-    color: '#B8860B', // Darker gold when bookmarked
-  },
+   navigationIndicator : {
+  paddingHorizontal: 20,
+  paddingVertical: 8,
+  backgroundColor: '#f8f9fa',
+  borderBottomWidth: 1,
+  borderBottomColor: '#f0f0f0',
+},
+
+ navText : {
+  fontSize: 12,
+  color: '#666',
+  textAlign: 'center',
+},
 });
 
 export default NewsDetailScreen;
