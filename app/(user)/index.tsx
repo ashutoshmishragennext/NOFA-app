@@ -9,7 +9,6 @@ import React, { useState, useEffect } from "react";
 import {
   Image,
   SafeAreaView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,13 +16,15 @@ import {
   BackHandler,  // Add this import
   Alert,        // Add this import
 } from "react-native";
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  
+  const insets = useSafeAreaInsets();
+
   // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
@@ -49,7 +50,7 @@ const NewsApp = () => {
         handleBackPress();
         return true; // Prevent default behavior (app exit)
       }
-      
+
       // If we're on main screen, show exit confirmation (optional)
       Alert.alert(
         "Exit App",
@@ -60,9 +61,9 @@ const NewsApp = () => {
             onPress: () => null,
             style: "cancel"
           },
-          { 
-            text: "Exit", 
-            onPress: () => BackHandler.exitApp() 
+          {
+            text: "Exit",
+            onPress: () => BackHandler.exitApp()
           }
         ]
       );
@@ -99,7 +100,7 @@ const NewsApp = () => {
     if (currentArticleIndex < articlesList.length - 1) {
       const nextIndex = currentArticleIndex + 1;
       const nextArticle = articlesList[nextIndex];
-      
+
       setSelectedArticle(nextArticle);
       setCurrentArticleIndex(nextIndex);
     }
@@ -131,7 +132,7 @@ const NewsApp = () => {
     if (currentArticleIndex > 0) {
       const prevIndex = currentArticleIndex - 1;
       const prevArticle = articlesList[prevIndex];
-      
+
       setSelectedArticle(prevArticle);
       setCurrentArticleIndex(prevIndex);
     }
@@ -145,9 +146,15 @@ const NewsApp = () => {
     const hasPrev = currentArticleIndex > 0; // NEW: Check if has previous
 
     return (
-      <NewsDetailScreen 
+      <View style={[styles.container, {
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom
+    }]}
+    >
+      <StatusBar style="dark" />
+      <NewsDetailScreen
         key={selectedArticle.id}
-        article={selectedArticle} 
+        article={selectedArticle}
         onBack={handleBackPress}
         onNext={hasNext ? handleNextArticle : null}
         onPrev={hasPrev ? handlePrevArticle : handleBackPress} // NEW: Previous handler
@@ -157,11 +164,17 @@ const NewsApp = () => {
         totalArticles={articlesList.length}
         sourceTab={sourceTab}
       />
+      </View>
     );
   }
   // MAIN APP SCREEN
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, {
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom
+    }]}
+    >
+          <StatusBar style="dark" />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Image
@@ -176,11 +189,10 @@ const NewsApp = () => {
           <Ionicons name="menu" size={24} color="#333" />
         </TouchableOpacity>
       </View>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* Menu Dropdown */}
       {menuVisible && (
-        <View style={styles.menuDropdown}>
+        <View style={[styles.menuDropdown, { top: 90 + insets.top }]}>
           {["Notifications", "Settings", "About"].map((item, index) => (
             <TouchableOpacity
               key={index}
@@ -224,7 +236,7 @@ const NewsApp = () => {
           </TouchableOpacity>
         ))}
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -297,20 +309,20 @@ const styles = StyleSheet.create({
 
   // BOTTOM NAVIGATION STYLES
   bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
+  flexDirection: "row",
+  justifyContent: "space-around",
+  alignItems: "center",
+  backgroundColor: "#fff", 
+  paddingVertical: 4,     
+  paddingBottom: 4,       
+  borderTopWidth: 1,       
+  borderTopColor: "#f0f0f0",
+  elevation: 1,          
+  shadowColor: "#000",     
+  shadowOffset: { width: 0, height: -2 }, 
+  shadowOpacity: 0.1,      
+  shadowRadius: 3,         
+},
   bottomTab: {
     alignItems: "center",
     flex: 1,

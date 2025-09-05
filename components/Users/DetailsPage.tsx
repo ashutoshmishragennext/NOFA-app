@@ -458,96 +458,103 @@ useEffect(() => {
     }
   };
 
-  // Pan responder for swipe gestures
-    const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: pan.x._value,
-          y: pan.y._value,
-        });
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        pan.setValue({ x: gestureState.dx, y: 0 });
-        const progress = Math.abs(gestureState.dx) / width;
-        opacity.setValue(1 - progress * 0.3);
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        pan.flattenOffset();
-        
-        const shouldGoBack = gestureState.dx > width * 0.3 && gestureState.vx > 0; // Right swipe
-        const shouldGoNext = gestureState.dx < -width * 0.3 && gestureState.vx < 0; // Left swipe
+// Updated panResponder for smoother swipe animations
+const panResponder = useRef(
+  PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => {
+      // Only respond to horizontal swipes with sufficient movement
+      return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 15;
+    },
+    onPanResponderGrant: () => {
+      pan.setOffset({
+        x: pan.x._value,
+        y: pan.y._value,
+      });
+    },
+    onPanResponderMove: (evt, gestureState) => {
+      // Smooth real-time movement following finger
+      pan.setValue({ x: gestureState.dx, y: 0 });
+      
+      // Dynamic opacity based on swipe progress for smooth visual feedback
+      const progress = Math.abs(gestureState.dx) / width;
+      opacity.setValue(1 - progress * 0.2); // Reduced opacity change for subtlety
+    },
+    onPanResponderRelease: (evt, gestureState) => {
+      pan.flattenOffset();
+      
+      // Enhanced thresholds with velocity consideration
+      const swipeThreshold = width * 0.25; // Reduced from 0.3 for easier swipes
+      const velocityThreshold = 0.5; // Lower threshold for more responsive swipes
+      
+      const shouldGoBack = (gestureState.dx > swipeThreshold || gestureState.vx > velocityThreshold) && gestureState.dx > 0;
+      const shouldGoNext = (gestureState.dx < -swipeThreshold || gestureState.vx < -velocityThreshold) && gestureState.dx < 0;
 
-        if (shouldGoBack) {
-          // Right swipe - go to previous article or home
+      if (shouldGoBack) {
+        // Right swipe - smooth spring animation
+        Animated.parallel([
+          Animated.spring(pan.x, {
+            toValue: width,
+            tension: 100, // Adjusted for smoother feel
+            friction: 8,  // Reduced friction for smoother motion
+            useNativeDriver: false,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 200, // Faster fade for better sync
+            useNativeDriver: false,
+          }),
+        ]).start(() => {
+          // Reset animation values for next use
+          pan.setValue({ x: 0, y: 0 });
+          opacity.setValue(1);
+          
           if (currentIndex === 0) {
-            // First article - go back to home screen
-            Animated.parallel([
-              Animated.timing(pan.x, {
-                toValue: width,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(opacity, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              if (onBack) onBack();
-            });
+            if (onBack) onBack();
           } else {
-            // Has previous article - go to previous
-            Animated.parallel([
-              Animated.timing(pan.x, {
-                toValue: width,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-              Animated.timing(opacity, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: false,
-              }),
-            ]).start(() => {
-              if (onPrev) onPrev();
-            });
+            if (onPrev) onPrev();
           }
-        } else if (shouldGoNext && hasNext) {
-          // Left swipe - go to next article
-          Animated.parallel([
-            Animated.timing(pan.x, {
-              toValue: -width,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]).start(() => {
-            if (onNext) onNext();
-          });
-        } else {
-          // Snap back if gesture is not strong enough
-          Animated.parallel([
-            Animated.spring(pan.x, {
-              toValue: 0,
-              useNativeDriver: false,
-            }),
-            Animated.spring(opacity, {
-              toValue: 1,
-              useNativeDriver: false,
-            }),
-          ]).start();
-        }
-      },
-    })
-  ).current;
+        });
+      } else if (shouldGoNext && hasNext) {
+        // Left swipe - smooth spring animation
+        Animated.parallel([
+          Animated.spring(pan.x, {
+            toValue: -width,
+            tension: 100, // Adjusted for smoother feel
+            friction: 8,  // Reduced friction for smoother motion
+            useNativeDriver: false,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 200, // Faster fade for better sync
+            useNativeDriver: false,
+          }),
+        ]).start(() => {
+          // Reset animation values for next use
+          pan.setValue({ x: 0, y: 0 });
+          opacity.setValue(1);
+          
+          if (onNext) onNext();
+        });
+      } else {
+        // Snap back with smooth spring animation
+        Animated.parallel([
+          Animated.spring(pan.x, {
+            toValue: 0,
+            tension: 120, // Higher tension for snappy return
+            friction: 7,  // Balanced friction
+            useNativeDriver: false,
+          }),
+          Animated.spring(opacity, {
+            toValue: 1,
+            tension: 120,
+            friction: 7,
+            useNativeDriver: false,
+          }),
+        ]).start();
+      }
+    },
+  })
+).current;
 
   // Helper functions for processing tags and keywords
   const processTags = (tags) => {
@@ -609,11 +616,11 @@ useEffect(() => {
               </View>
             )}
             
-            <View style={styles.swipeIndicators}>
+            {/* <View style={styles.swipeIndicators}>
               <View style={styles.swipeIndicator}>
                 <Text style={styles.swipeText}>← Swipe to go back</Text>
               </View>
-            </View>
+            </View> */}
           </View>
 
           {/* Article Content */}
@@ -650,7 +657,7 @@ useEffect(() => {
             )}
 
             {/* Keywords */}
-            {keywordsArray.length > 0 && (
+            {/* {keywordsArray.length > 0 && (
               <View style={styles.keywordsContainer}>
                 <Text style={styles.keywordsLabel}>Keywords:</Text>
                 <View style={styles.keywordsWrapper}>
@@ -661,7 +668,7 @@ useEffect(() => {
                   ))}
                 </View>
               </View>
-            )}
+            )} */}
 
             {/* Article Summary */}
             {article.summary && (
@@ -707,7 +714,7 @@ useEffect(() => {
                 }}
               />
             </View>
-
+{/* 
             <View style={styles.statsSection}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{viewCount}</Text>
@@ -725,7 +732,7 @@ useEffect(() => {
                 <Text style={styles.statNumber}>{commentsCount}</Text>
                 <Text style={styles.statLabel}>Comments</Text>
               </View>
-            </View>
+            </View> */}
 
           </View>
         </ScrollView>
@@ -815,7 +822,7 @@ useEffect(() => {
         visible={showComments}
         onClose={() => setShowComments(false)}
         articleId={article.id}
-        onCommentsCountChange={handleCommentsCountChange}
+        // onCommentsCountChange={handleCommentsCountChange}
       />
     </SafeAreaView>
   );
@@ -1009,25 +1016,25 @@ const styles = StyleSheet.create({
   },
   // Updated Action Bar styles - clean like bottom navigation
   actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+  flexDirection: "row",
+  justifyContent: "space-around",
+  alignItems: "center",
+  backgroundColor: "#fff", 
+  paddingVertical: 4,     
+  paddingBottom: 4,       
+  borderTopWidth: 1,       
+  borderTopColor: "#f0f0f0",
+  elevation: 1,          
+  shadowColor: "#000",     
+  shadowOffset: { width: 0, height: -2 }, 
+  shadowOpacity: 0.1,      
+  shadowRadius: 3,         
   },
   actionButton: {
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 60,
-    paddingVertical: 4,
+    paddingVertical: 1,
   },
   actionText: {
     fontSize: 12,

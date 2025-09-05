@@ -356,23 +356,23 @@ async searchArticles(params:any): Promise<GetFoldersResponse> {
   
   return result;
 }
-// Updated: Get comments with optional parentId for replies
+// Updated: Get comments with loadReplies parameter
 async getComments(params: {
   articleId: string;
-  parentId?: string;
+  loadReplies?: string; // Changed from parentId to loadReplies
 }): Promise<{
   success: boolean;
   comments: any[];
   count: number;
-  parentId?: string;
   isReplies: boolean;
+  parentCommentId?: string;
 }> {
   console.log("Fetching comments:", params);
   
   const searchParams = new URLSearchParams();
   searchParams.append('articleId', params.articleId);
-  if (params.parentId) {
-    searchParams.append('parentId', params.parentId);
+  if (params.loadReplies) {
+    searchParams.append('loadReplies', params.loadReplies); // Changed parameter name
   }
   
   const response = await this.fetchWithTimeout(`/api/comments?${searchParams.toString()}`, {
@@ -383,34 +383,12 @@ async getComments(params: {
     success: boolean;
     comments: any[];
     count: number;
-    parentId?: string;
     isReplies: boolean;
+    parentCommentId?: string;
   }>(response);
   
-console.log("API Response:", JSON.stringify(result, null, 2));
+  console.log("API Response:", JSON.stringify(result, null, 2));
   console.log("First comment keys:", result.comments[0] ? Object.keys(result.comments[0]) : 'No comments');
-    return result;
-}
-
-// New: Get replies for a specific comment
-async getCommentReplies(commentId: string): Promise<{
-  success: boolean;
-  comments: any[];
-  count: number;
-}> {
-  console.log("Fetching replies for comment:", commentId);
-  
-  const response = await this.fetchWithTimeout(`/api/comments?parentId=${commentId}`, {
-    method: 'GET',
-  });
-  
-  const result = await this.handleResponse<{
-    success: boolean;
-    comments: any[];
-    count: number;
-  }>(response);
-  
-  console.log("Replies fetched:", result);
   return result;
 }
 
