@@ -12,6 +12,7 @@ export interface User {
   role: string;
   image?: string;
   provider?:string;
+  loginTime ?: string;
 }
 
 interface AuthContextType {

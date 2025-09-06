@@ -18,13 +18,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useAuth } from "@/context/AuthContext";
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const insets = useSafeAreaInsets();
-
+  const user = useAuth().user;
   // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
