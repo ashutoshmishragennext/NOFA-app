@@ -2,7 +2,7 @@
 import { API_BASE_URL, API_TIMEOUT } from '../constants/config';
 // import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersRequest, GetFoldersResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
 import * as SecureStore from 'expo-secure-store';
-import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
+import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersResponse, GoogleSignInResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
@@ -198,6 +198,43 @@ private async clearAuth() {
     }
   }
 
+  // In your ApiService class, add this method
+
+async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
+  console.log("🚀 Google Sign In with token:", idToken);
+  
+  try {
+    const response = await this.fetchWithTimeout('/api/auth/google', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idToken }),
+    });
+
+    const data = await this.handleResponse<GoogleSignInResponse>(response);
+    console.log("📦 Google Sign-In Response:", data);
+
+    if (!data.user) {
+      throw new Error('Invalid Google sign-in response: missing user data');
+    }
+
+    // Store auth data same as regular login
+    this.isLoggedIn = true;
+    await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(data.user));
+    
+    if (data.token) {
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error("❌ Google Sign-In error:", error);
+    throw error;
+  }
+}
+
+
   // async getCurrentUser(): Promise<User | null> {
   //   try {
   //     const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
@@ -241,6 +278,8 @@ private async clearAuth() {
     
     return users;
   }
+
+  
 
 // GET /api/documents - Search/get documents with filters
 async getDocuments(params?: SearchDocumentsRequest): Promise<any> {
@@ -829,6 +868,157 @@ async getArticleCommentCount(articleId: string): Promise<{
   console.log("Article comment count fetched:", result);
   return result;
 }
+
+// GET /api/profile - Get user profile
+async getUserProfile(userId: string): Promise<{
+  success: boolean;
+  data: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    image: string | null;
+    role: string;
+    organizationId: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+}> {
+  console.log("Fetching user profile:", userId);
+  
+  const response = await this.fetchWithTimeout(`/api/profile?userId=${userId}`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    data: {
+      id: string;
+      name: string;
+      email: string;
+      phone: string | null;
+      image: string | null;
+      role: string;
+      organizationId: string | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+  }>(response);
+  
+  console.log("User profile fetched:", result);
+  return result;
+}
+
+// PUT /api/profile - Update profile picture
+async updateProfilePicture(userId: string, imageUrl?: string): Promise<{
+  success: boolean;
+  data: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+    updatedAt: string;
+  };
+  message: string;
+}> {
+  console.log("Updating profile picture:", userId, imageUrl);
+  
+  const response = await this.fetchWithTimeout(`/api/profile`, {
+    method: 'PUT',
+    body: JSON.stringify({ 
+      userId,
+      image: imageUrl || null
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    data: {
+      id: string;
+      name: string;
+      email: string;
+      image: string | null;
+      updatedAt: string;
+    };
+    message: string;
+  }>(response);
+  
+  console.log("Profile picture updated:", result);
+  return result;
+}
+
+// PATCH /api/profile - Update password
+async updatePassword(userId: string, oldPassword: string, newPassword: string): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  console.log("Updating password for user:", userId);
+  
+  const response = await this.fetchWithTimeout(`/api/profile`, {
+    method: 'PATCH',
+    body: JSON.stringify({ 
+      userId,
+      oldPassword,
+      newPassword
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    message: string;
+  }>(response);
+  
+  console.log("Password updated:", result);
+  return result;
+}
+
+// Combined function for full profile update
+async updateFullProfile(userId: string, updates: {
+  imageUrl?: string;
+  oldPassword?: string;
+  newPassword?: string;
+}): Promise<{
+  profilePictureUpdated: boolean;
+  passwordUpdated: boolean;
+  errors: string[];
+}> {
+  console.log("Updating full profile:", userId, updates);
+  
+  const results = {
+    profilePictureUpdated: false,
+    passwordUpdated: false,
+    errors: [] as string[]
+  };
+
+  try {
+    // Update profile picture if provided
+    if (updates.imageUrl !== undefined) {
+      try {
+        await this.updateProfilePicture(userId, updates.imageUrl);
+        results.profilePictureUpdated = true;
+      } catch (error) {
+        results.errors.push(`Failed to update profile picture: ${error}`);
+      }
+    }
+
+    // Update password if both old and new passwords are provided
+    if (updates.oldPassword && updates.newPassword) {
+      try {
+        await this.updatePassword(userId, updates.oldPassword, updates.newPassword);
+        results.passwordUpdated = true;
+      } catch (error) {
+        results.errors.push(`Failed to update password: ${error}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error in full profile update:", error);
+    results.errors.push(`Unexpected error: ${error}`);
+  }
+
+  console.log("Full profile update completed:", results);
+  return results;
+}
+
 
 
   // Getter to check if user is logged in

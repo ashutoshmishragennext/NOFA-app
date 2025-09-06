@@ -10,10 +10,7 @@ export interface User {
   name: string;
   email: string;
   role: string;
-  otherRoles?: string[];
-  organizationId?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  image?: string;
 }
 
 interface AuthContextType {
@@ -21,8 +18,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>; // Add this
 }
-
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function useAuth() {
@@ -147,6 +144,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Add this function in AuthProvider
+    const updateUser = async (updates: Partial<User>) => {
+      if (!user) return;
+      
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      
+      // Update stored user data
+      await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(updatedUser));
+      console.log('User data updated:', updatedUser);
+    };
+
   const logout = async () => {
     try {
       await apiService.logout();
@@ -161,7 +170,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout ,updateUser  }}>
       {children}
     </AuthContext.Provider>
   );
