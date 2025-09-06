@@ -17,7 +17,10 @@ const SignupScreen = () => {
       colors={["#f0f9ff", "#e0f2fe", "#bae6fd"]}
       style={styles.container}
     >
-      <ScrollView style={styles.card}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      style={styles.card}>
         <Image
           source={require('../../assets/images/logo.png')}
           style={styles.logo}
@@ -221,6 +224,11 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#06b6d4',
     fontWeight: '500',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingVertical: 0,
   },
 });
 
