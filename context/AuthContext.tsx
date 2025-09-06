@@ -11,6 +11,8 @@ export interface User {
   email: string;
   role: string;
   image?: string;
+  provider?:string;
+  loginTime ?: string;
 }
 
 interface AuthContextType {
@@ -19,6 +21,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>; // Add this
+  googleSignIn: (accessToken: string) => Promise<void>; // Add this
 }
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -156,6 +159,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('User data updated:', updatedUser);
     };
 
+const googleSignIn = async (accessToken: string) => {
+  try {
+    const response = await apiService.googleSignIn(accessToken);
+    setUser(response.user);
+    // Navigation will be handled by existing useEffect
+  } catch (error) {
+    console.error('Google sign in error:', error);
+    throw error;
+  }
+};
   const logout = async () => {
     try {
       await apiService.logout();
@@ -170,7 +183,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout ,updateUser  }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout ,updateUser, googleSignIn  }}>
       {children}
     </AuthContext.Provider>
   );

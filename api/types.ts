@@ -12,7 +12,7 @@ export interface LoginResponse {
 
 // Add these to your types.ts or at the bottom of your index.ts
 export interface GoogleSignInRequest {
-  idToken: string;
+  accessToken: string;
 }
 
 export interface GoogleSignInResponse {
@@ -21,15 +21,17 @@ export interface GoogleSignInResponse {
   message: string;
 }
 
-// Update your User interface to include new fields
+// Update User interface
 export interface User {
   id: string;
   name: string;
   email: string;
   role: string;
   image?: string;
-  googleId?: string; // Add this
-  provider?: string; // Add this
+  createdAt?: string;
+  updatedAt?: string;
+  googleId?: string;
+  provider?: string;
 }
 
 export interface Folder {

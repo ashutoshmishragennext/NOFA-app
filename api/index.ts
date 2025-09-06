@@ -200,8 +200,9 @@ private async clearAuth() {
 
   // In your ApiService class, add this method
 
-async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
-  console.log("🚀 Google Sign In with token:", idToken);
+// In your ApiService class
+async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
+  console.log("🚀 Google Sign In with access token");
   
   try {
     const response = await this.fetchWithTimeout('/api/auth/google', {
@@ -209,7 +210,7 @@ async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ idToken }),
+      body: JSON.stringify({ accessToken }),
     });
 
     const data = await this.handleResponse<GoogleSignInResponse>(response);
@@ -233,7 +234,6 @@ async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
     throw error;
   }
 }
-
 
   // async getCurrentUser(): Promise<User | null> {
   //   try {
@@ -1019,8 +1019,123 @@ async updateFullProfile(userId: string, updates: {
   return results;
 }
 
+// In your ApiService class
+// In your ApiService class
+async signup(userData: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  role?: string;
+  provider?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  user: User;
+  provider?: string;
+}> {
+  console.log("🚀 Signup attempt:", userData.email);
+  
+  const response = await this.fetchWithTimeout('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify(userData),
+  });
+  
+  const result = await this.handleResponse<{
+    message: string;
+    user: User;
+    provider?: string;
+  }>(response);
+  
+  console.log("📦 Signup result:", result);
+  
+  // Add success field since your component expects it
+  return { 
+    success: true, 
+    ...result 
+  };
+}
+// In your ApiService class
+async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    userId: string;
+    categoryCount: number;
+    categories: string[];
+  };
+}> {
+  console.log("🚀 Updating user categories:", userId, categoryIds);
+  
+  const response = await this.fetchWithTimeout('/api/users', {
+    method: 'PUT',
+    body: JSON.stringify({
+      userId,
+      categoryIds,
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    message: string;
+    data: {
+      userId: string;
+      categoryCount: number;
+      categories: string[];
+    };
+  }>(response);
+  
+  console.log("📦 Categories updated:", result);
+  return result;
+}
 
+async getUserCategories(userId: string): Promise<{
+  success: boolean;
+  data: {
+    userId: string;
+    categories: string[];
+    preferences: Array<{
+      categoryId: string;
+      priority: number;
+      createdAt: string;
+    }>;
+  };
+}> {
+  console.log("🚀 Fetching user categories:", userId);
+  
+  const response = await this.fetchWithTimeout(`/api/users?userId=${userId}`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    data: {
+      userId: string;
+      categories: string[];
+      preferences: Array<{
+        categoryId: string;
+        priority: number;
+        createdAt: string;
+      }>;
+    };
+  }>(response);
+  
+  console.log("📦 User categories fetched:", result);
+  return result;
+}
 
+async getCategoryById(id: string): Promise<Folder> {
+    const response = await this.fetchWithTimeout(`/api/categories?id=${id}`, {
+      method: 'GET',
+    });
+    return this.handleResponse<Folder>(response);
+  }
+  async getAllCategories(): Promise<Folder[]> {
+  const response = await this.fetchWithTimeout(`/api/categories`, {
+    method: 'GET',
+  });
+  return this.handleResponse<Folder[]>(response);
+}
   // Getter to check if user is logged in
   get isAuthenticated(): boolean {
     return this.isLoggedIn;
