@@ -2,30 +2,29 @@ import NewsDetailScreen from "@/components/Users/DetailsPage";
 import ExploreScreen from "@/components/Users/Explore";
 import HomeScreen from "@/components/Users/Home";
 import ProfileScreen from "@/components/Users/Profile";
-import SavedScreen from "@/components/Users/Save";
+import FeedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
+import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
+  BackHandler,
   Image,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  BackHandler,  // Add this import
-  Alert,        // Add this import
+  View
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const insets = useSafeAreaInsets();
-
+const { logout } = useAuth();
   // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
@@ -88,7 +87,22 @@ const NewsApp = () => {
     setSourceTab(currentTab);
     setCurrentView("detail");
   };
-
+const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+          },
+        },
+      ]
+    );
+  };
   // Handle back press
   const handleBackPress = () => {
     setCurrentView("main");
@@ -194,19 +208,20 @@ const NewsApp = () => {
       </View>
 
       {/* Menu Dropdown */}
-      {menuVisible && (
-        <View style={[styles.menuDropdown, { top: 90 + insets.top }]}>
-          {["Notifications", "Settings", "About"].map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.menuItem}
-              onPress={() => setMenuVisible(false)}
-            >
-              <Text style={styles.menuItemText}>{item}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+     {menuVisible && (
+  <View style={[styles.menuDropdown, { top: 90 + insets.top }]}>
+    <TouchableOpacity 
+      style={styles.menuItem}
+      onPress={() => {
+        setMenuVisible(false);
+        handleLogout();
+      }}
+    >
+      <Ionicons name="log-out-outline" size={18} color="#e74c3c" style={styles.menuIcon} />
+      <Text style={styles.logoutText}>Logout</Text>
+    </TouchableOpacity>
+  </View>
+)}
 
       {/* Current Screen Content */}
       {renderCurrentScreen()}
@@ -294,6 +309,8 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
@@ -341,6 +358,12 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
     fontWeight: "600",
   },
+  logoutText: {
+  fontSize: 16,
+  color: "#e74c3c",
+  marginLeft: 12,
+  fontWeight: "500",
+},
 });
 
 export default NewsApp;

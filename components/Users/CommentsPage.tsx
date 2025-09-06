@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { apiService } from '@/api';
+import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   SafeAreaView,
   StyleSheet,
@@ -9,10 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from 'react-native';
-import { apiService } from '@/api';
-import { useAuth } from '@/context/AuthContext';
 
 const CommentsSection = ({
   visible,
@@ -20,6 +21,7 @@ const CommentsSection = ({
   articleId,
   // onCommentsCountChange
 }) => {
+  
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [comments, setComments] = useState([]);
@@ -29,7 +31,12 @@ const CommentsSection = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const currentUser = useAuth().user;
-
+    console.log('Current user image:', currentUser?.image);
+  console.log('Image component available:', typeof Image);
+const getInitials = (name: string) => {
+  if (!name) return 'U';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+};
   useEffect(() => {
     if (visible && articleId) {
       fetchRootComments();
@@ -63,6 +70,10 @@ const CommentsSection = ({
 
       if (response && response.comments) {
         console.log('First comment structure:', JSON.stringify(response.comments[0], null, 2));
+        console.log('=== COMMENT AUTHOR DATA ===');
+      console.log('Comment keys:', Object.keys(response.comments[0] || {}));
+      console.log('Full first comment:', response.comments[0]);
+      console.log('=== END COMMENT DATA ===');
         setComments(response.comments);
         // onCommentsCountChange && onCommentsCountChange(response.count);
       } else {
@@ -229,104 +240,230 @@ const CommentsSection = ({
   };
 
   // UPDATED: Render reply with proper indentation and parent author display
+  // const renderReply = (reply, index) => (
+  //   <View 
+  //     key={reply.id} 
+  //     style={[
+  //       styles.replyItem, 
+  //       { marginLeft: (reply.level - 1) * 15 }
+  //     ]}
+  //   >
+  //     <View style={styles.commentHeader}>
+  //       <Text style={styles.commentAuthor}>{reply.author_name}</Text>
+  //       <Text style={styles.commentTime}>
+  //         {parseDateSafe(reply.created_at).toLocaleDateString()}
+  //       </Text>
+  //     </View>
+      
+  //     {/* Show parent author name for nested replies */}
+  //     {reply.parent_author_name && reply.level > 1 && (
+  //       <Text style={styles.replyingToText}>
+  //         Replying to @{reply.parent_author_name}
+  //       </Text>
+  //     )}
+      
+  //     <Text style={styles.commentText}>{reply.content}</Text>
+      
+  //     <TouchableOpacity
+  //       style={styles.replyButton}
+  //       onPress={() => handleReply(reply)}
+  //     >
+  //       <Text style={styles.replyButtonText}>Reply</Text>
+  //     </TouchableOpacity>
+  //   </View>
+  // );
   const renderReply = (reply, index) => (
-    <View 
-      key={reply.id} 
-      style={[
-        styles.replyItem, 
-        { marginLeft: (reply.level - 1) * 15 }
-      ]}
-    >
-      <View style={styles.commentHeader}>
-        <Text style={styles.commentAuthor}>{reply.author_name}</Text>
-        <Text style={styles.commentTime}>
-          {parseDateSafe(reply.created_at).toLocaleDateString()}
-        </Text>
-      </View>
-      
-      {/* Show parent author name for nested replies */}
-      {reply.parent_author_name && reply.level > 1 && (
-        <Text style={styles.replyingToText}>
-          Replying to @{reply.parent_author_name}
-        </Text>
-      )}
-      
-      <Text style={styles.commentText}>{reply.content}</Text>
-      
-      <TouchableOpacity
-        style={styles.replyButton}
-        onPress={() => handleReply(reply)}
-      >
-        <Text style={styles.replyButtonText}>Reply</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  // UPDATED: Render comment item with proper hide/show logic
-  const renderCommentItem = ({ item }) => {
-    const replyCount = parseInt(item.reply_count || 0);
-    
-    return (
-      <View style={styles.commentItem}>
-        <View style={styles.commentHeader}>
-          <Text style={styles.commentAuthor}>{item.author_name}</Text>
-          <Text style={styles.commentTime}>
-            {parseDateSafe(item.created_at).toLocaleDateString()}
-          </Text>
-        </View>
-        <Text style={styles.commentText}>{item.content}</Text>
-        
-        <View style={styles.commentActions}>
-          <TouchableOpacity
-            style={styles.replyButton}
-            onPress={() => handleReply(item)}
-          >
-            <Text style={styles.replyButtonText}>Reply</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* View/Hide replies button */}
-        {replyCount > 0 && (
-          <TouchableOpacity
-            style={styles.viewRepliesButton}
-            onPress={() => {
-              if (expandedComments.has(item.id)) {
-                toggleRepliesVisibility(item.id); // Hide replies
-              } else {
-                if (!loadedReplies[item.id]) {
-                  loadReplies(item.id); // Load and show
-                } else {
-                  toggleRepliesVisibility(item.id); // Just show
-                }
-              }
-            }}
-            disabled={loadingReplies[item.id]}
-          >
-            {loadingReplies[item.id] ? (
-              <View style={styles.loadingReplies}>
-                <ActivityIndicator size="small" color="#2196F3" />
-                <Text style={styles.loadingText}>Loading replies...</Text>
-              </View>
-            ) : (
-              <Text style={styles.viewRepliesText}>
-                {expandedComments.has(item.id)
-                  ? `Hide ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
-                  : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
-                }
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* UPDATED: Conditionally show replies based on expanded state */}
-        {expandedComments.has(item.id) && item.replies && item.replies.length > 0 && (
-          <View style={styles.repliesContainer}>
-            {item.replies.map((reply, index) => renderReply(reply, index))}
+  <View 
+    key={reply.id} 
+    style={[
+      styles.replyItem, 
+      { marginLeft: (reply.level - 1) * 15 }
+    ]}
+  >
+    <View style={styles.commentWithAvatar}>
+      {/* Profile Photo */}
+      <View style={styles.avatarContainer}>
+        {reply.user_image ? (
+          <Image source={{ uri: reply.user_image }} style={styles.profilePhoto} />
+        ) : (
+          <View style={styles.defaultAvatar}>
+            <Text style={styles.avatarText}>{getInitials(reply.author_name)}</Text>
           </View>
         )}
       </View>
-    );
-  };
+      
+      <View style={styles.commentContent}>
+        <View style={styles.commentHeader}>
+          <Text style={styles.commentAuthor}>{reply.author_name}</Text>
+          <Text style={styles.commentTime}>
+            {parseDateSafe(reply.created_at).toLocaleDateString()}
+          </Text>
+        </View>
+        
+        {/* Show parent author name for nested replies */}
+        {reply.parent_author_name && reply.level > 1 && (
+          <Text style={styles.replyingToText}>
+            Replying to @{reply.parent_author_name}
+          </Text>
+        )}
+        
+        <Text style={styles.commentText}>{reply.content}</Text>
+        
+        <TouchableOpacity
+          style={styles.replyButton}
+          onPress={() => handleReply(reply)}
+        >
+          <Text style={styles.replyButtonText}>Reply</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+);
+
+  // UPDATED: Render comment item with proper hide/show logic
+  // const renderCommentItem = ({ item }) => {
+  //   const replyCount = parseInt(item.reply_count || 0);
+    
+  //   return (
+  //     <View style={styles.commentItem}>
+  //       <View style={styles.commentHeader}>
+  //         <Text style={styles.commentAuthor}>{item.author_name}</Text>
+  //         <Text style={styles.commentTime}>
+  //           {parseDateSafe(item.created_at).toLocaleDateString()}
+  //         </Text>
+  //       </View>
+  //       <Text style={styles.commentText}>{item.content}</Text>
+        
+  //       <View style={styles.commentActions}>
+  //         <TouchableOpacity
+  //           style={styles.replyButton}
+  //           onPress={() => handleReply(item)}
+  //         >
+  //           <Text style={styles.replyButtonText}>Reply</Text>
+  //         </TouchableOpacity>
+  //       </View>
+
+  //       {/* View/Hide replies button */}
+  //       {replyCount > 0 && (
+  //         <TouchableOpacity
+  //           style={styles.viewRepliesButton}
+  //           onPress={() => {
+  //             if (expandedComments.has(item.id)) {
+  //               toggleRepliesVisibility(item.id); // Hide replies
+  //             } else {
+  //               if (!loadedReplies[item.id]) {
+  //                 loadReplies(item.id); // Load and show
+  //               } else {
+  //                 toggleRepliesVisibility(item.id); // Just show
+  //               }
+  //             }
+  //           }}
+  //           disabled={loadingReplies[item.id]}
+  //         >
+  //           {loadingReplies[item.id] ? (
+  //             <View style={styles.loadingReplies}>
+  //               <ActivityIndicator size="small" color="#2196F3" />
+  //               <Text style={styles.loadingText}>Loading replies...</Text>
+  //             </View>
+  //           ) : (
+  //             <Text style={styles.viewRepliesText}>
+  //               {expandedComments.has(item.id)
+  //                 ? `Hide ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+  //                 : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+  //               }
+  //             </Text>
+  //           )}
+  //         </TouchableOpacity>
+  //       )}
+
+  //       {/* UPDATED: Conditionally show replies based on expanded state */}
+  //       {expandedComments.has(item.id) && item.replies && item.replies.length > 0 && (
+  //         <View style={styles.repliesContainer}>
+  //           {item.replies.map((reply, index) => renderReply(reply, index))}
+  //         </View>
+  //       )}
+  //     </View>
+  //   );
+  // };
+  const renderCommentItem = ({ item }) => {
+  const replyCount = parseInt(item.reply_count || 0);
+  
+  return (
+    <View style={styles.commentItem}>
+      <View style={styles.commentWithAvatar}>
+        {/* Profile Photo */}
+        <View style={styles.avatarContainer}>
+          {item.user_image ? (
+            <Image source={{ uri: item.user_image }} style={styles.profilePhoto} />
+          ) : (
+            <View style={styles.defaultAvatar}>
+              <Text style={styles.avatarText}>{getInitials(item.author_name)}</Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.commentContent}>
+          <View style={styles.commentHeader}>
+            <Text style={styles.commentAuthor}>{item.author_name}</Text>
+            <Text style={styles.commentTime}>
+              {parseDateSafe(item.created_at).toLocaleDateString()}
+            </Text>
+          </View>
+          <Text style={styles.commentText}>{item.content}</Text>
+          
+          <View style={styles.commentActions}>
+            <TouchableOpacity
+              style={styles.replyButton}
+              onPress={() => handleReply(item)}
+            >
+              <Text style={styles.replyButtonText}>Reply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* View/Hide replies button - keep your existing logic */}
+      {replyCount > 0 && (
+        <TouchableOpacity
+          style={styles.viewRepliesButton}
+          onPress={() => {
+            if (expandedComments.has(item.id)) {
+              toggleRepliesVisibility(item.id);
+            } else {
+              if (!loadedReplies[item.id]) {
+                loadReplies(item.id);
+              } else {
+                toggleRepliesVisibility(item.id);
+              }
+            }
+          }}
+          disabled={loadingReplies[item.id]}
+        >
+          {loadingReplies[item.id] ? (
+            <View style={styles.loadingReplies}>
+              <ActivityIndicator size="small" color="#2196F3" />
+              <Text style={styles.loadingText}>Loading replies...</Text>
+            </View>
+          ) : (
+            <Text style={styles.viewRepliesText}>
+              {expandedComments.has(item.id)
+                ? `Hide ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+                : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
+              }
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Replies container - keep existing */}
+      {expandedComments.has(item.id) && item.replies && item.replies.length > 0 && (
+        <View style={styles.repliesContainer}>
+          {item.replies.map((reply, index) => renderReply(reply, index))}
+        </View>
+      )}
+    </View>
+  );
+};
 
   return (
     <Modal
@@ -361,7 +498,7 @@ const CommentsSection = ({
         )}
 
         {/* Single Input Section - Instagram Style */}
-        <View style={styles.inputSection}>
+        {/* <View style={styles.inputSection}>
           {replyingTo && (
             <View style={styles.replyContext}>
               <Text style={styles.replyContextText}>
@@ -399,7 +536,84 @@ const CommentsSection = ({
           <Text style={styles.characterCount}>
             {inputText.length}/500
           </Text>
-        </View>
+        </View> */}
+        {/* Single Input Section - Instagram Style */}
+<View style={styles.inputSection}>
+  {replyingTo && (
+    <View style={styles.replyContext}>
+      <Text style={styles.replyContextText}>
+        Replying to @{replyingTo.author_name}
+      </Text>
+      <TouchableOpacity onPress={cancelReply} style={styles.cancelReplyBtn}>
+        <Text style={styles.cancelReplyText}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  )}
+
+  {/* Replace your existing inputContainer with this */}
+{/* Replace your existing inputContainer with this */}
+<View style={styles.inputContainer}>
+  {/* Your actual avatar */}
+  <View style={{
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center'
+  }}>
+    {currentUser?.image ? (
+      <Image 
+        source={{ uri: currentUser.image }} 
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          marginBottom: 10,
+        }}
+      />
+    ) : (
+      <View style={{
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: '#4CAF50',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <Text style={{color: 'white', fontSize: 12, fontWeight: 'bold'}}>
+          {getInitials(currentUser?.name)}
+        </Text>
+      </View>
+    )}
+  </View>
+  
+  <TextInput
+    style={styles.input}
+    placeholder={replyingTo ? `Reply to ${replyingTo.author_name}...` : "Add a comment..."}
+    value={inputText}
+    onChangeText={setInputText}
+    multiline
+    maxLength={500}
+  />
+  <TouchableOpacity
+    style={[
+      styles.sendButton,
+      (inputText.trim().length < 3 || isLoading) && styles.sendButtonDisabled
+    ]}
+    onPress={handleSubmit}
+    disabled={inputText.trim().length < 3 || isLoading}
+  >
+    <Text style={styles.sendButtonText}>
+      {isLoading ? 'Posting...' : (replyingTo ? 'Reply' : 'Post')}
+    </Text>
+  </TouchableOpacity>
+</View>
+
+  <Text style={styles.characterCount}>
+    {inputText.length}/500
+  </Text>
+</View>
       </SafeAreaView>
     </Modal>
   );
@@ -585,7 +799,63 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 5,
   },
-  
+  // Add these to your existing styles object
+commentWithAvatar: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+},
+avatarContainer: {
+  marginRight: 12,
+  marginTop: 2,
+},
+profilePhoto: {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  backgroundColor: '#f0f0f0',
+},
+defaultAvatar: {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  backgroundColor: '#4CAF50',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+avatarText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: 'bold',
+},
+commentContent: {
+  flex: 1,
+},
+inputAvatarContainer: {
+  marginRight: 8,
+  marginBottom: 8,
+},
+inputProfilePhoto: {
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: '#f0f0f0',
+},
+inputDefaultAvatar: {
+  width: 30,
+  height: 30,
+  borderRadius: 14,
+  backgroundColor: '#4CAF50',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+inputAvatarText: {
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
 });
 
 export default CommentsSection;
+
+
+
