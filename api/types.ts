@@ -10,15 +10,26 @@ export interface LoginResponse {
   message?: string;
 }
 
+// Add these to your types.ts or at the bottom of your index.ts
+export interface GoogleSignInRequest {
+  idToken: string;
+}
+
+export interface GoogleSignInResponse {
+  user: User;
+  token: string;
+  message: string;
+}
+
+// Update your User interface to include new fields
 export interface User {
   id: string;
   name: string;
   email: string;
   role: string;
-  otherRoles?: string[];
-  organizationId?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  image?: string;
+  googleId?: string; // Add this
+  provider?: string; // Add this
 }
 
 export interface Folder {
