@@ -414,6 +414,19 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.7,
   },
+  signUpContainer: {
+    alignItems: "center",
+    marginTop: 16,
+  },
+  signUpText: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  signUpLink: {
+    color: "#06b6d4",
+    marginTop : 2,
+    fontWeight: "600",
+  },
   buttonText: {
     color: "white",
     fontSize: 16,

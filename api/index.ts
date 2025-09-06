@@ -1006,6 +1006,7 @@ async updateFullProfile(userId: string, updates: {
 }
 
 // In your ApiService class
+// In your ApiService class
 async signup(userData: {
   name: string;
   email: string;
@@ -1017,6 +1018,7 @@ async signup(userData: {
   success: boolean;
   message: string;
   user: User;
+  provider?: string;
 }> {
   console.log("🚀 Signup attempt:", userData.email);
   
@@ -1026,15 +1028,19 @@ async signup(userData: {
   });
   
   const result = await this.handleResponse<{
-    success: boolean;
     message: string;
     user: User;
+    provider?: string;
   }>(response);
   
   console.log("📦 Signup result:", result);
-  return  result;
+  
+  // Add success field since your component expects it
+  return { 
+    success: true, 
+    ...result 
+  };
 }
-
 
 
 
