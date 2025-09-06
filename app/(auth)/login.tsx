@@ -53,6 +53,10 @@ export default function ApartmentLoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+    const handleSignUp = () => {
+    router.push('/(auth)/register');
+  };
+
   const { login, googleSignIn, user } = useAuth();
   const { request, response, promptAsync } = useGoogleAuth();
   const router = useRouter();
@@ -240,14 +244,14 @@ export default function ApartmentLoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-{/* <View style={styles.signUpContainer}>
+<View style={styles.signUpContainer}>
                 <Text style={styles.signUpText}>
                   Don&apos;t have an account?{" "}
                   <TouchableOpacity onPress={handleSignUp}>
                     <Text style={styles.signUpLink}>Sign Up</Text>
                   </TouchableOpacity>
                 </Text>
-              </View> */}
+              </View>
             {/* Social Login Buttons */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
