@@ -1,5 +1,7 @@
 // components/Users/FeedScreen.tsx
-import { Ionicons } from '@expo/vector-icons';
+import { apiService } from '@/api';
+import { useAuth } from '@/context/AuthContext';
+import { Ionicons } from '@expo/vector-icons'; // Add icons for likes/views/shares
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,56 +22,27 @@ const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // const [feedArticles, setFeedArticles] = useState([])
+  const [feedArticles, setFeedArticles] = useState<any>([])
+  const { user } = useAuth();
 
-  // Sample feed data
-  const feedArticles = [
-    {
-      id: '1',
-      title: 'Latest Technology Trends in 2024',
-      image: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&h=300&fit=crop',
-      category: 'Technology',
-      author: 'Tech Insider',
-      date: '2024-01-15T10:30:00Z',
-      readTime: '4 min read'
-    },
-    {
-      id: '2',
-      title: 'Sustainable Living: Small Changes, Big Impact',
-      image: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400&h=300&fit=crop',
-      category: 'Lifestyle',
-      author: 'Eco Warrior',
-      date: '2024-01-14T15:20:00Z',
-      readTime: '6 min read'
-    },
-    {
-      id: '3',
-      title: 'The Future of Remote Work',
-      image: 'https://images.unsplash.com/photo-1495465798138-718f86d1a4f1?w=400&h=300&fit=crop',
-      category: 'Business',
-      author: 'Work Trends',
-      date: '2024-01-13T09:15:00Z',
-      readTime: '5 min read'
-    },
-    {
-      id: '4',
-      title: 'Healthy Eating Habits for Busy Professionals',
-      image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&h=300&fit=crop',
-      category: 'Health',
-      author: 'Nutrition Expert',
-      date: '2024-01-12T14:45:00Z',
-      readTime: '7 min read'
-    },
-    {
-      id: '5',
-      title: 'AI Revolution: What to Expect Next',
-      image: 'https://images.unsplash.com/photo-1677442135135-416f8aa26a5b?w=400&h=300&fit=crop',
-      category: 'AI',
-      author: 'Tech Future',
-      date: '2024-01-11T11:30:00Z',
-      readTime: '8 min read'
+  useEffect(() => {
+    fetchFeed()
+  }, [])
+
+  const fetchFeed = async () => {
+    try {
+      const response = await apiService.getFeedBack({
+        "userId": user?.id
+      });
+      const articles = response.data;
+      setFeedArticles(articles.articles);
+      if (articles && articles.length > 0) {
+        setFeedArticles(articles.articles);
+      }
+    } catch (error) {
+      console.error("Error fetching articles:", error);
     }
-  ];
+  };
 
   const fetchArticles = async (isRefresh = false) => {
     if (isRefresh) {
@@ -79,7 +52,6 @@ const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
     }
 
     try {
-      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
       setArticles(feedArticles);
     } catch (error) {
@@ -92,7 +64,7 @@ const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
 
   useEffect(() => {
     fetchArticles();
-  }, []);
+  }, [feedArticles]);
 
   const onRefresh = () => {
     fetchArticles(true);
@@ -100,29 +72,41 @@ const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
     });
   };
 
   const renderArticleItem = ({ item, index }: { item: any; index: number }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.articleCard}
       onPress={() => onArticlePress(item, articles, index)}
     >
-      <Image source={{ uri: item.image }} style={styles.articleImage} />
+      <Image source={{ uri: item.featuredImage }} style={styles.articleImage} />
       <View style={styles.articleContent}>
-        <Text style={styles.articleCategory}>{item.category}</Text>
+        <Text style={styles.articleCategory}>{item.categoryName}</Text>
         <Text style={styles.articleTitle} numberOfLines={2}>{item.title}</Text>
         <View style={styles.articleMeta}>
-          <Text style={styles.articleAuthor}>{item.author}</Text>
-          <Text style={styles.articleDate}>{formatDate(item.date)}</Text>
+          <Text style={styles.articleAuthor}>{item.authorName}</Text>
+          <Text style={styles.articleDate}>{formatDate(item.publicationDate)}</Text>
         </View>
-        <View style={styles.articleFooter}>
-          <Text style={styles.readTime}>{item.readTime}</Text>
-          <Ionicons name="bookmark-outline" size={16} color="#666" />
+
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Ionicons name="eye-outline" size={16} color="#666" />
+            <Text style={styles.statText}>{item.viewCount}</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Ionicons name="heart-outline" size={16} color="#e63946" />
+            <Text style={styles.statText}>{item.likeCount}</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Ionicons name="share-social-outline" size={16} color="#666" />
+            <Text style={styles.statText}>{item.shareCount ?? 0}</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -139,13 +123,6 @@ const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
 
   return (
     <View style={styles.container}>
-      {/* <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Feed</Text>
-        <TouchableOpacity>
-          <Ionicons name="filter-outline" size={24} color="#333" />
-        </TouchableOpacity>
-      </View> */}
-
       <FlatList
         data={articles}
         renderItem={renderArticleItem}
@@ -174,20 +151,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
   },
   listContent: {
     padding: 16,
@@ -239,14 +202,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
-  articleFooter: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 20,
+    marginTop: 8,
   },
-  readTime: {
-    fontSize: 12,
-    color: '#666',
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  statText: {
+    fontSize: 13,
+    color: '#333',
+    marginLeft: 6,
   },
 });
 

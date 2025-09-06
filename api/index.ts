@@ -313,6 +313,7 @@ async getDocuments(params?: SearchDocumentsRequest): Promise<any> {
 }
 
 
+
 // POST /api/documents - Create a new document
 async createDocument(documentData: CreateDocumentRequest): Promise<CreateDocumentResponse> {
   console.log("Creating document:", documentData);
@@ -378,6 +379,25 @@ async getBookMark(params:any): Promise<GetFoldersResponse> {
   if (params.userID) searchParams.append('userID', params.userId);
   
   const url = `/api/bookmarks?${searchParams.toString()}`;
+  
+  console.log("Fetching folders with URL:", url);
+  
+  const response = await this.fetchWithTimeout(url, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<GetFoldersResponse>(response);
+  console.log("Folders fetched:", result);
+  
+  return result;
+}
+async getFeedBack(params:any): Promise<GetFoldersResponse> {
+  const searchParams = new URLSearchParams();
+  
+  // if (params.id) searchParams.append('id', params.id);
+  if (params.userId) searchParams.append('userId', params.userId);
+  
+  const url = `/api/users/feed?${searchParams.toString()}`;
   
   console.log("Fetching folders with URL:", url);
   

@@ -2,23 +2,21 @@ import NewsDetailScreen from "@/components/Users/DetailsPage";
 import ExploreScreen from "@/components/Users/Explore";
 import HomeScreen from "@/components/Users/Home";
 import ProfileScreen from "@/components/Users/Profile";
-import SavedScreen from "@/components/Users/Save";
+import FeedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
+  BackHandler,
   Image,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  BackHandler,  // Add this import
-  Alert,        // Add this import
+  View
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");

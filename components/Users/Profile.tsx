@@ -24,7 +24,6 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
   const [bookmarkedArticles, setBookmarkedArticles] = useState<any[]>([]);
   const [articlesLoading, setArticlesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showProfileOptions, setShowProfileOptions] = useState(false);
   const [showProfileViewer, setShowProfileViewer] = useState(false);
   const { user, logout, updateUser } = useAuth();
 
@@ -53,7 +52,6 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
 
     try {
       setIsUploading(true);
-      setShowProfileOptions(false); // Close options modal
       
       // Upload image
       const uploadData = await uploadImageFromPicker();
@@ -76,17 +74,14 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
     }
   };
 
+  // Camera icon press - directly update profile
   const handleCameraIconPress = () => {
-    setShowProfileOptions(true);
-  };
-
-  const handleViewProfile = () => {
-    setShowProfileOptions(false);
-    setShowProfileViewer(true);
-  };
-
-  const handleUpdateProfile = () => {
     uploadProfileIcon();
+  };
+
+  // Profile photo press - view profile
+  const handleProfilePhotoPress = () => {
+    setShowProfileViewer(true);
   };
 
   const fetchBookmarkedArticles = async (userID: string) => {
@@ -205,7 +200,7 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
         <View style={styles.profileHeader}>
           <View style={styles.profileImageWrapper}>
             <TouchableOpacity 
-              onPress={() => {}} // Remove direct upload functionality
+              onPress={handleProfilePhotoPress} // Changed to view profile
               disabled={isUploading}
               style={styles.profileImageContainer}
             >
@@ -229,10 +224,10 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
               )}
             </TouchableOpacity>
             
-            {/* Camera/Edit Icon */}
+            {/* Camera/Edit Icon - Direct upload */}
             <TouchableOpacity 
               style={styles.editIconContainer}
-              onPress={handleCameraIconPress}
+              onPress={handleCameraIconPress} // Changed to direct upload
               disabled={isUploading}
             >
               <Ionicons 
@@ -259,45 +254,7 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
         {renderSavedArticles()}
       </ScrollView>
 
-      {/* Profile Options Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showProfileOptions}
-        onRequestClose={() => setShowProfileOptions(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.optionsModal}>
-            <Text style={styles.modalTitle}>Profile Options</Text>
-            
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={handleViewProfile}
-            >
-              <Ionicons name="eye-outline" size={24} color="#4CAF50" />
-              <Text style={styles.optionText}>View Profile</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={handleUpdateProfile}
-            >
-              <Ionicons name="camera-outline" size={24} color="#4CAF50" />
-              <Text style={styles.optionText}>Update Profile</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.optionButton, styles.cancelButton]}
-              onPress={() => setShowProfileOptions(false)}
-            >
-              <Ionicons name="close-outline" size={24} color="#666" />
-              <Text style={[styles.optionText, styles.cancelText]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Profile Viewer Modal */}
+      {/* Profile Viewer Modal - Only this modal remains */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -595,42 +552,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  optionsModal: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    width: '80%',
-    maxWidth: 300,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 15,
-    borderRadius: 12,
-    marginVertical: 8,
-    width: '100%',
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-    marginLeft: 15,
-  },
-  cancelButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  cancelText: {
-    color: '#666',
   },
   // Profile Viewer Modal Styles
   profileViewerModal: {
