@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons'; // Added import for icons
 
@@ -17,7 +17,7 @@ const SignupScreen = () => {
       colors={["#f0f9ff", "#e0f2fe", "#bae6fd"]}
       style={styles.container}
     >
-      <View style={styles.card}>
+      <ScrollView style={styles.card}>
         <Image
           source={require('../../assets/images/logo.png')}
           style={styles.logo}
@@ -106,7 +106,7 @@ const SignupScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </LinearGradient>
   );
 };

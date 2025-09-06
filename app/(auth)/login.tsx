@@ -240,6 +240,14 @@ export default function ApartmentLoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
+{/* <View style={styles.signUpContainer}>
+                <Text style={styles.signUpText}>
+                  Don&apos;t have an account?{" "}
+                  <TouchableOpacity onPress={handleSignUp}>
+                    <Text style={styles.signUpLink}>Sign Up</Text>
+                  </TouchableOpacity>
+                </Text>
+              </View> */}
             {/* Social Login Buttons */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
