@@ -99,6 +99,11 @@ export default function ApartmentLoginScreen() {
       setIsLoading(false);
     }
   };
+
+  const handleSignUp = () => {
+    router.push('/(auth)/register');
+  };
+
   const handleSocialLogin = (provider: string) => {
     Alert.alert("Social Login", `Login with ${provider} clicked`);
   };
@@ -198,6 +203,16 @@ export default function ApartmentLoginScreen() {
                   )}
                 </LinearGradient>
               </TouchableOpacity>
+
+              {/* Sign Up Link */}
+              <View style={styles.signUpContainer}>
+                <Text style={styles.signUpText}>
+                  Don&apos;t have an account?{" "}
+                  <TouchableOpacity onPress={handleSignUp}>
+                    <Text style={styles.signUpLink}>Sign Up</Text>
+                  </TouchableOpacity>
+                </Text>
+              </View>
 
               {/* Divider */}
               <View style={styles.dividerContainer}>
@@ -398,6 +413,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
+  },
+  signUpContainer: {
+    alignItems: "center",
+    marginTop: 16,
+  },
+  signUpText: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  signUpLink: {
+    color: "#06b6d4",
+    fontWeight: "600",
   },
   dividerContainer: {
     flexDirection: "row",

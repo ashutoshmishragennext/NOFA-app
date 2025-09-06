@@ -96,6 +96,7 @@ export interface DocumentType {
 
 // Request types
 export interface SearchDocumentsRequest {
+  categoryId: any;
   query?: string;
   metadata?: Record<string, any>;
   tagIds?: string[];

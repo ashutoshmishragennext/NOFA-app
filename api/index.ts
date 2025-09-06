@@ -208,6 +208,20 @@ private async clearAuth() {
   //   }
   // }
 
+  async createUser(data: CreateDocumentRequest): Promise<CreateDocumentResponse> {
+  // console.log("Creating document:", documentData);
+  
+  const response = await this.fetchWithTimeout('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  
+  const result = await this.handleResponse<CreateDocumentResponse>(response);
+  console.log("Document created:", result);
+  
+  return result;
+}
+
   async getUserById(id: string): Promise<User> {
     const response = await this.fetchWithTimeout(`/api/users?id=${id}`, {
       method: 'GET',

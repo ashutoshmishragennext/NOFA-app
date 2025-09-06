@@ -11,7 +11,8 @@ const SignupScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
+ 
+  console.warn(email,fullName,phoneNumber,password,showPassword)
   return (
     <LinearGradient
       colors={["#f0f9ff", "#e0f2fe", "#bae6fd"]}
