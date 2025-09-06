@@ -51,7 +51,7 @@ const OnboardingScreen = ({ onComplete }) => {
     {
       id: 4,
       title: "Choose your interests",
-      description: "What are you interested in? Choose your interests and familiarity",
+      description: "What are you interested in?",
       backgroundColor: "#ffffff"
     }
   ];
