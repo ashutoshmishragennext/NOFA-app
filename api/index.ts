@@ -200,8 +200,9 @@ private async clearAuth() {
 
   // In your ApiService class, add this method
 
-async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
-  console.log("🚀 Google Sign In with token:", idToken);
+// In your ApiService class
+async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
+  console.log("🚀 Google Sign In with access token");
   
   try {
     const response = await this.fetchWithTimeout('/api/auth/google', {
@@ -209,7 +210,7 @@ async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ idToken }),
+      body: JSON.stringify({ accessToken }),
     });
 
     const data = await this.handleResponse<GoogleSignInResponse>(response);
@@ -233,7 +234,6 @@ async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
     throw error;
   }
 }
-
 
   // async getCurrentUser(): Promise<User | null> {
   //   try {
