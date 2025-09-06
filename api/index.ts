@@ -1005,6 +1005,37 @@ async updateFullProfile(userId: string, updates: {
   return results;
 }
 
+// In your ApiService class
+async signup(userData: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  role?: string;
+  provider?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  user: User;
+}> {
+  console.log("🚀 Signup attempt:", userData.email);
+  
+  const response = await this.fetchWithTimeout('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify(userData),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    message: string;
+    user: User;
+  }>(response);
+  
+  console.log("📦 Signup result:", result);
+  return  result;
+}
+
+
 
 
   // Getter to check if user is logged in
