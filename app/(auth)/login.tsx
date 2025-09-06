@@ -237,14 +237,8 @@ export default function ApartmentLoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or sign in with</Text>
-              <View style={styles.dividerLine} />
-            </View>
 
-<View style={styles.signUpContainer}>
+              <View style={styles.signUpContainer}>
                 <Text style={styles.signUpText}>
                   Don&apos;t have an account?{" "}
                   <TouchableOpacity onPress={handleSignUp}>
@@ -252,6 +246,13 @@ export default function ApartmentLoginScreen() {
                   </TouchableOpacity>
                 </Text>
               </View>
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or sign in with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
             {/* Social Login Buttons */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
