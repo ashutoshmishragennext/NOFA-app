@@ -1041,9 +1041,87 @@ async signup(userData: {
     ...result 
   };
 }
+// In your ApiService class
+async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    userId: string;
+    categoryCount: number;
+    categories: string[];
+  };
+}> {
+  console.log("🚀 Updating user categories:", userId, categoryIds);
+  
+  const response = await this.fetchWithTimeout('/api/users', {
+    method: 'PUT',
+    body: JSON.stringify({
+      userId,
+      categoryIds,
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    message: string;
+    data: {
+      userId: string;
+      categoryCount: number;
+      categories: string[];
+    };
+  }>(response);
+  
+  console.log("📦 Categories updated:", result);
+  return result;
+}
 
+async getUserCategories(userId: string): Promise<{
+  success: boolean;
+  data: {
+    userId: string;
+    categories: string[];
+    preferences: Array<{
+      categoryId: string;
+      priority: number;
+      createdAt: string;
+    }>;
+  };
+}> {
+  console.log("🚀 Fetching user categories:", userId);
+  
+  const response = await this.fetchWithTimeout(`/api/users?userId=${userId}`, {
+    method: 'GET',
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    data: {
+      userId: string;
+      categories: string[];
+      preferences: Array<{
+        categoryId: string;
+        priority: number;
+        createdAt: string;
+      }>;
+    };
+  }>(response);
+  
+  console.log("📦 User categories fetched:", result);
+  return result;
+}
 
-
+async getCategoryById(id: string): Promise<Folder> {
+    const response = await this.fetchWithTimeout(`/api/categories?id=${id}`, {
+      method: 'GET',
+    });
+    return this.handleResponse<Folder>(response);
+  }
+  async getAllCategories(): Promise<Folder[]> {
+  const response = await this.fetchWithTimeout(`/api/categories`, {
+    method: 'GET',
+  });
+  return this.handleResponse<Folder[]>(response);
+}
   // Getter to check if user is logged in
   get isAuthenticated(): boolean {
     return this.isLoggedIn;

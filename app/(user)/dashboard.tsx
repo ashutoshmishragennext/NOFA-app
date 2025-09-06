@@ -4,6 +4,7 @@ import HomeScreen from "@/components/Users/Home";
 import ProfileScreen from "@/components/Users/Profile";
 import SavedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
+import OnboardingScreen from "@/components/Users/OnboardingScreen"; // Add this import
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState, useEffect } from "react";
 import {
@@ -13,19 +14,22 @@ import {
   Text,
   TouchableOpacity,
   View,
-  BackHandler,  // Add this import
-  Alert,        // Add this import
+  BackHandler,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from "@/context/AuthContext";
+
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false); // Add onboarding state
   const insets = useSafeAreaInsets();
   const user = useAuth().user;
+  
   // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
@@ -43,9 +47,21 @@ const NewsApp = () => {
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
-  // ADDED: Custom back button handler
+  // Check if onboarding should be shown
+  useEffect(() => {
+    if (user && Number(user.loginTime) === 0) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
+
+  // Custom back button handler
   useEffect(() => {
     const backAction = () => {
+      // If we're in onboarding, don't allow back navigation
+      if (showOnboarding) {
+        return true; // Prevent default behavior
+      }
+
       // If we're in detail view, close it instead of exiting app
       if (currentView === "detail" && selectedArticle) {
         handleBackPress();
@@ -77,7 +93,15 @@ const NewsApp = () => {
     );
 
     return () => backHandler.remove();
-  }, [currentView, selectedArticle]); // Dependencies to update handler when view changes
+  }, [currentView, selectedArticle, showOnboarding]); // Add showOnboarding to dependencies
+
+  // Handle onboarding completion
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    // Optional: You can update the user's loginTime here to mark onboarding as completed
+    // This would prevent the onboarding from showing again
+    // updateUserLoginTime(); // You'll need to implement this function
+  };
 
   // Handle article press with articles list context
   const handleArticlePress = (article, articlesList = [], articleIndex = 0) => {
@@ -107,6 +131,17 @@ const NewsApp = () => {
     }
   };
 
+  // Handle previous article navigation
+  const handlePrevArticle = () => {
+    if (currentArticleIndex > 0) {
+      const prevIndex = currentArticleIndex - 1;
+      const prevArticle = articlesList[prevIndex];
+
+      setSelectedArticle(prevArticle);
+      setCurrentArticleIndex(prevIndex);
+    }
+  };
+
   const handleTabPress = (tabName) => {
     setCurrentTab(tabName);
   };
@@ -128,54 +163,45 @@ const NewsApp = () => {
     }
   };
 
-  // Show Detail Screen if article is selected
-  const handlePrevArticle = () => {
-    if (currentArticleIndex > 0) {
-      const prevIndex = currentArticleIndex - 1;
-      const prevArticle = articlesList[prevIndex];
-
-      setSelectedArticle(prevArticle);
-      setCurrentArticleIndex(prevIndex);
-    }
-  };
-
-  // ... existing handlers
+  // Show onboarding screen if user's loginTime is 0
+  if (showOnboarding) {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+  }
 
   // Show Detail Screen if article is selected
   if (currentView === "detail" && selectedArticle) {
     const hasNext = currentArticleIndex < articlesList.length - 1;
-    const hasPrev = currentArticleIndex > 0; // NEW: Check if has previous
+    const hasPrev = currentArticleIndex > 0;
 
     return (
       <View style={[styles.container, {
-      paddingTop: insets.top,
-      paddingBottom: insets.bottom
-    }]}
-    >
-      <StatusBar style="dark" />
-      <NewsDetailScreen
-        key={selectedArticle.id}
-        article={selectedArticle}
-        onBack={handleBackPress}
-        onNext={hasNext ? handleNextArticle : null}
-        onPrev={hasPrev ? handlePrevArticle : handleBackPress} // NEW: Previous handler
-        hasNext={hasNext}
-        hasPrev={hasPrev} // NEW: Has previous flag
-        currentIndex={currentArticleIndex}
-        totalArticles={articlesList.length}
-        sourceTab={sourceTab}
-      />
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom
+      }]}>
+        <StatusBar style="dark" />
+        <NewsDetailScreen
+          key={selectedArticle.id}
+          article={selectedArticle}
+          onBack={handleBackPress}
+          onNext={hasNext ? handleNextArticle : null}
+          onPrev={hasPrev ? handlePrevArticle : handleBackPress}
+          hasNext={hasNext}
+          hasPrev={hasPrev}
+          currentIndex={currentArticleIndex}
+          totalArticles={articlesList.length}
+          sourceTab={sourceTab}
+        />
       </View>
     );
   }
+
   // MAIN APP SCREEN
   return (
     <View style={[styles.container, {
       paddingTop: insets.top,
       paddingBottom: insets.bottom
-    }]}
-    >
-          <StatusBar style="dark" />
+    }]}>
+      <StatusBar style="dark" />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Image
@@ -241,7 +267,6 @@ const NewsApp = () => {
   );
 };
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -253,7 +278,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    // paddingVertical: 10,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
@@ -301,29 +325,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
   },
-
   // CONTENT STYLES
   content: {
     flex: 1,
     backgroundColor: "#f8f9fa",
   },
-
   // BOTTOM NAVIGATION STYLES
   bottomNav: {
-  flexDirection: "row",
-  justifyContent: "space-around",
-  alignItems: "center",
-  backgroundColor: "#fff", 
-  paddingVertical: 4,     
-  paddingBottom: 4,       
-  borderTopWidth: 1,       
-  borderTopColor: "#f0f0f0",
-  elevation: 1,          
-  shadowColor: "#000",     
-  shadowOffset: { width: 0, height: -2 }, 
-  shadowOpacity: 0.1,      
-  shadowRadius: 3,         
-},
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "#fff", 
+    paddingVertical: 4,     
+    paddingBottom: 4,       
+    borderTopWidth: 1,       
+    borderTopColor: "#f0f0f0",
+    elevation: 1,          
+    shadowColor: "#000",     
+    shadowOffset: { width: 0, height: -2 }, 
+    shadowOpacity: 0.1,      
+    shadowRadius: 3,         
+  },
   bottomTab: {
     alignItems: "center",
     flex: 1,
