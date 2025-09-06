@@ -1,204 +1,167 @@
-import { apiService } from '@/api';
-import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+// components/Users/FeedScreen.tsx
+import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
+  FlatList,
   Image,
-  ScrollView,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
 
-const { width } = Dimensions.get('window');
+interface FeedScreenProps {
+  onArticlePress: (article: any, articlesList?: any[], articleIndex?: number) => void;
+}
 
-// Updated prop type to match the new signature
-const BookmarkedScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
-  const [bookmarkedArticles, setBookmarkedArticles] = useState<any[]>([]);
+const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
+  const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // const [feedArticles, setFeedArticles] = useState([])
 
-  // Updated handleArticlePress function
-  const handleArticlePress = (article: any, section: 'featured' | 'all', sectionIndex: number) => {
-    console.log('Bookmark article pressed:', article.title, 'Section:', section);
-    
-    // Create navigation context with all bookmarked articles
-    const allArticles = [...bookmarkedArticles]; // Use all bookmarked articles for navigation
-    
-    // Find the actual index of this article in the full bookmarked articles array
-    const globalIndex = allArticles.findIndex(a => a.id === article.id);
-    
-    console.log('Bookmarked articles for navigation:', allArticles.length);
-    console.log('Global index:', globalIndex);
-    
-    if (globalIndex !== -1) {
-      onArticlePress(article, allArticles, globalIndex);
-    } else {
-      // Fallback: if not found, just pass the article alone
-      console.warn('Article not found in bookmarked list, using fallback');
-      onArticlePress(article, [article], 0);
+  // Sample feed data
+  const feedArticles = [
+    {
+      id: '1',
+      title: 'Latest Technology Trends in 2024',
+      image: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&h=300&fit=crop',
+      category: 'Technology',
+      author: 'Tech Insider',
+      date: '2024-01-15T10:30:00Z',
+      readTime: '4 min read'
+    },
+    {
+      id: '2',
+      title: 'Sustainable Living: Small Changes, Big Impact',
+      image: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400&h=300&fit=crop',
+      category: 'Lifestyle',
+      author: 'Eco Warrior',
+      date: '2024-01-14T15:20:00Z',
+      readTime: '6 min read'
+    },
+    {
+      id: '3',
+      title: 'The Future of Remote Work',
+      image: 'https://images.unsplash.com/photo-1495465798138-718f86d1a4f1?w=400&h=300&fit=crop',
+      category: 'Business',
+      author: 'Work Trends',
+      date: '2024-01-13T09:15:00Z',
+      readTime: '5 min read'
+    },
+    {
+      id: '4',
+      title: 'Healthy Eating Habits for Busy Professionals',
+      image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&h=300&fit=crop',
+      category: 'Health',
+      author: 'Nutrition Expert',
+      date: '2024-01-12T14:45:00Z',
+      readTime: '7 min read'
+    },
+    {
+      id: '5',
+      title: 'AI Revolution: What to Expect Next',
+      image: 'https://images.unsplash.com/photo-1677442135135-416f8aa26a5b?w=400&h=300&fit=crop',
+      category: 'AI',
+      author: 'Tech Future',
+      date: '2024-01-11T11:30:00Z',
+      readTime: '8 min read'
     }
-  };
+  ];
 
-  const fetchBookmarkedArticles = async (userID: any) => {
-    try {
+  const fetchArticles = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
       setLoading(true);
-      setError(null);
-      const response = await apiService.getBookMark(userID);
-      const bookmarks = response.data;
-      
-      // Extract the articles from the response objects
-      const articles = bookmarks.map((item: any) => ({
-        ...item.article,
-        bookmarkId: item.bookmarkId // Keep the bookmark ID for potential removal
-      })).filter((article: any) => article && article.id); // Filter out invalid articles
-      
-      console.log('Fetched bookmarked articles:', articles.length);
-      setBookmarkedArticles(articles);
-    } catch (err) {
-      console.error("Error fetching bookmarked articles:", err);
-      setError("Failed to load bookmarked articles");
+    }
+
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setArticles(feedArticles);
+    } catch (error) {
+      console.error('Error fetching articles:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  // Refresh when the screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      const id = '10d73cdb-0d37-4655-941a-65954e67a9ae';
-      fetchBookmarkedArticles(id);
-    }, [])
+  useEffect(() => {
+    fetchArticles();
+  }, []);
+
+  const onRefresh = () => {
+    fetchArticles(true);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const renderArticleItem = ({ item, index }: { item: any; index: number }) => (
+    <TouchableOpacity 
+      style={styles.articleCard}
+      onPress={() => onArticlePress(item, articles, index)}
+    >
+      <Image source={{ uri: item.image }} style={styles.articleImage} />
+      <View style={styles.articleContent}>
+        <Text style={styles.articleCategory}>{item.category}</Text>
+        <Text style={styles.articleTitle} numberOfLines={2}>{item.title}</Text>
+        <View style={styles.articleMeta}>
+          <Text style={styles.articleAuthor}>{item.author}</Text>
+          <Text style={styles.articleDate}>{formatDate(item.date)}</Text>
+        </View>
+        <View style={styles.articleFooter}>
+          <Text style={styles.readTime}>{item.readTime}</Text>
+          <Ionicons name="bookmark-outline" size={16} color="#666" />
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Loading your bookmarks...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton} 
-          onPress={() => {
-            const id = '10d73cdb-0d37-4655-941a-65954e67a9ae';
-            fetchBookmarkedArticles(id);
-          }}
-        >
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (bookmarkedArticles.length === 0) {
-    return (
-      <View style={styles.centerContainer}>
-        <Image 
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3514/3514491.png' }} 
-          style={styles.emptyIcon}
-        />
-        <Text style={styles.noBookmarksText}>You haven&apos;t saved any articles yet</Text>
-        <Text style={styles.noBookmarksSubText}>Bookmark articles to read them later</Text>
+        <Text style={styles.loadingText}>Loading your feed...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Main Bookmarked Articles - Horizontal Scroll - UPDATED */}
-      <Text style={styles.sectionTitle}>Featured Bookmarks</Text>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false} 
-        style={styles.mainNewsContainer}
-      >
-        {bookmarkedArticles.slice(0, 3).map((article, index) => (
-          <TouchableOpacity 
-            key={article.id || index}
-            onPress={() => handleArticlePress(article, 'featured', index)} 
-            style={styles.mainNewsCard}
-          >
-            <Image 
-              source={{ uri: article.featuredImage || article.image }} 
-              style={styles.mainNewsImage} 
-            />
+    <View style={styles.container}>
+      {/* <View style={styles.header}>
+        <Text style={styles.headerTitle}>Your Feed</Text>
+        <TouchableOpacity>
+          <Ionicons name="filter-outline" size={24} color="#333" />
+        </TouchableOpacity>
+      </View> */}
 
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.8)']}
-              style={styles.mainNewsGradient}
-            >
-              {article.isExclusive && (
-                <View style={styles.exclusiveTag}>
-                  <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
-                </View>
-              )}
-
-              <Text style={styles.mainNewsTitle}>{article.title}</Text>
-              <Text style={styles.mainNewsSource}>{article.authorName || article.source}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* All Bookmarked Articles - Grid Layout - UPDATED */}
-      <Text style={styles.sectionTitle}>All Saved Articles</Text>
-      <View style={styles.gridContainer}>
-        {bookmarkedArticles.map((article, index) => (
-          <TouchableOpacity 
-            key={article.id || index} 
-            style={styles.gridItem}
-            onPress={() => handleArticlePress(article, 'all', index)}
-          >
-            <Image 
-              source={{ uri: article.featuredImage || article.image }} 
-              style={styles.gridImage} 
-            />
-            
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.7)']}
-              style={styles.gridGradient}
-            />
-            
-            <View style={styles.gridContent}>
-              {article.isExclusive && (
-                <View style={styles.exclusiveTagSmall}>
-                  <Text style={styles.exclusiveTextSmall}>EXCLUSIVE</Text>
-                </View>
-              )}
-              
-              <Text style={styles.gridTitle} numberOfLines={2}>
-                {article.title}
-              </Text>
-              
-              <View style={styles.gridMeta}>
-                <Text style={styles.gridSource} numberOfLines={1}>
-                  {article.authorName || article.source}
-                </Text>
-                <Text style={styles.gridDate}>
-                  {article.publishedDate ? new Date(article.publishedDate).toLocaleDateString() : ''}
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+      <FlatList
+        data={articles}
+        renderItem={renderArticleItem}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 };
 
-// Keep all your existing styles - no changes needed
 const styles = StyleSheet.create({
-  content: {
+  container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
@@ -206,203 +169,85 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 20,
   },
-  headerContainer: {
-    padding: 20,
-    paddingBottom: 10,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 5,
-  },
-  headerSubtitle: {
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
     color: '#666',
   },
-  // Main News Styles (similar to home screen)
-  mainNewsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  mainNewsCard: {
-    width: width - 40,
-    borderRadius: 15,
-    overflow: 'hidden',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    marginRight: 15,
-  },
-  mainNewsImage: {
-    width: '100%',
-    height: 250,
-  },
-  mainNewsGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
-    justifyContent: 'flex-end',
-    padding: 20,
-  },
-  exclusiveTag: {
-    backgroundColor: '#FF4444',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  exclusiveText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  mainNewsTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    lineHeight: 28,
-  },
-  mainNewsSource: {
-    color: '#fff',
-    fontSize: 14,
-    opacity: 0.9,
-  },
-  // Section Title
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginLeft: 20,
-    marginTop: 25,
-    marginBottom: 15,
-  },
-  // Grid Layout for all bookmarks
-  gridContainer: {
+  header: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    marginBottom: 20,
-  },
-  gridItem: {
-    width: (width - 40) / 2,
-    height: 200,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 15,
+    alignItems: 'center',
+    padding: 20,
     backgroundColor: '#fff',
-    elevation: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+  },
+  listContent: {
+    padding: 16,
+  },
+  articleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    position: 'relative',
   },
-  gridImage: {
+  articleImage: {
     width: '100%',
-    height: '100%',
+    height: 200,
   },
-  gridGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
+  articleContent: {
+    padding: 16,
   },
-  gridContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-  },
-  exclusiveTagSmall: {
-    backgroundColor: '#FF4444',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-    alignSelf: 'flex-start',
+  articleCategory: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
     marginBottom: 8,
+    textTransform: 'uppercase',
   },
-  exclusiveTextSmall: {
-    color: '#fff',
-    fontSize: 10,
+  articleTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 12,
+    lineHeight: 24,
   },
-  gridTitle: {
-    color: '#fff',
+  articleMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  articleAuthor: {
     fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    lineHeight: 16,
+    color: '#666',
+    fontWeight: '500',
   },
-  gridMeta: {
+  articleDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  articleFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  gridSource: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 11,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 5,
-  },
-  gridDate: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
-  },
-  // Loading and Error States
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
+  readTime: {
+    fontSize: 12,
     color: '#666',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#FF4444',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  retryButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 5,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  noBookmarksText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
-    textAlign: 'center',
-    marginTop: 15,
-  },
-  noBookmarksSubText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    opacity: 0.5,
   },
 });
 
-export default BookmarkedScreen;
+export default FeedScreen;

@@ -205,6 +205,7 @@ export interface CreateFolderRequest {
 
 // Response types
 export interface GetFoldersResponse {
+  data: any;
   folders: Folder[];
   userStats: UserStats;
 }

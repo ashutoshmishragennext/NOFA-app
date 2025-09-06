@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
@@ -33,12 +34,13 @@ const NewsApp = () => {
   const bottomTabs = [
     { name: "Home", icon: "home", activeIcon: "home" },
     { name: "Explore", icon: "search-outline", activeIcon: "search" },
+    { name: "Feed", icon: "newspaper-outline", activeIcon: "newspaper" },
     {
       name: "Trending",
       icon: "trending-up-outline",
       activeIcon: "trending-up",
     },
-    { name: "Saved", icon: "bookmark-outline", activeIcon: "bookmark" },
+
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
@@ -116,12 +118,13 @@ const NewsApp = () => {
         return <HomeScreen onArticlePress={handleArticlePress} />;
       case "Explore":
         return <ExploreScreen onArticlePress={handleArticlePress} />;
+         case "Feed": // Changed from Saved to Feed
+        return <FeedScreen onArticlePress={handleArticlePress} />;
       case "Trending":
         return <TrendingScreen onArticlePress={handleArticlePress} />;
-      case "Saved":
-        return <SavedScreen onArticlePress={handleArticlePress} />;
+    
       case "Profile":
-        return <ProfileScreen />;
+        return <ProfileScreen onArticlePress={handleArticlePress}/>;
       default:
         return <HomeScreen onArticlePress={handleArticlePress} />;
     }
