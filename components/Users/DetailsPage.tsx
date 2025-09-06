@@ -1,6 +1,11 @@
+import { apiService } from '@/api';
+import { useAuth } from '@/context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -15,23 +20,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import RenderHtml from "react-native-render-html";
 import Navbar from '../Navbar';
 import CommentsSection from './CommentsPage';
-import { apiService } from '@/api';
-import { useAuth } from '@/context/AuthContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const NewsDetailScreen = ({ 
   article, 
   onBack, 
   onNext, 
   hasNext, 
-  onPrev, // NEW: Previous handler
-  hasPrev = false, // NEW: Has previous flag
+  onPrev,
+  hasPrev = false,
   currentIndex, 
   totalArticles,
   sourceTab 
@@ -60,6 +61,11 @@ const NewsDetailScreen = ({
 
   const LIKE_BATCH_DELAY = 1 * 60 * 1000; // 1 minute in milliseconds
   const LIKE_STORAGE_KEY = `article_likes_${article.id}`;
+
+  // Add these state variables
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [viewRecorded, setViewRecorded] = useState(false);
+  const [viewCount, setViewCount] = useState(article.viewCount || 0);
 
   // Load initial states including local like state
   useEffect(() => {
@@ -172,15 +178,14 @@ const NewsDetailScreen = ({
     }
   };
 
-useEffect(() => {
-  // Only run cleanup, the article-specific initialization is handled above
-  return () => {
-    if (likeUpdateTimer.current) {
-      clearTimeout(likeUpdateTimer.current);
-    }
-  };
-}, []);
-
+  useEffect(() => {
+    // Only run cleanup, the article-specific initialization is handled above
+    return () => {
+      if (likeUpdateTimer.current) {
+        clearTimeout(likeUpdateTimer.current);
+      }
+    };
+  }, []);
 
   // Load share count
   useEffect(() => {
@@ -281,6 +286,37 @@ useEffect(() => {
     setCommentsCount(count);
   };
 
+  // Updated navigation handlers with transition states
+  const handleNext = () => {
+    if (hasNext && !isTransitioning) {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        onNext();
+        setIsTransitioning(false);
+      }, 300);
+    }
+  };
+
+  const handlePrev = () => {
+    if (hasPrev && !isTransitioning) {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        onPrev();
+        setIsTransitioning(false);
+      }, 300);
+    }
+  };
+
+  const handleBack = () => {
+    if (!isTransitioning && onBack) {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        onBack();
+        setIsTransitioning(false);
+      }, 300);
+    }
+  };
+
   // Updated bookmark handler
   const handleBookmark = async () => {
     if (bookmarkLoading) return;
@@ -306,107 +342,104 @@ useEffect(() => {
     }
   };
 
-  // In your NewsDetailScreen, add this useEffect to load comment count
-useEffect(() => {
-  const loadCommentCount = async () => {
-    try {      
-      if (article.id) {
-        const commentData = await apiService.getArticleCommentCount(article.id);
-        setCommentsCount(commentData.commentCount);
-      }
-    } catch (error) {
-      console.error('Error loading comment count:', error);
-    }
-  };
-
-  if (article.id) {
-    loadCommentCount();
-  }
-}, [article.id]);
-
-  // Add this with your other states
-const [viewRecorded, setViewRecorded] = useState(false);
-const [viewCount, setViewCount] = useState(article.viewCount || 0);
-// Add this useEffect to handle unique view recording
-useEffect(() => {
-  const checkAndRecordUniqueView = async () => {
-    // Don't proceed if already recorded or article ID missing
-    if (!article.id || viewRecorded) return;
-
-    try {
-      // Wait for all other counts to load first
-      if (likeLoading || bookmarkLoading) {
-        console.log('Waiting for like/bookmark states to load...');
-        return;
-      }
-
-      console.log('Checking if view already recorded for article:', article.id);
-
-      // Check if view is already recorded in AsyncStorage
-      const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
-      const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
-
-      if (viewedArticles.includes(article.id)) {
-        console.log('View already recorded for this article, skipping...');
-        setViewRecorded(true);
-        return;
-      }
-
-      console.log('Recording new view for article:', article.id);
-
-      // Record the view via API
-      const userId = currentUser?.id || null;
-      const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
-      
-      const result = await apiService.recordArticleView(article.id, userId, referrer);
-      
-      if (result.success) {
-        console.log('View recorded successfully:', result.message);
-        
-        // Store the article id locally to prevent future posts
-        const updatedViewedArticles = [...viewedArticles, article.id];
-        await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
-        
-        setViewRecorded(true);
-        
-        // Update view count only if it was actually incremented
-        if (result.incrementedCount) {
-          setViewCount(prev => prev + 1);
+  // Load comment count
+  useEffect(() => {
+    const loadCommentCount = async () => {
+      try {      
+        if (article.id) {
+          const commentData = await apiService.getArticleCommentCount(article.id);
+          setCommentsCount(commentData.commentCount);
         }
+      } catch (error) {
+        console.error('Error loading comment count:', error);
       }
-    } catch (error) {
-      console.error('Failed to record unique view:', error);
-      // Still mark as recorded to prevent retry loops
-      setViewRecorded(true);
+    };
+
+    if (article.id) {
+      loadCommentCount();
     }
-  };
+  }, [article.id]);
 
-  // Add a small delay to ensure all other loading is complete
-  const timer = setTimeout(() => {
-    checkAndRecordUniqueView();
-  }, 1000);
+  // Handle unique view recording
+  useEffect(() => {
+    const checkAndRecordUniqueView = async () => {
+      // Don't proceed if already recorded or article ID missing
+      if (!article.id || viewRecorded) return;
 
-  return () => clearTimeout(timer);
-}, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
-// Load initial view count
-useEffect(() => {
-  const loadInitialViewCount = async () => {
-    try {
-      if (article.id) {
-        const viewData = await apiService.getArticleViews(article.id);
-        setViewCount(viewData.viewCount);
-        console.log('Initial view count loaded:', viewData.viewCount);
+      try {
+        // Wait for all other counts to load first
+        if (likeLoading || bookmarkLoading) {
+          console.log('Waiting for like/bookmark states to load...');
+          return;
+        }
+
+        console.log('Checking if view already recorded for article:', article.id);
+
+        // Check if view is already recorded in AsyncStorage
+        const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
+        const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
+
+        if (viewedArticles.includes(article.id)) {
+          console.log('View already recorded for this article, skipping...');
+          setViewRecorded(true);
+          return;
+        }
+
+        console.log('Recording new view for article:', article.id);
+
+        // Record the view via API
+        const userId = currentUser?.id || null;
+        const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
+        
+        const result = await apiService.recordArticleView(article.id, userId, referrer);
+        
+        if (result.success) {
+          console.log('View recorded successfully:', result.message);
+          
+          // Store the article id locally to prevent future posts
+          const updatedViewedArticles = [...viewedArticles, article.id];
+          await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
+          
+          setViewRecorded(true);
+          
+          // Update view count only if it was actually incremented
+          if (result.incrementedCount) {
+            setViewCount(prev => prev + 1);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to record unique view:', error);
+        // Still mark as recorded to prevent retry loops
+        setViewRecorded(true);
       }
-    } catch (error) {
-      console.error('Error loading initial view count:', error);
+    };
+
+    // Add a small delay to ensure all other loading is complete
+    const timer = setTimeout(() => {
+      checkAndRecordUniqueView();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
+
+  // Load initial view count
+  useEffect(() => {
+    const loadInitialViewCount = async () => {
+      try {
+        if (article.id) {
+          const viewData = await apiService.getArticleViews(article.id);
+          setViewCount(viewData.viewCount);
+          console.log('Initial view count loaded:', viewData.viewCount);
+        }
+      } catch (error) {
+        console.error('Error loading initial view count:', error);
+      }
+    };
+
+    if (article.id) {
+      loadInitialViewCount();
     }
-  };
-
-  if (article.id) {
-    loadInitialViewCount();
-  }
-}, [article.id]);
-
+  }, [article.id]);
 
   // Share handler
   const handleShare = async () => {
@@ -458,103 +491,104 @@ useEffect(() => {
     }
   };
 
-// Updated panResponder for smoother swipe animations
-const panResponder = useRef(
-  PanResponder.create({
-    onMoveShouldSetPanResponder: (evt, gestureState) => {
-      // Only respond to horizontal swipes with sufficient movement
-      return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 15;
-    },
-    onPanResponderGrant: () => {
-      pan.setOffset({
-        x: pan.x._value,
-        y: pan.y._value,
-      });
-    },
-    onPanResponderMove: (evt, gestureState) => {
-      // Smooth real-time movement following finger
-      pan.setValue({ x: gestureState.dx, y: 0 });
-      
-      // Dynamic opacity based on swipe progress for smooth visual feedback
-      const progress = Math.abs(gestureState.dx) / width;
-      opacity.setValue(1 - progress * 0.2); // Reduced opacity change for subtlety
-    },
-    onPanResponderRelease: (evt, gestureState) => {
-      pan.flattenOffset();
-      
-      // Enhanced thresholds with velocity consideration
-      const swipeThreshold = width * 0.25; // Reduced from 0.3 for easier swipes
-      const velocityThreshold = 0.5; // Lower threshold for more responsive swipes
-      
-      const shouldGoBack = (gestureState.dx > swipeThreshold || gestureState.vx > velocityThreshold) && gestureState.dx > 0;
-      const shouldGoNext = (gestureState.dx < -swipeThreshold || gestureState.vx < -velocityThreshold) && gestureState.dx < 0;
+  // Improved panResponder for smoother swipe animations
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt, gestureState) => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to horizontal swipes with minimal movement
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: pan.x._value,
+          y: pan.y._value,
+        });
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Smooth movement with direct mapping to finger position
+        pan.x.setValue(gestureState.dx);
+        
+        // Subtle opacity change for better visual feedback
+        const progress = Math.min(Math.abs(gestureState.dx) / width, 0.5);
+        opacity.setValue(1 - progress);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        pan.flattenOffset();
+        
+        // Lower thresholds for easier swiping
+        const swipeThreshold = width * 0.2;
+        const velocityThreshold = 0.3;
+        
+        const shouldGoBack = (gestureState.dx > swipeThreshold || gestureState.vx > velocityThreshold) && gestureState.dx > 0;
+        const shouldGoNext = (gestureState.dx < -swipeThreshold || gestureState.vx < -velocityThreshold) && gestureState.dx < 0;
 
-      if (shouldGoBack) {
-        // Right swipe - smooth spring animation
-        Animated.parallel([
-          Animated.spring(pan.x, {
-            toValue: width,
-            tension: 100, // Adjusted for smoother feel
-            friction: 8,  // Reduced friction for smoother motion
-            useNativeDriver: false,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 200, // Faster fade for better sync
-            useNativeDriver: false,
-          }),
-        ]).start(() => {
-          // Reset animation values for next use
-          pan.setValue({ x: 0, y: 0 });
-          opacity.setValue(1);
-          
-          if (currentIndex === 0) {
-            if (onBack) onBack();
-          } else {
-            if (onPrev) onPrev();
-          }
-        });
-      } else if (shouldGoNext && hasNext) {
-        // Left swipe - smooth spring animation
-        Animated.parallel([
-          Animated.spring(pan.x, {
-            toValue: -width,
-            tension: 100, // Adjusted for smoother feel
-            friction: 8,  // Reduced friction for smoother motion
-            useNativeDriver: false,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 200, // Faster fade for better sync
-            useNativeDriver: false,
-          }),
-        ]).start(() => {
-          // Reset animation values for next use
-          pan.setValue({ x: 0, y: 0 });
-          opacity.setValue(1);
-          
-          if (onNext) onNext();
-        });
-      } else {
-        // Snap back with smooth spring animation
-        Animated.parallel([
-          Animated.spring(pan.x, {
-            toValue: 0,
-            tension: 120, // Higher tension for snappy return
-            friction: 7,  // Balanced friction
-            useNativeDriver: false,
-          }),
-          Animated.spring(opacity, {
-            toValue: 1,
-            tension: 120,
-            friction: 7,
-            useNativeDriver: false,
-          }),
-        ]).start();
-      }
-    },
-  })
-).current;
+        if (shouldGoBack) {
+          // Right swipe - go back/previous
+          setIsTransitioning(true);
+          Animated.parallel([
+            Animated.spring(pan.x, {
+              toValue: width,
+              tension: 50,
+              friction: 7,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            pan.setValue({ x: 0, y: 0 });
+            opacity.setValue(1);
+            
+            if (currentIndex === 0) {
+              if (onBack) handleBack();
+            } else {
+              if (onPrev) handlePrev();
+            }
+          });
+        } else if (shouldGoNext && hasNext) {
+          // Left swipe - go next
+          setIsTransitioning(true);
+          Animated.parallel([
+            Animated.spring(pan.x, {
+              toValue: -width,
+              tension: 50,
+              friction: 7,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            pan.setValue({ x: 0, y: 0 });
+            opacity.setValue(1);
+            
+            if (onNext) handleNext();
+          });
+        } else {
+          // Return to original position with smooth animation
+          Animated.parallel([
+            Animated.spring(pan.x, {
+              toValue: 0,
+              tension: 60,
+              friction: 7,
+              useNativeDriver: true,
+            }),
+            Animated.spring(opacity, {
+              toValue: 1,
+              tension: 60,
+              friction: 7,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
 
   // Helper functions for processing tags and keywords
   const processTags = (tags) => {
@@ -583,8 +617,7 @@ const panResponder = useRef(
   const keywordsArray = processKeywords(article.keywords);
 
   return (
- <SafeAreaView style={styles.container}>
-           
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
       
       <Animated.View 
@@ -615,12 +648,6 @@ const panResponder = useRef(
                 <Text style={styles.exclusiveText}>TRENDING</Text>
               </View>
             )}
-            
-            {/* <View style={styles.swipeIndicators}>
-              <View style={styles.swipeIndicator}>
-                <Text style={styles.swipeText}>← Swipe to go back</Text>
-              </View>
-            </View> */}
           </View>
 
           {/* Article Content */}
@@ -655,20 +682,6 @@ const panResponder = useRef(
                 ))}
               </View>
             )}
-
-            {/* Keywords */}
-            {/* {keywordsArray.length > 0 && (
-              <View style={styles.keywordsContainer}>
-                <Text style={styles.keywordsLabel}>Keywords:</Text>
-                <View style={styles.keywordsWrapper}>
-                  {keywordsArray.map((keyword, index) => (
-                    <View key={index} style={styles.keyword}>
-                      <Text style={styles.keywordText}>{keyword}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )} */}
 
             {/* Article Summary */}
             {article.summary && (
@@ -714,30 +727,10 @@ const panResponder = useRef(
                 }}
               />
             </View>
-{/* 
-            <View style={styles.statsSection}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{viewCount}</Text>
-                <Text style={styles.statLabel}>Views</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{likeCount}</Text>
-                <Text style={styles.statLabel}>Likes</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{shareCount}</Text>
-                <Text style={styles.statLabel}>Shares</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{commentsCount}</Text>
-                <Text style={styles.statLabel}>Comments</Text>
-              </View>
-            </View> */}
-
           </View>
         </ScrollView>
 
-        {/* Updated Action Bar with clean icon design */}
+        {/* Action Bar */}
         <View style={styles.actionBar}>
           {/* Like Button */}
           <TouchableOpacity 
@@ -760,7 +753,6 @@ const panResponder = useRef(
             )}
             <Text style={[
                 styles.actionText,
-                // liked && styles.activeActionTextRed,
                 liked ? { color: "#ae0202ff" } : { color: "#999" }
               ]}>
               {likeCount}
@@ -822,8 +814,14 @@ const panResponder = useRef(
         visible={showComments}
         onClose={() => setShowComments(false)}
         articleId={article.id}
-        // onCommentsCountChange={handleCommentsCountChange}
       />
+
+      {/* Loading Overlay during transitions */}
+      {isTransitioning && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -836,6 +834,17 @@ const styles = StyleSheet.create({
   detailContent: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   },
   articleImageContainer: {
     position: 'relative',
@@ -871,26 +880,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  swipeIndicators: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  swipeIndicator: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-  },
-  swipeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '500',
   },
   articleContentContainer: {
     padding: 20,
@@ -954,34 +943,6 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
-  keywordsContainer: {
-    marginBottom: 20,
-  },
-  keywordsLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#666',
-    marginBottom: 8,
-  },
-  keywordsWrapper: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  keyword: {
-    backgroundColor: '#f0f8ff',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 6,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: '#2196F3',
-  },
-  keywordText: {
-    fontSize: 10,
-    color: '#2196F3',
-    fontWeight: '500',
-  },
   articleLead: {
     fontSize: 18,
     lineHeight: 26,
@@ -993,42 +954,21 @@ const styles = StyleSheet.create({
   htmlContentContainer: {
     marginBottom: 25,
   },
-  statsSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    paddingVertical: 20,
-    marginVertical: 25,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  // Updated Action Bar styles - clean like bottom navigation
+  // Updated Action Bar styles
   actionBar: {
-  flexDirection: "row",
-  justifyContent: "space-around",
-  alignItems: "center",
-  backgroundColor: "#fff", 
-  paddingVertical: 4,     
-  paddingBottom: 4,       
-  borderTopWidth: 1,       
-  borderTopColor: "#f0f0f0",
-  elevation: 1,          
-  shadowColor: "#000",     
-  shadowOffset: { width: 0, height: -2 }, 
-  shadowOpacity: 0.1,      
-  shadowRadius: 3,         
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "#fff", 
+    paddingVertical: 4,     
+    paddingBottom: 4,       
+    borderTopWidth: 1,       
+    borderTopColor: "#f0f0f0",
+    elevation: 1,          
+    shadowColor: "#000",     
+    shadowOffset: { width: 0, height: -2 }, 
+    shadowOpacity: 0.1,      
+    shadowRadius: 3,         
   },
   actionButton: {
     alignItems: 'center',
@@ -1046,23 +986,6 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
-  activeActionTextRed: {
-    // color: '#ae0202ff',
-    fontWeight: '600',
-  },
-   navigationIndicator : {
-  paddingHorizontal: 20,
-  paddingVertical: 8,
-  backgroundColor: '#f8f9fa',
-  borderBottomWidth: 1,
-  borderBottomColor: '#f0f0f0',
-},
-
- navText : {
-  fontSize: 12,
-  color: '#666',
-  textAlign: 'center',
-},
 });
 
 export default NewsDetailScreen;
