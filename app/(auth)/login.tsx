@@ -42,7 +42,7 @@ const FacebookIcon = () => (
 );
 
 // Eye Icon for password visibility
-const EyeIcon = ({ visible }:any) => (
+const EyeIcon = ({ visible }: { visible: boolean }) => (
   <Text style={styles.eyeIcon}>{visible ? "👁️" : "🫣"}</Text>
 );
 
@@ -53,13 +53,17 @@ export default function ApartmentLoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-    const handleSignUp = () => {
-    router.push('/(auth)/register');
-  };
-
   const { login, googleSignIn, user } = useAuth();
   const { request, response, promptAsync } = useGoogleAuth();
   const router = useRouter();
+
+  const handleSignUp = () => {
+    try {
+      router.push('/(auth)/register');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  };
 
   const getRoleGroup = (role: string): string => {
     switch (role) {
@@ -74,22 +78,40 @@ export default function ApartmentLoginScreen() {
     }
   };
 
+  // FIX 1: Add proper cleanup and error handling for navigation
   useEffect(() => {    
-    if(user?.role) {
+    if (user?.role) {
       console.log("user in login", user);
-      // Redirect to dashboard if user is already logged in
-      const role = getRoleGroup(user.role);
-      router.replace(`${role}/dashboard` as any);
-    }
-  }, [user?.role]);
+      try {
+        // Add timeout to prevent immediate navigation issues
+        const timeoutId = setTimeout(() => {
+          const role = getRoleGroup(user.role);
+          const routePath = `${role}/dashboard`;
+          console.log('Navigating to:', routePath);
+          router.replace(routePath as any);
+        }, 100);
 
-  // Handle Google sign-in response
+        return () => clearTimeout(timeoutId);
+      } catch (error) {
+        console.error('Navigation error in useEffect:', error);
+        // Fallback navigation
+        router.replace('/(user)/dashboard' as any);
+      }
+    }
+  }, [user?.role, router]);
+
+  // FIX 2: Add proper error handling and cleanup for Google response
   useEffect(() => {
+    if (!response) return;
+
     if (response?.type === 'success') {
       handleGoogleResponse(response);
     } else if (response?.type === 'error') {
       setIsGoogleLoading(false);
+      console.error('Google auth error:', response.error);
       Alert.alert('Google Sign-In Error', 'Authentication was cancelled or failed');
+    } else if (response?.type === 'cancel') {
+      setIsGoogleLoading(false);
     }
   }, [response]);
 
@@ -105,6 +127,7 @@ export default function ApartmentLoginScreen() {
         throw new Error('No access token received');
       }
     } catch (error: any) {
+      console.error('Google sign-in error:', error);
       Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
     } finally {
       setIsGoogleLoading(false);
@@ -112,15 +135,25 @@ export default function ApartmentLoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+    // FIX 3: Better input validation
+    if (!email?.trim() || !password?.trim()) {
       Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
     setIsLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
+      // Don't navigate here - let useEffect handle it
     } catch (error: any) {
+      console.error('Login error:', error);
       Alert.alert('Login Failed', error.message || 'Something went wrong');
     } finally {
       setIsLoading(false);
@@ -130,14 +163,18 @@ export default function ApartmentLoginScreen() {
   const handleGoogleLogin = async () => {
     try {
       setIsGoogleLoading(true);
+      
       if (!request) {
-        Alert.alert('Error', 'Google sign-in is not ready yet');
+        Alert.alert('Error', 'Google sign-in is not ready yet. Please try again.');
+        setIsGoogleLoading(false);
         return;
       }
+      
       await promptAsync();
       // Response will be handled by useEffect
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      console.error('Google login error:', error);
+      Alert.alert('Error', error.message || 'Google sign-in failed');
       setIsGoogleLoading(false);
     }
   };
@@ -158,6 +195,7 @@ export default function ApartmentLoginScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Main Card */}
         <View style={styles.card}>
@@ -165,6 +203,8 @@ export default function ApartmentLoginScreen() {
           <Image
             source={require("../../assets/images/logo.png")}
             style={styles.logo}
+            contentFit="contain"
+            onError={(error) => console.error('Logo loading error:', error)}
           />
 
           {/* Form Content */}
@@ -184,6 +224,7 @@ export default function ApartmentLoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isLoading && !isGoogleLoading}
+                returnKeyType="next"
               />
             </View>
 
@@ -200,11 +241,14 @@ export default function ApartmentLoginScreen() {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   editable={!isLoading && !isGoogleLoading}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
                 />
                 <TouchableOpacity
                   style={styles.eyeButton}
                   onPress={() => setShowPassword(!showPassword)}
                   disabled={isLoading || isGoogleLoading}
+                  activeOpacity={0.7}
                 >
                   <EyeIcon visible={showPassword} />
                 </TouchableOpacity>
@@ -219,6 +263,7 @@ export default function ApartmentLoginScreen() {
               ]}
               onPress={handleLogin}
               disabled={isLoading || isGoogleLoading}
+              activeOpacity={0.8}
             >
               <LinearGradient
                 colors={["#06b6d4", "#14b8a6"]}
@@ -237,15 +282,25 @@ export default function ApartmentLoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
+            {/* Sign Up Link */}
+            <View style={styles.signUpContainer}>
+              <Text style={styles.signUpText}>
+                Don't have an account?{" "}
+                <TouchableOpacity 
+                  onPress={handleSignUp}
+                  disabled={isLoading || isGoogleLoading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.signUpLink,
+                    (isLoading || isGoogleLoading) && { opacity: 0.5 }
+                  ]}>
+                    Sign Up
+                  </Text>
+                </TouchableOpacity>
+              </Text>
+            </View>
 
-              <View style={styles.signUpContainer}>
-                <Text style={styles.signUpText}>
-                  Don&apos;t have an account?{" "}
-                  <TouchableOpacity onPress={handleSignUp}>
-                    <Text style={styles.signUpLink}>Sign Up</Text>
-                  </TouchableOpacity>
-                </Text>
-              </View>
             {/* Divider */}
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
@@ -258,10 +313,11 @@ export default function ApartmentLoginScreen() {
               <TouchableOpacity
                 style={[
                   styles.socialButton,
-                  (isLoading || isGoogleLoading) && styles.socialButtonDisabled
+                  (isLoading || isGoogleLoading || !request) && styles.socialButtonDisabled
                 ]}
                 onPress={() => handleSocialLogin("Google")}
                 disabled={isLoading || isGoogleLoading || !request}
+                activeOpacity={0.7}
               >
                 {isGoogleLoading ? (
                   <ActivityIndicator size="small" color="#06b6d4" />
@@ -277,6 +333,7 @@ export default function ApartmentLoginScreen() {
                 ]}
                 onPress={() => handleSocialLogin("Facebook")}
                 disabled={isLoading || isGoogleLoading}
+                activeOpacity={0.7}
               >
                 <FacebookIcon />
               </TouchableOpacity>
@@ -314,7 +371,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingVertical: 0,
+    paddingVertical: 20,
   },
   icon: {
     height: 25,
@@ -323,7 +380,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 360,
     height: 120,
-    resizeMode: "contain",
+    alignSelf: 'center',
   },
   card: {
     paddingVertical: 40,
@@ -413,19 +470,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7,
-  },
-  signUpContainer: {
-    alignItems: "center",
-    marginTop: 16,
-  },
-  signUpText: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  signUpLink: {
-    color: "#06b6d4",
-    marginTop : 2,
-    fontWeight: "600",
   },
   buttonText: {
     color: "white",

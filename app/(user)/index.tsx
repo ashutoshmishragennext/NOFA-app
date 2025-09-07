@@ -16,13 +16,12 @@ import {
   Text,
   TouchableOpacity,
   View
-  View,
-  BackHandler,
-  Alert,
+
+
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import FeedScreen from "@/components/Users/Save";
+// import { StatusBar } from 'expo-status-bar';
+// import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
