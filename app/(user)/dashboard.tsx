@@ -1,10 +1,11 @@
 import NewsDetailScreen from "@/components/Users/DetailsPage";
 import ExploreScreen from "@/components/Users/Explore";
 import HomeScreen from "@/components/Users/Home";
+import OnboardingScreen from "@/components/Users/OnboardingScreen"; // Add this import
 import ProfileScreen from "@/components/Users/Profile";
 import FeedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
-import OnboardingScreen from "@/components/Users/OnboardingScreen"; // Add this import
+import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
@@ -16,13 +17,14 @@ import {
   Text,
   TouchableOpacity,
   View
-
-
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// import { useAuth } from "@/context/AuthContext";
 // import { StatusBar } from 'expo-status-bar';
 // import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
+  const {logout}=useAuth();
+
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
@@ -30,7 +32,22 @@ const NewsApp = () => {
   const [showOnboarding, setShowOnboarding] = useState(false); // Add onboarding state
   const insets = useSafeAreaInsets();
   const user = useAuth().user;
-  
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+          },
+        },
+      ]
+    );
+  };
   // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
@@ -223,15 +240,18 @@ const NewsApp = () => {
       {/* Menu Dropdown */}
       {menuVisible && (
         <View style={[styles.menuDropdown, { top: 90 + insets.top }]}>
-          {["Notifications", "Settings", "About"].map((item, index) => (
+         
             <TouchableOpacity
-              key={index}
+            
               style={styles.menuItem}
-              onPress={() => setMenuVisible(false)}
-            >
-              <Text style={styles.menuItemText}>{item}</Text>
+onPress={() => {
+        setMenuVisible(false);
+        handleLogout();
+      }}            >
+        <Ionicons name="log-out-outline" size={18} color="#e74c3c" style={styles.menuIcon} />
+      <Text style={styles.logoutText}>Logout</Text>
             </TouchableOpacity>
-          ))}
+        
         </View>
       )}
 
@@ -319,6 +339,8 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   menuItem: {
+    flexDirection:"row",
+    alignItems:"center",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
@@ -328,6 +350,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
   },
+  logoutText: {
+  fontSize: 16,
+  color: "#e74c3c",
+  marginLeft: 12,
+  fontWeight: "500",
+},
   // CONTENT STYLES
   content: {
     flex: 1,

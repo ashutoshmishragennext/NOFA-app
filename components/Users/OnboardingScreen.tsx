@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext'; // Add this import
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const OnboardingScreen = ({ onComplete }) => {
   const [currentPage, setCurrentPage] = useState(0);
@@ -285,9 +285,9 @@ const OnboardingScreen = ({ onComplete }) => {
           onPress={handleNext}
           disabled={selectedCategories.length === 0 || savingCategories}
         >
-          <View style={styles.doneButtonContent}>
+          <View >
             {savingCategories && (
-              <ActivityIndicator size="small" color="#fff" style={styles.saveSpinner} />
+              <ActivityIndicator size="small" color="#fff" />
             )}
             <Text style={[
               styles.doneButtonText,
@@ -300,8 +300,8 @@ const OnboardingScreen = ({ onComplete }) => {
 
         {/* Show selected count */}
         {selectedCategories.length > 0 && (
-          <View style={styles.selectedCountContainer}>
-            <Text style={styles.selectedCountText}>
+          <View>
+            <Text>
               {selectedCategories.length} categor{selectedCategories.length === 1 ? 'y' : 'ies'} selected
             </Text>
           </View>
