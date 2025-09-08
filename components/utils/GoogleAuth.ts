@@ -12,7 +12,7 @@ export const useGoogleAuth = () => {
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     scopes: ['profile', 'email'],
     redirectUri: makeRedirectUri({
-      scheme: 'your-app-scheme', // Replace with your app scheme
+      scheme: 'apartmenttimes', // Replace with your app scheme
       path: 'oauth'
     }),
   });
