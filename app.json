@@ -1,12 +1,14 @@
 {
   "expo": {
     "name": "Apartmenttimes",
-    "slug": "Apartmenttimes",
+    "slug": "apartmenttimes",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "apartmenttimes",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "jsEngine": "hermes",
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -14,10 +16,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ashutoshmishra.apartmenttimes",
+      "bundleIdentifier": "com.ranurag404.apartmenttimes",
       "buildNumber": "1.0.0",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "NSCameraUsageDescription": "This app uses camera to take photos",
+        "NSPhotoLibraryUsageDescription": "This app uses photo library to select images"
       }
     },
     "android": {
@@ -26,8 +33,9 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.ashutoshmishra.apartmenttimes",
+      "package": "com.ranurag404.apartmenttimes",
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
@@ -45,6 +53,13 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them.",
+          "cameraPermission": "The app accesses your camera to let you take photos."
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -60,12 +75,11 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {
-        "origin": false
-      },
+      "router": {},
       "eas": {
-        "projectId": "3d42fa99-dbca-4de6-b617-fe799fafc9a5"
+        "projectId": "6aa537f6-0897-41ba-a00e-15195d6da483"
       }
-    }
+    },
+    "owner": "ranurag404"
   }
 }

@@ -16,10 +16,9 @@ import {
   Text,
   TouchableOpacity,
   View
-
-
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from "@/context/AuthContext";
 // import { StatusBar } from 'expo-status-bar';
 // import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
@@ -40,12 +39,7 @@ const NewsApp = () => {
     { name: "Home", icon: "home", activeIcon: "home" },
     { name: "Explore", icon: "search-outline", activeIcon: "search" },
     { name: "Feed", icon: "newspaper-outline", activeIcon: "newspaper" },
-    {
-      name: "Trending",
-      icon: "trending-up-outline",
-      activeIcon: "trending-up",
-    },
-
+    { name: "Trending",icon: "trending-up-outline",activeIcon: "trending-up",},
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
