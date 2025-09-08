@@ -1,14 +1,12 @@
 {
   "expo": {
     "name": "Apartmenttimes",
-    "slug": "apartmenttimes",
+    "slug": "Apartmenttimes",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "apartmenttimes",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "jsEngine": "hermes",
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -40,12 +38,7 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET"
-      ],
-      "androidNavigationBar": {
-        "visible": "sticky-immersive",
-        "backgroundColor": "#ffffff",
-        "barStyle": "dark-content"
-      }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -75,7 +68,9 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "6aa537f6-0897-41ba-a00e-15195d6da483"
       }
