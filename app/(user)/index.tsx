@@ -20,6 +20,7 @@ import {
 
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from "@/context/AuthContext";
 // import { StatusBar } from 'expo-status-bar';
 // import FeedScreen from "@/components/Users/Save";
 const NewsApp = () => {
