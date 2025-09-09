@@ -1,40 +1,64 @@
 // utils/googleAuth.ts
-import { makeRedirectUri } from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import {
+  GoogleSignin,
+  statusCodes,
+  isErrorWithCode,
+  isSuccessResponse,
+} from '@react-native-google-signin/google-signin';
 
-WebBrowser.maybeCompleteAuthSession();
+// Configure Google Sign-In - ONLY webClientId is needed
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, // This is required for both Android and iOS
+  scopes: ['profile', 'email'],
+  offlineAccess: false,
+});
 
 export const useGoogleAuth = () => {
-  // Create redirect URI that works with both Expo Go and standalone apps
-  const redirectUri = makeRedirectUri({
-    scheme: 'apartmenttimes',
-    path: 'oauth'
-  });
+  const signInWithGoogle = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      
+      if (isSuccessResponse(response)) {
+        console.log('Google Sign-In Success:', response);
+        return response;
+      } else {
+        console.log('Sign-in was cancelled');
+        return null;
+      }
+    } catch (error) {
+      console.error('Google Sign-In Error:', error);
+      
+      if (isErrorWithCode(error)) {
+        switch (error.code) {
+          case statusCodes.SIGN_IN_CANCELLED:
+            console.log('User cancelled sign-in');
+            break;
+          case statusCodes.IN_PROGRESS:
+            console.log('Sign-in is in progress');
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            console.log('Play services not available');
+            break;
+          default:
+            console.log('Unknown error occurred');
+        }
+      }
+      throw error;
+    }
+  };
 
-  console.log('Redirect URI:', redirectUri); // For debugging
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    scopes: ['profile', 'email'],
-    redirectUri,
-  });
+  const signOut = async () => {
+    try {
+      await GoogleSignin.signOut();
+      console.log('Successfully signed out');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
 
   return {
-    request,
-    response,
-    promptAsync,
+    signInWithGoogle,
+    signOut,
   };
-};
-
-export const signInWithGoogle = async (promptAsync: any) => {
-  try {
-    const result = await promptAsync();
-    return result;
-  } catch (error) {
-    console.error('Google Sign-In Error:', error);
-    throw error;
-  }
 };

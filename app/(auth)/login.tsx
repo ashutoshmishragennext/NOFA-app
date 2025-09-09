@@ -15,12 +15,8 @@ import {
   View
 } from "react-native";
 import { useGoogleAuth } from "@/components/utils/GoogleAuth";
-import * as WebBrowser from 'expo-web-browser';
 
 const { width } = Dimensions.get("window");
-
-// Complete auth session for OAuth
-WebBrowser.maybeCompleteAuthSession();
 
 // Social Media Icons
 const GoogleIcon = () => (
@@ -54,7 +50,7 @@ export default function ApartmentLoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const { login, googleSignIn, user } = useAuth();
-  const { request, response, promptAsync } = useGoogleAuth();
+  const { signInWithGoogle } = useGoogleAuth(); // Updated to use the new hook
   const router = useRouter();
 
   const handleSignUp = () => {
@@ -78,12 +74,11 @@ export default function ApartmentLoginScreen() {
     }
   };
 
-  // FIX 1: Add proper cleanup and error handling for navigation
+  // Handle user navigation after login
   useEffect(() => {    
     if (user?.role) {
       console.log("user in login", user);
       try {
-        // Add timeout to prevent immediate navigation issues
         const timeoutId = setTimeout(() => {
           const role = getRoleGroup(user.role);
           const routePath = `${role}/dashboard`;
@@ -94,54 +89,17 @@ export default function ApartmentLoginScreen() {
         return () => clearTimeout(timeoutId);
       } catch (error) {
         console.error('Navigation error in useEffect:', error);
-        // Fallback navigation
         router.replace('/(user)/dashboard' as any);
       }
     }
   }, [user?.role, router]);
 
-  // FIX 2: Add proper error handling and cleanup for Google response
-  useEffect(() => {
-    if (!response) return;
-
-    if (response?.type === 'success') {
-      handleGoogleResponse(response);
-    } else if (response?.type === 'error') {
-      setIsGoogleLoading(false);
-      console.error('Google auth error:', response.error);
-      Alert.alert('Google Sign-In Error', 'Authentication was cancelled or failed');
-    } else if (response?.type === 'cancel') {
-      setIsGoogleLoading(false);
-    }
-  }, [response]);
-
-  const handleGoogleResponse = async (response: any) => {
-    try {
-      setIsGoogleLoading(true);
-      const { authentication } = response;
-      
-      if (authentication?.accessToken) {
-        await googleSignIn(authentication.accessToken);
-        // Success - user will be redirected by useEffect above
-      } else {
-        throw new Error('No access token received');
-      }
-    } catch (error: any) {
-      console.error('Google sign-in error:', error);
-      Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
   const handleLogin = async () => {
-    // FIX 3: Better input validation
     if (!email?.trim() || !password?.trim()) {
       Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       Alert.alert('Error', 'Please enter a valid email address');
@@ -151,7 +109,6 @@ export default function ApartmentLoginScreen() {
     setIsLoading(true);
     try {
       await login(email.trim(), password);
-      // Don't navigate here - let useEffect handle it
     } catch (error: any) {
       console.error('Login error:', error);
       Alert.alert('Login Failed', error.message || 'Something went wrong');
@@ -164,17 +121,23 @@ export default function ApartmentLoginScreen() {
     try {
       setIsGoogleLoading(true);
       
-      if (!request) {
-        Alert.alert('Error', 'Google sign-in is not ready yet. Please try again.');
-        setIsGoogleLoading(false);
-        return;
-      }
+      const result = await signInWithGoogle();
       
-      await promptAsync();
-      // Response will be handled by useEffect
+      if (result && result.data) {
+        // Extract the ID token from the result
+        const idToken = result.data.idToken;
+        
+        if (idToken) {
+          // Send the ID token to your backend for authentication
+          await googleSignIn(idToken);
+        } else {
+          throw new Error('No ID token received from Google');
+        }
+      }
     } catch (error: any) {
       console.error('Google login error:', error);
-      Alert.alert('Error', error.message || 'Google sign-in failed');
+      Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
+    } finally {
       setIsGoogleLoading(false);
     }
   };
@@ -313,10 +276,10 @@ export default function ApartmentLoginScreen() {
               <TouchableOpacity
                 style={[
                   styles.socialButton,
-                  (isLoading || isGoogleLoading || !request) && styles.socialButtonDisabled
+                  (isLoading || isGoogleLoading) && styles.socialButtonDisabled
                 ]}
                 onPress={() => handleSocialLogin("Google")}
-                disabled={isLoading || isGoogleLoading || !request}
+                disabled={isLoading || isGoogleLoading}
                 activeOpacity={0.7}
               >
                 {isGoogleLoading ? (
@@ -363,6 +326,7 @@ export default function ApartmentLoginScreen() {
   );
 }
 
+// Keep all your existing styles - they remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,

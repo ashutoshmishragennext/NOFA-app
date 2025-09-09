@@ -4,6 +4,7 @@ import { clearCookies, getCookies } from '@/utils/cookieUtils';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { useGoogleAuth } from '@/components/utils/GoogleAuth';
 
 export interface User {
   id: string;
@@ -159,16 +160,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('User data updated:', updatedUser);
     };
 
-const googleSignIn = async (accessToken: string) => {
+    // context/AuthContext.tsx - Update the googleSignIn function
+const googleSignIn = async () => {
   try {
-    const response = await apiService.googleSignIn(accessToken);
-    setUser(response.user);
-    // Navigation will be handled by existing useEffect
+    const { signInWithGoogle } = useGoogleAuth();
+    const result = await signInWithGoogle();
+    
+    if (result && result.data?.idToken) {
+      // Send the ID token to your backend
+      const response = await apiService.googleSignIn(result.data.idToken);
+      setUser(response.user);
+    }
   } catch (error) {
     console.error('Google sign in error:', error);
     throw error;
   }
 };
+
+// const googleSignIn = async (accessToken: string) => {
+//   try {
+//     const response = await apiService.googleSignIn(accessToken);
+//     setUser(response.user);
+//     // Navigation will be handled by existing useEffect
+//   } catch (error) {
+//     console.error('Google sign in error:', error);
+//     throw error;
+//   }
+// };
   const logout = async () => {
     try {
       await apiService.logout();
