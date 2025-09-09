@@ -160,17 +160,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('User data updated:', updatedUser);
     };
 
-    // context/AuthContext.tsx - Update the googleSignIn function
-const googleSignIn = async () => {
+// context/AuthContext.tsx - Update the googleSignIn function
+// context/AuthContext.tsx - Update the googleSignIn function
+const googleSignIn = async (idToken: string) => {
   try {
-    const { signInWithGoogle } = useGoogleAuth();
-    const result = await signInWithGoogle();
+    // Send the ID token to your backend
+    const response = await apiService.googleSignIn(idToken);
+    setUser(response.user);
     
-    if (result && result.data?.idToken) {
-      // Send the ID token to your backend
-      const response = await apiService.googleSignIn(result.data.idToken);
-      setUser(response.user);
+    // Store user data and token
+    await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(response.user));
+    if (response.token) {
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, response.token);
     }
+    
+    console.log('Google authentication successful:', response.user);
   } catch (error) {
     console.error('Google sign in error:', error);
     throw error;

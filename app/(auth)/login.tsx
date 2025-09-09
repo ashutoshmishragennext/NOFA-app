@@ -117,30 +117,27 @@ export default function ApartmentLoginScreen() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setIsGoogleLoading(true);
-      
-      const result = await signInWithGoogle();
-      
-      if (result && result.data) {
-        // Extract the ID token from the result
-        const idToken = result.data.idToken;
-        
-        if (idToken) {
-          // Send the ID token to your backend for authentication
-          await googleSignIn(idToken);
-        } else {
-          throw new Error('No ID token received from Google');
-        }
-      }
-    } catch (error: any) {
-      console.error('Google login error:', error);
-      Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
-    } finally {
-      setIsGoogleLoading(false);
+// Update the handleGoogleLogin function in your login.tsx
+const handleGoogleLogin = async () => {
+  try {
+    setIsGoogleLoading(true);
+    
+    const result = await signInWithGoogle();
+    
+    if (result && result.tokens?.idToken) {
+      // Send the ID token to your backend through AuthContext
+      await googleSignIn(result.tokens.idToken);
+    } else {
+      throw new Error('No ID token received from Google');
     }
-  };
+    
+  } catch (error: any) {
+    console.error('Google login error:', error);
+    Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
+  } finally {
+    setIsGoogleLoading(false);
+  }
+};
 
   const handleSocialLogin = (provider: string) => {
     if (provider === "Google") {
