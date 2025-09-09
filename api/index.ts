@@ -231,7 +231,34 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
     return data;
   } catch (error: any) {
     console.error("❌ Google Sign-In error:", error);
+    
+    // Cleanup: Sign out from Google and clear tokens on authentication failure
+    await this.cleanupFailedGoogleSignIn();
+    
     throw error;
+  }
+}
+
+private async cleanupFailedGoogleSignIn(): Promise<void> {
+  try {
+    console.log("🧹 Cleaning up failed Google Sign-In...");
+    
+    // Import GoogleSignin here to avoid circular dependencies
+    const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+    
+    // Sign out from Google
+    await GoogleSignin.signOut();
+    console.log("✅ Successfully signed out from Google");
+    
+    // Clear any stored auth data
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
+    this.isLoggedIn = false;
+    
+    console.log("✅ Cleared stored authentication data");
+  } catch (cleanupError) {
+    console.error("❌ Error during Google Sign-In cleanup:", cleanupError);
+    // Don't throw cleanup errors - just log them
   }
 }
 
