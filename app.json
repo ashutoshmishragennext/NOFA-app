@@ -17,7 +17,13 @@
       "bundleIdentifier": "com.ashutoshmishra.apartmenttimes",
       "buildNumber": "1.0.0",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "apartmenttimes",
+            "CFBundleURLSchemes": ["apartmenttimes"]
+          }
+        ]
       }
     },
     "android": {
@@ -37,7 +43,16 @@
         "visible": "sticky-immersive",
         "backgroundColor": "#ffffff",
         "barStyle": "dark-content"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": {
+            "scheme": "apartmenttimes"
+          }
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -45,6 +60,13 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.ashutoshmishra.apartmenttimes"
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
