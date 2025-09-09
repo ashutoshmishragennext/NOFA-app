@@ -19,7 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
-// Google Icon Component
+// Social Media Icons
 const GoogleIcon = () => (
   <View style={styles.socialIconPlaceholder}>
     <Image
@@ -27,6 +27,20 @@ const GoogleIcon = () => (
       style={styles.icon}
     />
   </View>
+);
+
+const FacebookIcon = () => (
+  <View style={styles.socialIconPlaceholder}>
+    <Image
+      source={require("../../assets/images/facebook.png")}
+      style={styles.icon}
+    />
+  </View>
+);
+
+// Eye Icon for password visibility
+const EyeIcon = ({ visible }: { visible: boolean }) => (
+  <Text style={styles.eyeIcon}>{visible ? "👁️" : "🫣"}</Text>
 );
 
 export default function ApartmentLoginScreen() {
@@ -37,7 +51,7 @@ export default function ApartmentLoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const { login, googleSignIn, user } = useAuth();
-  const { signInWithGoogle } = useGoogleAuth();
+  const { signInWithGoogle } = useGoogleAuth(); // Updated to use the new hook
   const router = useRouter();
 
   const handleSignUp = () => {
@@ -104,23 +118,33 @@ export default function ApartmentLoginScreen() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setIsGoogleLoading(true);
-      
-      const result = await signInWithGoogle();
-      
-      if (result && result.tokens?.idToken) {
-        await googleSignIn(result.tokens.idToken);
-      } else {
-        throw new Error('No ID token received from Google');
-      }
-      
-    } catch (error: any) {
-      console.error('Google login error:', error);
-      Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
-    } finally {
-      setIsGoogleLoading(false);
+// Update the handleGoogleLogin function in your login.tsx
+const handleGoogleLogin = async () => {
+  try {
+    setIsGoogleLoading(true);
+    
+    const result = await signInWithGoogle();
+    
+    if (result && result.tokens?.idToken) {
+      // Send the ID token to your backend through AuthContext
+      await googleSignIn(result.tokens.idToken);
+    } else {
+      throw new Error('No ID token received from Google');
+    }
+    
+  } catch (error: any) {
+    console.error('Google login error:', error);
+    Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
+  } finally {
+    setIsGoogleLoading(false);
+  }
+};
+
+  const handleSocialLogin = (provider: string) => {
+    if (provider === "Google") {
+      handleGoogleLogin();
+    } else {
+      Alert.alert("Social Login", `Login with ${provider} coming soon!`);
     }
   };
 
@@ -244,34 +268,49 @@ export default function ApartmentLoginScreen() {
             {/* Divider */}
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
+              <Text style={styles.dividerText}>or sign in with</Text>
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Google Login Button - Enhanced */}
-            <TouchableOpacity
-              style={[
-                styles.googleButton,
-                (isLoading || isGoogleLoading) && styles.googleButtonDisabled
-              ]}
-              onPress={handleGoogleLogin}
-              disabled={isLoading || isGoogleLoading}
-              activeOpacity={0.8}
-            >
-              <View style={styles.googleButtonContent}>
+            {/* Social Login Buttons */}
+            <View style={styles.socialContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  (isLoading || isGoogleLoading) && styles.socialButtonDisabled
+                ]}
+                onPress={() => handleSocialLogin("Google")}
+                disabled={isLoading || isGoogleLoading}
+                activeOpacity={0.7}
+              >
                 {isGoogleLoading ? (
-                  <ActivityIndicator size="small" color="#4285f4" />
+                  <ActivityIndicator size="small" color="#06b6d4" />
                 ) : (
                   <GoogleIcon />
                 )}
-                <Text style={[
-                  styles.googleButtonText,
-                  isGoogleLoading && { marginLeft: 8 }
-                ]}>
-                  {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  (isLoading || isGoogleLoading) && styles.socialButtonDisabled
+                ]}
+                onPress={() => handleSocialLogin("Facebook")}
+                disabled={isLoading || isGoogleLoading}
+                activeOpacity={0.7}
+              >
+                <FacebookIcon />
+              </TouchableOpacity>
+            </View>
+
+            {/* Loading indicator for Google */}
+            {isGoogleLoading && (
+              <View style={styles.googleLoadingContainer}>
+                <Text style={styles.googleLoadingText}>
+                  Authenticating with Google...
                 </Text>
               </View>
-            </TouchableOpacity>
+            )}
 
             {/* Footer */}
             <View style={styles.footer}>
@@ -288,6 +327,7 @@ export default function ApartmentLoginScreen() {
   );
 }
 
+// Keep all your existing styles - they remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -299,8 +339,8 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   icon: {
-    height: 20,
-    width: 20,
+    height: 25,
+    width: 25,
   },
   logo: {
     width: 360,
@@ -369,6 +409,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1f2937",
   },
+  eyeButton: {
+    padding: 12,
+  },
   eyeIcon: {
     padding: 10,
   },
@@ -416,14 +459,15 @@ const styles = StyleSheet.create({
   signUpText: {
     fontSize: 14,
     color: "#6b7280",
-    paddingVertical: 8
+    paddingVertical:8
   },
   signUpLink: {
     color: "#06b6d4",
     fontWeight: "600",
   },
   flexrow: {
-    marginTop: 6,
+    marginTop:6,
+    // backgroundColor:"red"
   },
   dividerContainer: {
     flexDirection: "row",
@@ -440,42 +484,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
   },
-  // Enhanced Google Button Styles
-  googleButton: {
-    borderWidth: 1,
-    borderColor: "#dadce0",
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  googleButtonDisabled: {
-    opacity: 0.6,
-  },
-  googleButtonContent: {
+  socialContainer: {
     flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+  },
+  socialButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: "#f9fafb",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
     alignItems: "center",
     justifyContent: "center",
   },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#3c4043",
-    marginLeft: 12,
+  socialButtonDisabled: {
+    opacity: 0.5,
   },
   socialIconPlaceholder: {
-    width: 20,
-    height: 20,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
+  },
+  googleLoadingContainer: {
+    alignItems: "center",
+    marginTop: 16,
+  },
+  googleLoadingText: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontStyle: "italic",
   },
   footer: {
     marginTop: 32,

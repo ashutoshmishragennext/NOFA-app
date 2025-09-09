@@ -174,35 +174,48 @@ private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<
   }
 }
 
-private async clearAuth() {
-  this.isLoggedIn = false;
-  try {
-    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_DATA_KEY);
-  } catch (error) {
-    console.error('Error clearing auth:', error);
-  }
-}
 
-  async logout(): Promise<void> {
-    try {
-      if (this.isLoggedIn) {
+async logout(): Promise<void> {
+  try {
+    if (this.isLoggedIn) {
+      try {
+        const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+        const currentUser = await GoogleSignin.getCurrentUser();
+        
+        if (currentUser) {
+          console.log("🔍 Google user detected, performing full cleanup");
+          // For Google users, revoke access first, then sign out
+          await GoogleSignin.revokeAccess();
+          await GoogleSignin.signOut();
+          console.log("✅ Google session fully cleared");
+        }
+      } catch (googleError : any) {
+        console.log("ℹ️ No Google session to clear or error:", googleError.message);
+      }
+
+      // Call your backend logout endpoint
+      try {
         await this.fetchWithTimeout('/api/auth/logout', {
           method: 'POST',
         });
+      } catch (apiError) {
+        console.error('Backend logout error:', apiError);
       }
-    } catch (error) {
-      console.error('Logout API error:', error);
-    } finally {
-      await this.clearAuth();
     }
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Always clear local auth data
+    await this.clearAuth();
   }
+}
 
   // In your ApiService class, add this method
 
 // In your ApiService class
-async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
-  console.log("🚀 Google Sign In with access token");
+// Update your googleSignIn method in ApiService
+async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
+  console.log("🚀 Google Sign In with ID token");
   
   try {
     const response = await this.fetchWithTimeout('/api/auth/google', {
@@ -210,7 +223,7 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ accessToken }),
+      body: JSON.stringify({ idToken }), // Send idToken instead of accessToken
     });
 
     const data = await this.handleResponse<GoogleSignInResponse>(response);
@@ -231,22 +244,31 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
     return data;
   } catch (error: any) {
     console.error("❌ Google Sign-In error:", error);
-    
-    // Cleanup: Sign out from Google and clear tokens on authentication failure
     await this.cleanupFailedGoogleSignIn();
-    
     throw error;
   }
 }
 
-private async cleanupFailedGoogleSignIn(): Promise<void> {
+private async clearAuth() {
+  this.isLoggedIn = false;
   try {
-    console.log("🧹 Cleaning up failed Google Sign-In...");
-    
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
+  } catch (error) {
+    console.error('Error clearing auth:', error);
+  }
+}
+
+private async cleanupFailedGoogleSignIn(): Promise<void> {
+  try {    
     // Import GoogleSignin here to avoid circular dependencies
     const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
     
-    // Sign out from Google
+    // First revoke access (removes your app from user's authorized applications)
+    await GoogleSignin.revokeAccess();
+    console.log("✅ Revoked Google access");
+    
+    // Then sign out (removes user session from the device)
     await GoogleSignin.signOut();
     console.log("✅ Successfully signed out from Google");
     
@@ -261,6 +283,7 @@ private async cleanupFailedGoogleSignIn(): Promise<void> {
     // Don't throw cleanup errors - just log them
   }
 }
+
 
   // async getCurrentUser(): Promise<User | null> {
   //   try {
@@ -402,8 +425,7 @@ async createBookmark(documentData: CreateDocumentRequest): Promise<CreateDocumen
 async getBookMark(params:any): Promise<GetFoldersResponse> {
   const searchParams = new URLSearchParams();
   
-  // if (params.id) searchParams.append('id', params.id);
-  if (params.userID) searchParams.append('userID', params.userId);
+  if (params.userId) searchParams.append('UserId', params.userId);
   
   const url = `/api/bookmarks?${searchParams.toString()}`;
   

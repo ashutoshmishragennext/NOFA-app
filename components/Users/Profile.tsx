@@ -88,7 +88,7 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
     try {
       setArticlesLoading(true);
       setError(null);
-      const response = await apiService.getBookMark(userID);
+      const response = await apiService.getBookMark({userId : userID});
       const bookmarks = response.data;
       
       // Extract the articles from the response objects
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
   },

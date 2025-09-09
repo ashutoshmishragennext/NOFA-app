@@ -31,8 +31,6 @@ const CommentsSection = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const currentUser = useAuth().user;
-    console.log('Current user image:', currentUser?.image);
-  console.log('Image component available:', typeof Image);
 const getInitials = (name: string) => {
   if (!name) return 'U';
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);

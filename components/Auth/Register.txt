@@ -23,11 +23,20 @@ import { useGoogleAuth } from '@/components/utils/GoogleAuth';
 
 const { width } = Dimensions.get('window');
 
-// Google Icon Component
+// Social Media Icons
 const GoogleIcon = () => (
   <View style={styles.socialIconPlaceholder}>
     <Image
       source={require("../../assets/images/google.png")}
+      style={styles.icon}
+    />
+  </View>
+);
+
+const FacebookIcon = () => (
+  <View style={styles.socialIconPlaceholder}>
+    <Image
+      source={require("../../assets/images/facebook.png")}
       style={styles.icon}
     />
   </View>
@@ -44,7 +53,7 @@ const SignupScreen = () => {
 
   const router = useRouter();
   const { googleSignIn, user } = useAuth();
-  const { signInWithGoogle } = useGoogleAuth();
+    const { signInWithGoogle } = useGoogleAuth(); // Updated to use the new hook
   const insets = useSafeAreaInsets();
 
   const getRoleGroup = (role: string): string => {
@@ -145,6 +154,8 @@ const SignupScreen = () => {
     router.push('/(auth)/login');
   };
 
+  
+  // Update the handleGoogleLogin function in your login.tsx
   const handleGoogleLogin = async () => {
     try {
       setIsGoogleLoading(true);
@@ -152,6 +163,7 @@ const SignupScreen = () => {
       const result = await signInWithGoogle();
       
       if (result && result.tokens?.idToken) {
+        // Send the ID token to your backend through AuthContext
         await googleSignIn(result.tokens.idToken);
       } else {
         throw new Error('No ID token received from Google');
@@ -164,6 +176,14 @@ const SignupScreen = () => {
       setIsGoogleLoading(false);
     }
   };
+  
+    const handleSocialLogin = (provider: string) => {
+      if (provider === "Google") {
+        handleGoogleLogin();
+      } else {
+        Alert.alert("Social Login", `Login with ${provider} coming soon!`);
+      }
+    };
 
   return (
     <KeyboardAvoidingView
@@ -197,7 +217,7 @@ const SignupScreen = () => {
                 onChangeText={setFullName}
                 autoCapitalize="words"
                 returnKeyType="next"
-                editable={!isLoading && !isGoogleLoading}
+                editable={!isLoading}
               />
             </View>
 
@@ -213,7 +233,7 @@ const SignupScreen = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
-                editable={!isLoading && !isGoogleLoading}
+                editable={!isLoading}
               />
             </View>
 
@@ -227,7 +247,7 @@ const SignupScreen = () => {
                 onChangeText={setPhoneNumber}
                 keyboardType="phone-pad"
                 returnKeyType="next"
-                editable={!isLoading && !isGoogleLoading}
+                editable={!isLoading}
               />
             </View>
 
@@ -242,13 +262,13 @@ const SignupScreen = () => {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   returnKeyType="done"
-                  editable={!isLoading && !isGoogleLoading}
+                  editable={!isLoading}
                   onSubmitEditing={handleSignup}
                 />
                 <TouchableOpacity 
                   style={styles.eyeIcon}
                   onPress={() => setShowPassword(!showPassword)}
-                  disabled={isLoading || isGoogleLoading}
+                  disabled={isLoading}
                 >
                   <Ionicons 
                     name={showPassword ? "eye-off" : "eye"} 
@@ -260,9 +280,9 @@ const SignupScreen = () => {
             </View>
 
             <TouchableOpacity 
-              style={[styles.signUpButton, (isLoading || isGoogleLoading) && styles.buttonDisabled]}
+              style={[styles.signUpButton, isLoading && styles.buttonDisabled]}
               onPress={handleSignup}
-              disabled={isLoading || isGoogleLoading}
+              disabled={isLoading}
             >
               <LinearGradient
                 colors={["#06b6d4", "#14b8a6"]}
@@ -281,64 +301,71 @@ const SignupScreen = () => {
               </LinearGradient>
             </TouchableOpacity>
 
-            <View style={styles.signInContainer}>
-              <Text style={styles.signInText}>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
                 Already have an account?{' '}
               </Text>
-              <TouchableOpacity 
-                onPress={handleSignIn} 
-                disabled={isLoading || isGoogleLoading}
-                activeOpacity={0.7}
-              >
-                <Text style={[
-                  styles.linkText, 
-                  (isLoading || isGoogleLoading) && styles.linkDisabled
-                ]}>
+              <TouchableOpacity onPress={handleSignIn} disabled={isLoading}>
+                <Text style={[styles.linkText, isLoading && styles.linkDisabled]}>
                   Log in
                 </Text>
               </TouchableOpacity>
             </View>
-
             {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Google Login Button - Enhanced */}
-            <TouchableOpacity
-              style={[
-                styles.googleButton,
-                (isLoading || isGoogleLoading) && styles.googleButtonDisabled
-              ]}
-              onPress={handleGoogleLogin}
-              disabled={isLoading || isGoogleLoading}
-              activeOpacity={0.8}
-            >
-              <View style={styles.googleButtonContent}>
-                {isGoogleLoading ? (
-                  <ActivityIndicator size="small" color="#4285f4" />
-                ) : (
-                  <GoogleIcon />
-                )}
-                <Text style={[
-                  styles.googleButtonText,
-                  isGoogleLoading && { marginLeft: 8 }
-                ]}>
-                  {isGoogleLoading ? 'Signing up...' : 'Continue with Google'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Terms Footer */}
-            <View style={styles.termsFooter}>
-              <Text style={styles.termsText}>
-                By continuing, you agree to our{" "}
-                <Text style={styles.linkText}>Terms of Use</Text> and{" "}
-                <Text style={styles.linkText}>Privacy Policy</Text>
-              </Text>
-            </View>
+                        <View style={styles.dividerContainer}>
+                          <View style={styles.dividerLine} />
+                          <Text style={styles.dividerText}>or sign in with</Text>
+                          <View style={styles.dividerLine} />
+                        </View>
+            
+                        {/* Social Login Buttons */}
+                        <View style={styles.socialContainer}>
+                          <TouchableOpacity
+                            style={[
+                              styles.socialButton,
+                              (isLoading || isGoogleLoading) && styles.socialButtonDisabled
+                            ]}
+                            onPress={() => handleSocialLogin("Google")}
+                            disabled={isLoading || isGoogleLoading}
+                            activeOpacity={0.7}
+                          >
+                            {isGoogleLoading ? (
+                              <ActivityIndicator size="small" color="#06b6d4" />
+                            ) : (
+                              <GoogleIcon />
+                            )}
+                          </TouchableOpacity>
+            
+                          <TouchableOpacity
+                            style={[
+                              styles.socialButton,
+                              (isLoading || isGoogleLoading) && styles.socialButtonDisabled
+                            ]}
+                            onPress={() => handleSocialLogin("Facebook")}
+                            disabled={isLoading || isGoogleLoading}
+                            activeOpacity={0.7}
+                          >
+                            <FacebookIcon />
+                          </TouchableOpacity>
+                        </View>
+            
+                        {/* Loading indicator for Google */}
+                        {isGoogleLoading && (
+                          <View style={styles.googleLoadingContainer}>
+                            <Text style={styles.googleLoadingText}>
+                              Authenticating with Google...
+                            </Text>
+                          </View>
+                        )}
+            
+                        {/* Footer */}
+                        <View style={styles.footer}>
+                          <Text style={styles.footerText}>
+                            By continuing, you agree to our{" "}
+                            <Text style={styles.linkText}>Terms of Use</Text> and{" "}
+                            <Text style={styles.linkText}>Privacy Policy</Text>
+                          </Text>
+                        </View>
           </View>
         </View>
       </ScrollView>
@@ -347,6 +374,7 @@ const SignupScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -452,21 +480,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  icon: {
+    height: 25,
+    width: 25,
+  },
+  socialIconPlaceholder: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   loadingText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
-  signInContainer: {
-    marginTop: 16,
+  footer: {
+    marginTop: 32,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
   },
-  signInText: {
-    fontSize: 14,
+  footerText: {
+    fontSize: 12,
     color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   linkText: {
     color: '#06b6d4',
@@ -490,56 +530,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
   },
-  // Enhanced Google Button Styles
-  googleButton: {
-    borderWidth: 1,
-    borderColor: "#dadce0",
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  googleButtonDisabled: {
-    opacity: 0.6,
-  },
-  googleButtonContent: {
+  socialContainer: {
     flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+  },
+  socialButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: "#f9fafb",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
     alignItems: "center",
     justifyContent: "center",
   },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#3c4043",
-    marginLeft: 12,
+  socialButtonDisabled: {
+    opacity: 0.5,
   },
-  icon: {
-    height: 20,
-    width: 20,
-  },
-  socialIconPlaceholder: {
-    width: 20,
-    height: 20,
+  googleLoadingContainer: {
     alignItems: "center",
-    justifyContent: "center",
+    marginTop: 16,
   },
-  termsFooter: {
-    marginTop: 24,
-    alignItems: 'center',
-  },
-  termsText: {
-    fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 18,
+  googleLoadingText: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontStyle: "italic",
   },
 });
 

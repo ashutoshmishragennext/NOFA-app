@@ -162,13 +162,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 // context/AuthContext.tsx - Update the googleSignIn function
 // context/AuthContext.tsx - Update the googleSignIn function
+// In your AuthContext, pass the idToken instead of accessToken
 const googleSignIn = async (idToken: string) => {
   try {
-    // Send the ID token to your backend
-    const response = await apiService.googleSignIn(idToken);
+    const response = await apiService.googleSignIn(idToken); // Pass idToken
     setUser(response.user);
     
-    // Store user data and token
     await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(response.user));
     if (response.token) {
       await SecureStore.setItemAsync(AUTH_TOKEN_KEY, response.token);
@@ -180,6 +179,7 @@ const googleSignIn = async (idToken: string) => {
     throw error;
   }
 };
+
 
 // const googleSignIn = async (accessToken: string) => {
 //   try {

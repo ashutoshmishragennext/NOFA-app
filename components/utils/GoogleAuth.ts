@@ -15,9 +15,6 @@ GoogleSignin.configure({
   offlineAccess: false,
 });
 
-
-console.log('Web Client ID:', process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
-
 export const useGoogleAuth = () => {
   // Fix 1: Proper typing for user state
   const [user, setUser] = useState<User | null>(null);
@@ -54,10 +51,10 @@ export const useGoogleAuth = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Checking Play Services...');
+      // console.log('Checking Play Services...');
       await GoogleSignin.hasPlayServices();
       
-      console.log('Starting Google Sign-In...');
+      // console.log('Starting Google Sign-In...');
       const userInfo: SignInResponse = await GoogleSignin.signIn();
       
       
@@ -67,7 +64,7 @@ export const useGoogleAuth = () => {
         
         // Get user's ID token and access token
         const tokens: GetTokensResponse = await GoogleSignin.getTokens();
-        console.log('Google tokens:', tokens);
+        // console.log('Google tokens:', tokens);
         
         // Return the user info and tokens
         return {
@@ -80,9 +77,9 @@ export const useGoogleAuth = () => {
       
     } catch (error: any) {
       setError(error.message);
-       console.error('Detailed error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
+      //  console.error('Detailed error:', error);
+      // console.error('Error code:', error.code);
+      // console.error('Error message:', error.message);
       
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         console.log('Sign in cancelled');

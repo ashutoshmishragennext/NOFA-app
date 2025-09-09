@@ -282,7 +282,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
                   </View>
                 )}
 
-                <Text style={styles.mainNewsTitle}>{article.title}</Text>
+                <Text  numberOfLines={3} ellipsizeMode="tail" style={styles.mainNewsTitle}>{article.title}</Text>
                 <Text style={styles.mainNewsSource}>{article.authorName || article.source}</Text>
               </LinearGradient>
             </TouchableOpacity>

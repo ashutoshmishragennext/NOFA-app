@@ -19,19 +19,18 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-// import { useAuth } from "@/context/AuthContext";
-// import { StatusBar } from 'expo-status-bar';
-// import FeedScreen from "@/components/Users/Save";
+
 const NewsApp = () => {
-  const {logout}=useAuth();
+  const { logout, user } = useAuth();
 
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false); // Add onboarding state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false); // ✅ Added flag
   const insets = useSafeAreaInsets();
-  const user = useAuth().user;
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -48,6 +47,7 @@ const NewsApp = () => {
       ]
     );
   };
+
   // Article navigation states
   const [articlesList, setArticlesList] = useState([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
@@ -62,16 +62,18 @@ const NewsApp = () => {
       icon: "trending-up-outline",
       activeIcon: "trending-up",
     },
-
     { name: "Profile", icon: "person-outline", activeIcon: "person" },
   ];
 
-  // Check if onboarding should be shown
+  // ✅ Updated: Check if onboarding should be shown with flag protection
   useEffect(() => {
-    if (user && Number(user.loginTime) === 0) {
+    if (user && Number(user.loginTime) === 0 && !onboardingCompleted) {
       setShowOnboarding(true);
+    } else if (user && Number(user.loginTime) > 0) {
+      setShowOnboarding(false);
+      setOnboardingCompleted(true); // Set flag when user has completed onboarding
     }
-  }, [user]);
+  }, [user]); // ✅ Removed onboardingCompleted from dependencies
 
   // Custom back button handler
   useEffect(() => {
@@ -112,14 +114,14 @@ const NewsApp = () => {
     );
 
     return () => backHandler.remove();
-  }, [currentView, selectedArticle, showOnboarding]); // Add showOnboarding to dependencies
+  }, [currentView, selectedArticle, showOnboarding]);
 
-  // Handle onboarding completion
+  // ✅ Updated: Handle onboarding completion with flag
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
-    // Optional: You can update the user's loginTime here to mark onboarding as completed
-    // This would prevent the onboarding from showing again
-    // updateUserLoginTime(); // You'll need to implement this function
+    setOnboardingCompleted(true); // ✅ Set the flag to prevent re-showing
+    console.log('Onboarding completed, flag set to prevent re-render');
+    // The actual loginTime will be updated to 1 later in the onboarding flow when categories are selected
   };
 
   // Handle article press with articles list context
@@ -171,11 +173,10 @@ const NewsApp = () => {
         return <HomeScreen onArticlePress={handleArticlePress} />;
       case "Explore":
         return <ExploreScreen onArticlePress={handleArticlePress} />;
-         case "Feed": // Changed from Saved to Feed
+      case "Feed": // Changed from Saved to Feed
         return <FeedScreen onArticlePress={handleArticlePress} />;
       case "Trending":
         return <TrendingScreen onArticlePress={handleArticlePress} />;
-    
       case "Profile":
         return <ProfileScreen onArticlePress={handleArticlePress}/>;
       default:
@@ -183,7 +184,7 @@ const NewsApp = () => {
     }
   };
 
-  // Show onboarding screen if user's loginTime is 0
+  // Show onboarding screen if user's loginTime is 0 AND flag is not set
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
@@ -239,19 +240,17 @@ const NewsApp = () => {
 
       {/* Menu Dropdown */}
       {menuVisible && (
-        <View style={[styles.menuDropdown, { top: 90 + insets.top }]}>
-         
-            <TouchableOpacity
-            
-              style={styles.menuItem}
-onPress={() => {
-        setMenuVisible(false);
-        handleLogout();
-      }}            >
-        <Ionicons name="log-out-outline" size={18} color="#e74c3c" style={styles.menuIcon} />
-      <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
-        
+        <View style={[styles.menuDropdown, { top: 50 + insets.top }]}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setMenuVisible(false);
+              handleLogout();
+            }}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#e74c3c" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -290,6 +289,7 @@ onPress={() => {
   );
 };
 
+// Styles remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -351,11 +351,11 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   logoutText: {
-  fontSize: 16,
-  color: "#e74c3c",
-  marginLeft: 12,
-  fontWeight: "500",
-},
+    fontSize: 16,
+    color: "#e74c3c",
+    marginLeft: 12,
+    fontWeight: "500",
+  },
   // CONTENT STYLES
   content: {
     flex: 1,
