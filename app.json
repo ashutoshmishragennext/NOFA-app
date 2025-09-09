@@ -18,6 +18,9 @@
       "buildNumber": "1.0.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
       }
     },
     "android": {
@@ -31,13 +34,18 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET"
       ],
       "androidNavigationBar": {
         "visible": "sticky-immersive",
         "backgroundColor": "#ffffff",
         "barStyle": "dark-content"
-      }
+      },
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "bundler": "metro",
@@ -66,6 +74,9 @@
       "eas": {
         "projectId": "3d42fa99-dbca-4de6-b617-fe799fafc9a5"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3d42fa99-dbca-4de6-b617-fe799fafc9a5"
     }
   }
 }
