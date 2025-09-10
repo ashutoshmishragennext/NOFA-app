@@ -25,7 +25,7 @@ const NewsApp = () => {
 
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState("main");
-  const [selectedArticle, setSelectedArticle] = useState(null);
+  const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false); // ✅ Added flag
@@ -49,7 +49,7 @@ const NewsApp = () => {
   };
 
   // Article navigation states
-  const [articlesList, setArticlesList] = useState([]);
+  const [articlesList, setArticlesList] = useState<never[] | any[]>([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
   const [sourceTab, setSourceTab] = useState("Home");
 
@@ -123,15 +123,13 @@ const NewsApp = () => {
     console.log('Onboarding completed, flag set to prevent re-render');
     // The actual loginTime will be updated to 1 later in the onboarding flow when categories are selected
   };
-
-  // Handle article press with articles list context
-  const handleArticlePress = (article, articlesList = [], articleIndex = 0) => {
-    setSelectedArticle(article);
-    setArticlesList(articlesList);
-    setCurrentArticleIndex(articleIndex);
-    setSourceTab(currentTab);
-    setCurrentView("detail");
-  };
+const handleArticlePress = (article: any, articles: any[], index: number) => {
+  setSelectedArticle(article);
+  setArticlesList(articles);
+  setCurrentArticleIndex(index);
+  setSourceTab(currentTab);
+  setCurrentView("detail");
+};
 
   // Handle back press
   const handleBackPress = () => {
@@ -163,7 +161,7 @@ const NewsApp = () => {
     }
   };
 
-  const handleTabPress = (tabName) => {
+  const handleTabPress = (tabName:string) => {
     setCurrentTab(tabName);
   };
 
