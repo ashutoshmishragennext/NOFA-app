@@ -10,13 +10,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  BackHandler,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    BackHandler,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -209,6 +208,7 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
           currentIndex={currentArticleIndex}
           totalArticles={articlesList.length}
           sourceTab={sourceTab}
+          allArticles={articlesList}
         />
       </View>
     );
@@ -223,10 +223,10 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
       <StatusBar style="dark" />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Image
-            source={require("../../assets/images/logo.png")}
-            style={styles.logo1}
-          />
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon} />
+            <Text style={styles.appName}>Apartment Times</Text>
+          </View>
         </View>
         <TouchableOpacity
           style={styles.menuButton}
@@ -239,16 +239,18 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
       {/* Menu Dropdown */}
       {menuVisible && (
         <View style={[styles.menuDropdown, { top: 50 + insets.top }]}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              handleLogout();
-            }}
-          >
-            <Ionicons name="log-out-outline" size={18} color="#e74c3c" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
+         
+            <TouchableOpacity
+            
+              style={styles.menuItem}
+onPress={() => {
+        setMenuVisible(false);
+        handleLogout();
+      }}            >
+        <Ionicons name="log-out-outline" size={18} color="#e74c3c" style={styles.menuIcon} />
+      <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+        
         </View>
       )}
 
@@ -298,19 +300,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
+    paddingTop: 5,
+    paddingBottom: 8,
     backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    elevation: 0,
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  logoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: -5,
+  },
+  logoIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#4CAF50",
+    marginRight: 8,
+  },
+  appName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
   },
   logo1: {
     width: 200,
@@ -318,13 +337,13 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
   menuButton: {
-    padding: 8,
-    borderRadius: 20,
+    padding: 6,
+    borderRadius: 16,
     backgroundColor: "#f8f9fa",
   },
   menuDropdown: {
     position: "absolute",
-    top: 90,
+    top: 60,
     right: 20,
     backgroundColor: "#fff",
     borderRadius: 10,

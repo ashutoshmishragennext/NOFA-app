@@ -2,7 +2,7 @@ import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts } from 'expo-font';
+import { useFonts, Montserrat_500Medium, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -39,13 +39,12 @@ const NewsDetailScreen = ({
 }) => {
   // Load custom fonts
   const [fontsLoaded] = useFonts({
-    'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
-    'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
   });
 
   const [showComments, setShowComments] = useState(false);
   const [commentsCount, setCommentsCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(article.likeCount || 0);
   const [shareCount, setShareCount] = useState(article.shareCount || 0);
@@ -648,102 +647,170 @@ const NewsDetailScreen = ({
   const prevArticle = getPrevArticle();
 
   // Component to render a single news article
-  const renderNewsArticle = (articleData, isActive = false) => (
-    <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
-      {/* Article Image */}
-      <View style={styles.articleImageContainer}>
-        <Image 
-          source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
-          style={styles.articleImage} 
-        />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.3)']}
-          style={styles.articleImageGradient}
-        />
-      </View>
-
-      {/* Article Content */}
-      <View style={styles.articleContentContainer}>
-        {/* Source */}
-        <Text style={styles.articleSource}>R. Republic TV</Text>
-
-        {/* Title */}
-        <Text style={styles.articleTitle}>{articleData.title}</Text>
-
-        {/* Article Body - Limited Content */}
-        <View style={styles.htmlContentContainer}>
-          {showFullContent ? (
-            <RenderHtml
-              contentWidth={width - 40}
-              source={{ html: articleData.content || '<p>No content available</p>' }}
-              tagsStyles={{
-                p: { 
-                  fontSize: 16, 
-                  lineHeight: 24, 
-                  color: '#989898',
-                  marginBottom: 15,
-                  textAlign: 'left',
-                  fontFamily: 'Montserrat-Medium'
-                },
-                h1: { 
-                  fontSize: 24, 
-                  fontWeight: 'bold', 
-                  color: '#333',
-                  marginBottom: 15,
-                  marginTop: 10,
-                  fontFamily: 'NeuePlakExtended-SemiBold'
-                },
-                h2: { 
-                  fontSize: 20, 
-                  fontWeight: 'bold', 
-                  color: '#333',
-                  marginBottom: 12,
-                  marginTop: 8,
-                  fontFamily: 'NeuePlakExtended-SemiBold'
-                },
-                h3: { 
-                  fontSize: 18, 
-                  fontWeight: 'bold', 
-                  color: '#333',
-                  marginBottom: 10,
-                  fontFamily: 'NeuePlakExtended-SemiBold'
-                },
-                img: {
-                  marginVertical: 10
-                }
-              }}
+// Replace the current renderNewsArticle function with this updated version:
+const renderNewsArticle = (articleData, isActive = false) => (
+  <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
+    {/* Article Image with overlaid action buttons */}
+    <View style={styles.articleImageContainer}>
+      <Image 
+        source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
+        style={styles.articleImage} 
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.4)']}
+        style={styles.articleImageGradient}
+      />
+      
+      {/* Left bottom action buttons - Like and Comment */}
+      <View style={styles.leftActionButtons}>
+        {/* Like Button */}
+        <TouchableOpacity 
+          style={styles.overlayActionButton}
+          onPress={handleLike}
+          disabled={likeLoading}
+        >
+          {likeLoading ? (
+            <Ionicons 
+              name={"heart-outline"} 
+              size={28} 
+              color={"rgba(255,255,255,0.7)"} 
             />
           ) : (
-            <Text style={styles.articlePreview}>
-              {articleData.summary || 'Russian President Vladimir Putin called Prime Minister Narendra Modi on Monday and briefed him about the Alaska Summit. Putin went to Alaska for a summit with US President Donald Trump on Friday. The war in Ukraine was at the top of the summit\'s agenda. In a post on X, Modi thanked Putin for "sharing insights on his recent meeting with President Trump in Alaska".'}
-            </Text>
+            <Ionicons 
+              name={liked ? "heart" : "heart-outline"} 
+              size={28} 
+              color={liked ? "#ff4757" : "rgba(255,255,255,0.9)"} 
+            />
           )}
-        </View>
-
-        {/* Show More Button */}
-        <TouchableOpacity 
-          style={styles.showMoreButton} 
-          onPress={() => setShowFullContent(!showFullContent)}
-        >
-          <Text style={styles.showMoreText}>
-            {showFullContent ? 'Show Less' : 'Show More'}
-          </Text>
+          <Text style={styles.overlayActionText}>{likeCount}</Text>
         </TouchableOpacity>
 
-        {/* Swipe Indicator - only show on active article */}
-        {isActive && (
-          <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
-            <View style={styles.swipeDots}>
-              <View style={[styles.swipeDot, styles.swipeDotActive]} />
-              <View style={styles.swipeDot} />
-              <View style={styles.swipeDot} />
-            </View>
-            <Text style={styles.swipeHint}>Swipe up for next news</Text>
-          </Animated.View>
-        )}
+        {/* Comment Button */}
+        <TouchableOpacity 
+          style={styles.overlayActionButton}
+          onPress={() => setShowComments(true)}
+        >
+          <Ionicons name="chatbubble-outline" size={26} color="rgba(255,255,255,0.9)" />
+          <Text style={styles.overlayActionText}>{commentsCount}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Right bottom action buttons - Share and Save */}
+      <View style={styles.rightActionButtons}>
+        {/* Share Button */}
+        <TouchableOpacity 
+          style={styles.overlayActionButton}
+          onPress={handleShare}
+          disabled={shareLoading}
+        >
+          {shareLoading ? (
+            <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
+          ) : (
+            <Ionicons name="share-outline" size={26} color="rgba(255,255,255,0.9)" />
+          )}
+        </TouchableOpacity>
+
+        {/* Bookmark Button */}
+        <TouchableOpacity 
+          style={styles.overlayActionButton}
+          onPress={handleBookmark}
+          disabled={bookmarkLoading}
+        >
+          {bookmarkLoading ? (
+            <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
+          ) : (
+            <Ionicons 
+              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+              size={26} 
+              color={isBookmarked ? "#4CAF50" : "rgba(255,255,255,0.9)"} 
+            />
+          )}
+        </TouchableOpacity>
       </View>
     </View>
-  );
+
+    {/* Article Content */}
+    <View style={styles.articleContentContainer}>
+      {/* Source */}
+      <Text style={styles.articleSource}>R. Republic TV</Text>
+
+      {/* Title */}
+      <Text style={styles.articleTitle}>{articleData.title}</Text>
+
+      {/* Article Body - Limited Content */}
+      <View style={styles.htmlContentContainer}>
+        {showFullContent ? (
+          <RenderHtml
+            contentWidth={width - 40}
+            source={{ html: articleData.content || '<p>No content available</p>' }}
+            tagsStyles={{
+              p: { 
+                fontSize: 14, 
+                lineHeight: 20, 
+                color: '#666',
+                marginBottom: 12,
+                textAlign: 'left',
+                fontFamily: 'Montserrat_500Medium'
+              },
+              h1: { 
+                fontSize: 20, 
+                fontWeight: 'bold', 
+                color: '#333',
+                marginBottom: 12,
+                marginTop: 8,
+                fontFamily: 'Montserrat_600SemiBold'
+              },
+              h2: { 
+                fontSize: 18, 
+                fontWeight: 'bold', 
+                color: '#333',
+                marginBottom: 10,
+                marginTop: 6,
+                fontFamily: 'Montserrat_600SemiBold'
+              },
+              h3: { 
+                fontSize: 16, 
+                fontWeight: 'bold', 
+                color: '#333',
+                marginBottom: 8,
+                fontFamily: 'Montserrat_600SemiBold'
+              },
+              img: {
+                marginVertical: 8
+              }
+            }}
+          />
+        ) : (
+          <Text style={styles.articlePreview}>
+            {articleData.summary || 'Russian President Vladimir Putin called Prime Minister Narendra Modi on Monday and briefed him about the Alaska Summit. Putin went to Alaska for a summit with US President Donald Trump on Friday. The war in Ukraine was at the top of the summit\'s agenda. In a post on X, Modi thanked Putin for "sharing insights on his recent meeting with President Trump in Alaska".'}
+          </Text>
+        )}
+      </View>
+
+      {/* Swipe Indicator - only show on active article */}
+      {isActive && (
+        <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
+          <View style={styles.swipeDots}>
+            <View style={[styles.swipeDot, styles.swipeDotActive]} />
+            <View style={styles.swipeDot} />
+            <View style={styles.swipeDot} />
+          </View>
+          <Text style={styles.swipeHint}>Swipe up for next news</Text>
+        </Animated.View>
+      )}
+
+      {/* Show More Button - moved to bottom */}
+      <TouchableOpacity 
+        style={styles.showMoreButton} 
+        onPress={() => setShowFullContent(!showFullContent)}
+      >
+        <Text style={styles.showMoreText}>
+          {showFullContent ? 'Show Less' : 'Read More'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
 
   // Don't render until fonts are loaded
   if (!fontsLoaded) {
@@ -823,83 +890,6 @@ const NewsDetailScreen = ({
           )}
         </View>
 
-        {/* Action Bar */}
-        <View style={styles.actionBar}>
-          {/* Like Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleLike}
-            disabled={likeLoading}
-          >
-            {likeLoading ? (
-              <Ionicons 
-                name={"heart-outline"} 
-                size={24} 
-                color={"#999"} 
-              />
-            ) : (
-              <Ionicons 
-                name={liked ? "heart" : "heart-outline"} 
-                size={24} 
-                color={liked ? "#ae0202ff" : "#999"} 
-              />
-            )}
-            <Text style={[
-                styles.actionText,
-                liked ? { color: "#ae0202ff" } : { color: "#999" }
-              ]}>
-              {likeCount}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Comment Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => setShowComments(true)}
-          >
-            <Ionicons name="chatbubble-outline" size={24} color="#999" />
-            <Text style={styles.actionText}>{commentsCount}</Text>
-          </TouchableOpacity>
-
-          {/* Share Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleShare}
-            disabled={shareLoading}
-          >
-            {shareLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
-            ) : (
-              <Ionicons name="share-outline" size={24} color="#999" />
-            )}
-            <Text style={styles.actionText}>
-              {shareLoading ? 'Sharing...' : shareCount > 0 ? shareCount : 'Share'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Bookmark Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleBookmark}
-            disabled={bookmarkLoading}
-          >
-            {bookmarkLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
-            ) : (
-              <Ionicons 
-                name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-                size={24} 
-                color={isBookmarked ? "#4CAF50" : "#999"} 
-              />
-            )}
-            <Text style={[
-              styles.actionText,
-              isBookmarked && styles.activeActionText
-            ]}>
-              Saved
-            </Text>
-          </TouchableOpacity>
-        </View>
       </Animated.View>
 
       {/* Comments Section Component */}
@@ -1001,45 +991,8 @@ const styles = StyleSheet.create({
   articleContentContainer: {
     padding: 20,
   },
-  articleSource: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '400',
-    marginBottom: 15,
-  },
-  articleTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    lineHeight: 30,
-    marginBottom: 20,
-    fontFamily: 'NeuePlakExtended-SemiBold',
-  },
   htmlContentContainer: {
     marginBottom: 20,
-  },
-  articlePreview: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#989898',
-    textAlign: 'left',
-    fontFamily: 'Montserrat-Medium',
-  },
-  showMoreButton: {
-    backgroundColor: '#000',
-    paddingVertical: 15,
-    paddingHorizontal: 60,
-    borderRadius: 18,
-    alignSelf: 'center',
-    marginBottom: 20,
-    minWidth: 200,
-  },
-  showMoreText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: 'NeuePlakExtended-SemiBold',
   },
   swipeIndicator: {
     alignItems: 'center',
@@ -1059,11 +1012,6 @@ const styles = StyleSheet.create({
   },
   swipeDotActive: {
     backgroundColor: '#8B5CF6',
-  },
-  swipeHint: {
-    fontSize: 12,
-    color: '#999',
-    fontFamily: 'Montserrat-Medium',
   },
   // Stacked News Layout Styles
   newsStackContainer: {
@@ -1127,6 +1075,89 @@ const styles = StyleSheet.create({
   activeActionText: {
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  leftActionButtons: {
+    position: 'absolute',
+    bottom: 15,
+    left: 15,
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  
+  rightActionButtons: {
+    position: 'absolute',
+    bottom: 15,
+    right: 15,
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  
+  overlayActionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 25,
+    padding: 8,
+    minWidth: 50,
+    minHeight: 50,
+  },
+  
+  overlayActionText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+
+  articleSource: {
+    fontSize: 12, // Reduced from 14
+    color: '#666',
+    fontWeight: '400',
+    marginBottom: 12,
+    fontFamily: 'Montserrat_500Medium',
+  },
+
+  articleTitle: {
+    fontSize: 20, // Reduced from 24
+    fontWeight: 'bold',
+    color: '#000',
+    lineHeight: 26, // Reduced from 30
+    marginBottom: 16,
+    fontFamily: 'Montserrat_600SemiBold',
+  },
+
+  articlePreview: {
+    fontSize: 14, // Reduced from 16
+    lineHeight: 20, // Reduced from 24
+    color: '#666', // Changed from #989898
+    textAlign: 'left',
+    fontFamily: 'Montserrat_500Medium',
+  },
+
+  showMoreButton: {
+    backgroundColor: '#000',
+    paddingVertical: 12, // Reduced from 15
+    paddingHorizontal: 40, // Reduced from 60
+    borderRadius: 16, // Reduced from 18
+    alignSelf: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+    minWidth: 150, // Reduced from 200
+  },
+
+  showMoreText: {
+    color: '#fff',
+    fontSize: 14, // Reduced from 16
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: 'Montserrat_600SemiBold',
+  },
+
+  swipeHint: {
+    fontSize: 11, // Reduced from 12
+    color: '#999',
+    fontFamily: 'Montserrat_500Medium',
   },
 });
 

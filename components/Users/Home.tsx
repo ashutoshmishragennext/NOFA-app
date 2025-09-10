@@ -1,5 +1,5 @@
 import { apiService } from '@/api';
-import { useFonts } from 'expo-font';
+import { useFonts, Montserrat_500Medium, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
@@ -19,8 +19,8 @@ const { width } = Dimensions.get('window');
 const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   // Load custom fonts
   const [fontsLoaded] = useFonts({
-    'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
-    'Montserrat-SemiBold': require('../../assets/fonts/Montserrat-SemiBold.ttf'),
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
   });
 
   const [articles, setArticles] = useState<any>([]);
@@ -102,6 +102,9 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
     try {
       const response = await apiService.getDocuments();
       const articles = response.data; 
+
+      console.log("All Articles data" , articles);
+      
       setArticles(articles);
       if (articles && articles.length > 0) {
         setFilteredArticles(articles);

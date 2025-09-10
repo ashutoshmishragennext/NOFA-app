@@ -238,7 +238,7 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
 
       {/* Menu Dropdown */}
       {menuVisible && (
-        <View style={[styles.menuDropdown, { top: 60 + insets.top }]}>
+        <View style={[styles.menuDropdown, { top: 50 + insets.top }]}>
          
             <TouchableOpacity
             
