@@ -2,26 +2,25 @@ import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  Image,
-  PanResponder,
-  SafeAreaView,
-  ScrollView,
-  Share,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    Image,
+    PanResponder,
+    SafeAreaView,
+    Share,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import RenderHtml from "react-native-render-html";
-import Navbar from '../Navbar';
 import CommentsSection from './CommentsPage';
 
 const { width, height } = Dimensions.get('window');
@@ -35,8 +34,15 @@ const NewsDetailScreen = ({
   hasPrev = false,
   currentIndex, 
   totalArticles,
-  sourceTab 
+  sourceTab,
+  allArticles = []
 }) => {
+  // Load custom fonts
+  const [fontsLoaded] = useFonts({
+    'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
+    'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
+  });
+
   const [showComments, setShowComments] = useState(false);
   const [commentsCount, setCommentsCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +53,8 @@ const NewsDetailScreen = ({
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [showFullContent, setShowFullContent] = useState(false);
+  const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
   
   // Local state for pending likes
   const [pendingLikeAction, setPendingLikeAction] = useState(null);
@@ -286,34 +294,28 @@ const NewsDetailScreen = ({
     setCommentsCount(count);
   };
 
-  // Updated navigation handlers with transition states
+  // Optimized navigation handlers for instant transitions
   const handleNext = () => {
     if (hasNext && !isTransitioning) {
       setIsTransitioning(true);
-      setTimeout(() => {
-        onNext();
-        setIsTransitioning(false);
-      }, 300);
+      onNext();
+      setTimeout(() => setIsTransitioning(false), 100);
     }
   };
 
   const handlePrev = () => {
     if (hasPrev && !isTransitioning) {
       setIsTransitioning(true);
-      setTimeout(() => {
-        onPrev();
-        setIsTransitioning(false);
-      }, 300);
+      onPrev();
+      setTimeout(() => setIsTransitioning(false), 100);
     }
   };
 
   const handleBack = () => {
     if (!isTransitioning && onBack) {
       setIsTransitioning(true);
-      setTimeout(() => {
-        onBack();
-        setIsTransitioning(false);
-      }, 300);
+      onBack();
+      setTimeout(() => setIsTransitioning(false), 100);
     }
   };
 
@@ -422,6 +424,31 @@ const NewsDetailScreen = ({
     return () => clearTimeout(timer);
   }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
 
+  // Add subtle animation to swipe indicator
+  useEffect(() => {
+    const animateIndicator = () => {
+      Animated.sequence([
+        Animated.timing(swipeIndicatorOpacity, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(swipeIndicatorOpacity, {
+          toValue: 0.6,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Repeat animation after a delay
+        setTimeout(animateIndicator, 2000);
+      });
+    };
+
+    // Start animation after a delay
+    const timer = setTimeout(animateIndicator, 3000);
+    return () => clearTimeout(timer);
+  }, [swipeIndicatorOpacity]);
+
   // Load initial view count
   useEffect(() => {
     const loadInitialViewCount = async () => {
@@ -491,13 +518,13 @@ const NewsDetailScreen = ({
     }
   };
 
-  // Improved panResponder for smoother swipe animations
+  // Vertical swipe panResponder for Instagram reels-like functionality
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: (evt, gestureState) => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to horizontal swipes with minimal movement
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+        // Only respond to vertical swipes with minimal movement
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
       },
       onPanResponderGrant: () => {
         pan.setOffset({
@@ -506,82 +533,68 @@ const NewsDetailScreen = ({
         });
       },
       onPanResponderMove: (evt, gestureState) => {
-        // Smooth movement with direct mapping to finger position
-        pan.x.setValue(gestureState.dx);
+        // Direct movement - no resistance for immediate feedback
+        pan.y.setValue(gestureState.dy);
         
-        // Subtle opacity change for better visual feedback
-        const progress = Math.min(Math.abs(gestureState.dx) / width, 0.5);
+        // Dynamic opacity change based on swipe distance
+        const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
         opacity.setValue(1 - progress);
       },
       onPanResponderRelease: (evt, gestureState) => {
         pan.flattenOffset();
         
-        // Lower thresholds for easier swiping
-        const swipeThreshold = width * 0.2;
-        const velocityThreshold = 0.3;
+        // More sensitive thresholds for better UX
+        const swipeThreshold = height * 0.12;
+        const velocityThreshold = 0.15;
         
-        const shouldGoBack = (gestureState.dx > swipeThreshold || gestureState.vx > velocityThreshold) && gestureState.dx > 0;
-        const shouldGoNext = (gestureState.dx < -swipeThreshold || gestureState.vx < -velocityThreshold) && gestureState.dx < 0;
+        const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && gestureState.dy < 0;
+        const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && gestureState.dy > 0;
 
-        if (shouldGoBack) {
-          // Right swipe - go back/previous
+        if (shouldGoNext && hasNext) {
+          // Swipe up - complete the transition to next article
           setIsTransitioning(true);
-          Animated.parallel([
-            Animated.spring(pan.x, {
-              toValue: width,
-              tension: 50,
-              friction: 7,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
+          Animated.timing(pan.y, {
+            toValue: -height,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            // Reset position and navigate
             pan.setValue({ x: 0, y: 0 });
             opacity.setValue(1);
-            
-            if (currentIndex === 0) {
-              if (onBack) handleBack();
-            } else {
-              if (onPrev) handlePrev();
+            if (onNext) {
+              onNext();
             }
+            setIsTransitioning(false);
           });
-        } else if (shouldGoNext && hasNext) {
-          // Left swipe - go next
+        } else if (shouldGoPrev && hasPrev) {
+          // Swipe down - complete the transition to previous article
           setIsTransitioning(true);
-          Animated.parallel([
-            Animated.spring(pan.x, {
-              toValue: -width,
-              tension: 50,
-              friction: 7,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
+          Animated.timing(pan.y, {
+            toValue: height,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            // Reset position and navigate
             pan.setValue({ x: 0, y: 0 });
             opacity.setValue(1);
-            
-            if (onNext) handleNext();
+            if (onPrev) {
+              onPrev();
+            }
+            setIsTransitioning(false);
           });
         } else {
-          // Return to original position with smooth animation
+          // Return to original position with smooth spring animation
           Animated.parallel([
-            Animated.spring(pan.x, {
+            Animated.spring(pan.y, {
               toValue: 0,
-              tension: 60,
-              friction: 7,
+              tension: 120,
+              friction: 8,
               useNativeDriver: true,
             }),
             Animated.spring(opacity, {
               toValue: 1,
-              tension: 60,
-              friction: 7,
+              tension: 120,
+              friction: 8,
               useNativeDriver: true,
             }),
           ]).start();
@@ -616,6 +629,131 @@ const NewsDetailScreen = ({
   const tagsArray = processTags(article.tags);
   const keywordsArray = processKeywords(article.keywords);
 
+  // Get next and previous articles for preview
+  const getNextArticle = () => {
+    if (hasNext && allArticles.length > 0) {
+      return allArticles[currentIndex + 1];
+    }
+    return null;
+  };
+
+  const getPrevArticle = () => {
+    if (hasPrev && allArticles.length > 0) {
+      return allArticles[currentIndex - 1];
+    }
+    return null;
+  };
+
+  const nextArticle = getNextArticle();
+  const prevArticle = getPrevArticle();
+
+  // Component to render a single news article
+  const renderNewsArticle = (articleData, isActive = false) => (
+    <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
+      {/* Article Image */}
+      <View style={styles.articleImageContainer}>
+        <Image 
+          source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
+          style={styles.articleImage} 
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.3)']}
+          style={styles.articleImageGradient}
+        />
+      </View>
+
+      {/* Article Content */}
+      <View style={styles.articleContentContainer}>
+        {/* Source */}
+        <Text style={styles.articleSource}>R. Republic TV</Text>
+
+        {/* Title */}
+        <Text style={styles.articleTitle}>{articleData.title}</Text>
+
+        {/* Article Body - Limited Content */}
+        <View style={styles.htmlContentContainer}>
+          {showFullContent ? (
+            <RenderHtml
+              contentWidth={width - 40}
+              source={{ html: articleData.content || '<p>No content available</p>' }}
+              tagsStyles={{
+                p: { 
+                  fontSize: 16, 
+                  lineHeight: 24, 
+                  color: '#989898',
+                  marginBottom: 15,
+                  textAlign: 'left',
+                  fontFamily: 'Montserrat-Medium'
+                },
+                h1: { 
+                  fontSize: 24, 
+                  fontWeight: 'bold', 
+                  color: '#333',
+                  marginBottom: 15,
+                  marginTop: 10,
+                  fontFamily: 'NeuePlakExtended-SemiBold'
+                },
+                h2: { 
+                  fontSize: 20, 
+                  fontWeight: 'bold', 
+                  color: '#333',
+                  marginBottom: 12,
+                  marginTop: 8,
+                  fontFamily: 'NeuePlakExtended-SemiBold'
+                },
+                h3: { 
+                  fontSize: 18, 
+                  fontWeight: 'bold', 
+                  color: '#333',
+                  marginBottom: 10,
+                  fontFamily: 'NeuePlakExtended-SemiBold'
+                },
+                img: {
+                  marginVertical: 10
+                }
+              }}
+            />
+          ) : (
+            <Text style={styles.articlePreview}>
+              {articleData.summary || 'Russian President Vladimir Putin called Prime Minister Narendra Modi on Monday and briefed him about the Alaska Summit. Putin went to Alaska for a summit with US President Donald Trump on Friday. The war in Ukraine was at the top of the summit\'s agenda. In a post on X, Modi thanked Putin for "sharing insights on his recent meeting with President Trump in Alaska".'}
+            </Text>
+          )}
+        </View>
+
+        {/* Show More Button */}
+        <TouchableOpacity 
+          style={styles.showMoreButton} 
+          onPress={() => setShowFullContent(!showFullContent)}
+        >
+          <Text style={styles.showMoreText}>
+            {showFullContent ? 'Show Less' : 'Show More'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Swipe Indicator - only show on active article */}
+        {isActive && (
+          <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
+            <View style={styles.swipeDots}>
+              <View style={[styles.swipeDot, styles.swipeDotActive]} />
+              <View style={styles.swipeDot} />
+              <View style={styles.swipeDot} />
+            </View>
+            <Text style={styles.swipeHint}>Swipe up for next news</Text>
+          </Animated.View>
+        )}
+      </View>
+    </View>
+  );
+
+  // Don't render until fonts are loaded
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
@@ -630,105 +768,60 @@ const NewsDetailScreen = ({
         ]}
         {...panResponder.panHandlers}
       >
-        <Navbar/>
+        {/* Back Button */}
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
 
-        <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
-          {/* Article Image */}
-          <View style={styles.articleImageContainer}>
-            <Image 
-              source={{ uri: article.featuredImage || 'https://via.placeholder.com/800x400' }} 
-              style={styles.articleImage} 
-            />
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.3)']}
-              style={styles.articleImageGradient}
-            />
-            {article.isTrending && (
-              <View style={styles.exclusiveTagDetail}>
-                <Text style={styles.exclusiveText}>TRENDING</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Article Content */}
-          <View style={styles.articleContentContainer}>
-            {/* Source and Time */}
-            <View style={styles.articleMeta}>
-              <Text style={styles.articleSource}>📺 {article.authorName || "Unknown Author"}</Text>
-              <Text style={styles.articleTime}>
-                {article.publicationDate ? 
-                  new Date(article.publicationDate).toLocaleDateString() : 
-                  'Recently'
+        {/* Stacked News Articles Container */}
+        <View style={styles.newsStackContainer}>
+          {/* Previous Article (behind current) */}
+          {prevArticle && (
+            <Animated.View 
+              style={[
+                styles.newsStackItem,
+                styles.prevNewsItem,
+                {
+                  transform: [{ translateY: pan.y }],
+                  opacity: opacity,
                 }
-              </Text>
-            </View>
+              ]}
+            >
+              {renderNewsArticle(prevArticle, false)}
+            </Animated.View>
+          )}
 
-            {/* Title */}
-            <Text style={styles.articleTitle}>{article.title}</Text>
+          {/* Current Article (on top) */}
+          <Animated.View 
+            style={[
+              styles.newsStackItem,
+              styles.currentNewsItem,
+              {
+                transform: [{ translateY: pan.y }],
+                opacity: opacity,
+              }
+            ]}
+            {...panResponder.panHandlers}
+          >
+            {renderNewsArticle(article, true)}
+          </Animated.View>
 
-            {/* Author and Location */}
-            <View style={styles.authorSection}>
-              <Text style={styles.authorText}>By {article.authorName}</Text>
-              <Text style={styles.locationText}>📍 {article.location || "Global"}</Text>
-            </View>
-
-            {/* Tags */}
-            {tagsArray.length > 0 && (
-              <View style={styles.tagsContainer}>
-                {tagsArray.map((tag, index) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Article Summary */}
-            {article.summary && (
-              <Text style={styles.articleLead}>{article.summary}</Text>
-            )}
-
-            {/* Article Body - HTML Content */}
-            <View style={styles.htmlContentContainer}>
-              <RenderHtml
-                contentWidth={width - 40}
-                source={{ html: article.content || '<p>No content available</p>' }}
-                tagsStyles={{
-                  p: { 
-                    fontSize: 16, 
-                    lineHeight: 24, 
-                    color: '#444',
-                    marginBottom: 15,
-                    textAlign: 'justify'
-                  },
-                  h1: { 
-                    fontSize: 24, 
-                    fontWeight: 'bold', 
-                    color: '#333',
-                    marginBottom: 15,
-                    marginTop: 10
-                  },
-                  h2: { 
-                    fontSize: 20, 
-                    fontWeight: 'bold', 
-                    color: '#333',
-                    marginBottom: 12,
-                    marginTop: 8
-                  },
-                  h3: { 
-                    fontSize: 18, 
-                    fontWeight: 'bold', 
-                    color: '#333',
-                    marginBottom: 10
-                  },
-                  img: {
-                    marginVertical: 10
-                  }
-                }}
-              />
-            </View>
-          </View>
-        </ScrollView>
+          {/* Next Article (behind current) */}
+          {nextArticle && (
+            <Animated.View 
+              style={[
+                styles.newsStackItem,
+                styles.nextNewsItem,
+                {
+                  transform: [{ translateY: pan.y }],
+                  opacity: opacity,
+                }
+              ]}
+            >
+              {renderNewsArticle(nextArticle, false)}
+            </Animated.View>
+          )}
+        </View>
 
         {/* Action Bar */}
         <View style={styles.actionBar}>
@@ -831,6 +924,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 30,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: 8,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
   detailContent: {
     flex: 1,
     backgroundColor: '#fff',
@@ -849,6 +962,10 @@ const styles = StyleSheet.create({
   articleImageContainer: {
     position: 'relative',
     height: 300,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 28,
+    overflow: 'hidden',
   },
   articleImage: {
     width: '100%',
@@ -866,10 +983,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20,
     right: 20,
-    backgroundColor: '#FF4444',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 6,
+    backgroundColor: '#FF0000',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -884,75 +1001,100 @@ const styles = StyleSheet.create({
   articleContentContainer: {
     padding: 20,
   },
-  articleMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
   articleSource: {
     fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  articleTime: {
-    fontSize: 12,
-    color: '#999',
+    color: '#333',
+    fontWeight: '400',
+    marginBottom: 15,
   },
   articleTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
-    lineHeight: 34,
-    marginBottom: 15,
-  },
-  authorSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    color: '#000',
+    lineHeight: 30,
     marginBottom: 20,
-  },
-  authorText: {
-    fontSize: 13,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  locationText: {
-    fontSize: 12,
-    color: '#999',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 15,
-  },
-  tag: {
-    backgroundColor: '#e8f5e8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-  },
-  tagText: {
-    fontSize: 11,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  articleLead: {
-    fontSize: 18,
-    lineHeight: 26,
-    color: '#333',
-    marginBottom: 25,
-    fontWeight: '500',
-    textAlign: 'justify',
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
   htmlContentContainer: {
-    marginBottom: 25,
+    marginBottom: 20,
+  },
+  articlePreview: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#989898',
+    textAlign: 'left',
+    fontFamily: 'Montserrat-Medium',
+  },
+  showMoreButton: {
+    backgroundColor: '#000',
+    paddingVertical: 15,
+    paddingHorizontal: 60,
+    borderRadius: 18,
+    alignSelf: 'center',
+    marginBottom: 20,
+    minWidth: 200,
+  },
+  showMoreText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: 'NeuePlakExtended-SemiBold',
+  },
+  swipeIndicator: {
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  swipeDots: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  swipeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ddd',
+    marginHorizontal: 3,
+  },
+  swipeDotActive: {
+    backgroundColor: '#8B5CF6',
+  },
+  swipeHint: {
+    fontSize: 12,
+    color: '#999',
+    fontFamily: 'Montserrat-Medium',
+  },
+  // Stacked News Layout Styles
+  newsStackContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  newsStackItem: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+  },
+  currentNewsItem: {
+    zIndex: 3,
+  },
+  nextNewsItem: {
+    zIndex: 2,
+    transform: [{ translateY: height }],
+  },
+  prevNewsItem: {
+    zIndex: 1,
+    transform: [{ translateY: -height }],
+  },
+  newsContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  activeNewsContainer: {
+    // Additional styles for active news if needed
   },
   // Updated Action Bar styles
   actionBar: {
