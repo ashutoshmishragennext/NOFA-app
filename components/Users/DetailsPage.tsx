@@ -1,31 +1,133 @@
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
+import { Montserrat_500Medium, Montserrat_600SemiBold, useFonts } from '@expo-google-fonts/montserrat';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts, Montserrat_500Medium, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Image,
-    PanResponder,
-    SafeAreaView,
-    Share,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Image,
+  PanResponder,
+  SafeAreaView,
+  Share,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import RenderHtml from "react-native-render-html";
 import CommentsSection from './CommentsPage';
 
 const { width, height } = Dimensions.get('window');
 
-const NewsDetailScreen = ({ 
+interface AdData {
+  id: string;
+  type: 'banner' | 'video' | 'product' | 'app' | 'service' | 'travel';
+  title: string;
+  description: string;
+  imageUrl: string;
+  ctaText: string;
+  advertiser: string;
+  backgroundColor: string;
+}
+
+export interface AdClickData {
+  adId: string;
+  adType: string;
+  advertiser: string;
+  timestamp: number;
+}
+
+interface NewsDetailScreenProps {
+  article: any;
+  onBack: () => void;
+  onNext?: () => void;
+  hasNext: boolean;
+  onPrev?: () => void;
+  hasPrev?: boolean;
+  currentIndex: number;
+  totalArticles: number;
+  sourceTab?: string;
+  allArticles?: any[];
+}
+
+interface AdDisplayState {
+  shouldShowAd: boolean;
+  currentAdIndex: number;
+  articlesViewedCount: number;
+  nextAdAfter: number;
+  adQueue: AdData[];
+}
+
+const dummyAds: AdData[] = [
+  {
+    id: 'ad_1',
+    type: 'banner',
+    title: 'Best Online Shopping',
+    description: 'Get 50% off on all electronics. Limited time offer!',
+    imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400',
+    ctaText: 'Shop Now',
+    advertiser: 'ShopMart',
+    backgroundColor: '#FF6B6B'
+  },
+  {
+    id: 'ad_2',
+    type: 'video',
+    title: 'Learn Coding Online',
+    description: 'Master programming skills with expert instructors',
+    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400',
+    ctaText: 'Start Learning',
+    advertiser: 'CodeAcademy',
+    backgroundColor: '#4ECDC4'
+  },
+  {
+    id: 'ad_3',
+    type: 'product',
+    title: 'Premium Coffee Beans',
+    description: 'Freshly roasted coffee beans delivered to your door',
+    imageUrl: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=400',
+    ctaText: 'Order Now',
+    advertiser: 'Coffee Co.',
+    backgroundColor: '#8B4513'
+  },
+  {
+    id: 'ad_4',
+    type: 'app',
+    title: 'Fitness Tracker App',
+    description: 'Track your daily activities and achieve fitness goals',
+    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400',
+    ctaText: 'Download',
+    advertiser: 'FitTrack',
+    backgroundColor: '#45B7D1'
+  },
+  {
+    id: 'ad_5',
+    type: 'service',
+    title: 'Food Delivery',
+    description: 'Order your favorite food from top restaurants',
+    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
+    ctaText: 'Order Food',
+    advertiser: 'FoodExpress',
+    backgroundColor: '#FF8C42'
+  },
+  {
+    id: 'ad_6',
+    type: 'travel',
+    title: 'Book Your Dream Vacation',
+    description: 'Explore amazing destinations with exclusive deals',
+    imageUrl: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400',
+    ctaText: 'Book Now',
+    advertiser: 'TravelDeals',
+    backgroundColor: '#6C5CE7'
+  }
+];
+
+const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({ 
   article, 
   onBack, 
   onNext, 
@@ -43,6 +145,10 @@ const NewsDetailScreen = ({
     Montserrat_600SemiBold,
   });
 
+  const getRandomAdInterval = (): number => {
+    return Math.floor(Math.random() * 3) + 2;
+  };
+
   const [showComments, setShowComments] = useState(false);
   const [commentsCount, setCommentsCount] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -55,6 +161,15 @@ const NewsDetailScreen = ({
   const [showFullContent, setShowFullContent] = useState(false);
   const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
   
+  // Ad state management
+  const [adState, setAdState] = useState<AdDisplayState>({
+    shouldShowAd: false,
+    currentAdIndex: 0,
+    articlesViewedCount: 0,
+    nextAdAfter: getRandomAdInterval(),
+    adQueue: [],
+  });
+
   // Local state for pending likes
   const [pendingLikeAction, setPendingLikeAction] = useState(null);
   const [lastLikeUpdate, setLastLikeUpdate] = useState(null);
@@ -73,6 +188,121 @@ const NewsDetailScreen = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [viewRecorded, setViewRecorded] = useState(false);
   const [viewCount, setViewCount] = useState(article.viewCount || 0);
+
+  // Add this useEffect to initialize ad queue:
+  useEffect(() => {
+    // Shuffle ads array and set initial queue
+    const shuffledAds: AdData[] = [...dummyAds].sort(() => Math.random() - 0.5);
+    setAdState(prev => ({ ...prev, adQueue: shuffledAds }));
+  }, []);
+
+  // Add this useEffect to track article views and determine when to show ads:
+  useEffect(() => {
+    // Only increment on article navigation, not on initial load
+    if (article.id && !viewRecorded) {
+      const newCount = adState.articlesViewedCount + 1;
+      
+      // Check if we should show an ad
+      if (newCount >= adState.nextAdAfter) {
+        setAdState(prev => ({
+          ...prev,
+          shouldShowAd: true,
+          articlesViewedCount: 0,
+          nextAdAfter: getRandomAdInterval(),
+        }));
+      } else {
+        setAdState(prev => ({ ...prev, articlesViewedCount: newCount }));
+      }
+    }
+  }, [article.id, viewRecorded, adState.nextAdAfter]);
+
+  // Add these handler functions:
+  const handleAdClick = (adData: AdData): void => {
+    console.log('Ad clicked:', adData);
+    
+    // You can add analytics tracking here
+    const clickData: AdClickData = {
+      adId: adData.id,
+      adType: adData.type,
+      advertiser: adData.advertiser,
+      timestamp: Date.now()
+    };
+    
+    // Send to analytics service
+    // analytics.track('ad_clicked', clickData);
+  };
+  
+  const handleAdClose = (): void => {
+    setAdState(prev => ({
+      ...prev,
+      shouldShowAd: false,
+      currentAdIndex: prev.currentAdIndex >= prev.adQueue.length - 1 ? 0 : prev.currentAdIndex + 1
+    }));
+  };
+
+  // Preload next ad image
+  const preloadNextAd = () => {
+    if (adState.adQueue.length > 0) {
+      const nextAdIndex = adState.currentAdIndex >= adState.adQueue.length - 1 ? 0 : adState.currentAdIndex + 1;
+      const nextAd = adState.adQueue[nextAdIndex];
+      
+      // Preload the ad image
+      if (nextAd.imageUrl) {
+        Image.prefetch(nextAd.imageUrl).catch(() => {
+          console.log('Failed to preload ad image');
+        });
+      }
+    }
+  };
+
+  // Call preloadNextAd when component mounts and when ad changes
+  useEffect(() => {
+    preloadNextAd();
+  }, [adState.currentAdIndex, adState.adQueue]);
+useEffect(() => {
+  // Track article changes for ad display
+  const updateArticleCount = () => {
+    setAdState(prev => {
+      const newCount = prev.articlesViewedCount + 1;
+      console.log(`Article viewed count: ${newCount}, Next ad after: ${prev.nextAdAfter}`);
+      
+      // Check if we should show an ad
+      if (newCount >= prev.nextAdAfter) {
+        console.log('Should show ad now!');
+        return {
+          ...prev,
+          shouldShowAd: true,
+          articlesViewedCount: 0, // Reset counter
+          nextAdAfter: getRandomAdInterval(), // Set next interval
+        };
+      }
+      
+      return {
+        ...prev,
+        articlesViewedCount: newCount
+      };
+    });
+  };
+
+  // Only update count when article ID changes (not on initial load)
+  if (article.id) {
+    updateArticleCount();
+  }
+}, [article.id]);
+  // Add smooth transition for ad display
+  const adTransitionOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (adState.shouldShowAd) {
+      Animated.timing(adTransitionOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      adTransitionOpacity.setValue(0);
+    }
+  }, [adState.shouldShowAd]);
 
   // Load initial states including local like state
   useEffect(() => {
@@ -362,66 +592,110 @@ const NewsDetailScreen = ({
   }, [article.id]);
 
   // Handle unique view recording
+  // useEffect(() => {
+  //   const checkAndRecordUniqueView = async () => {
+  //     // Don't proceed if already recorded or article ID missing
+  //     if (!article.id || viewRecorded) return;
+
+  //     try {
+  //       // Wait for all other counts to load first
+  //       if (likeLoading || bookmarkLoading) {
+  //         console.log('Waiting for like/bookmark states to load...');
+  //         return;
+  //       }
+
+  //       console.log('Checking if view already recorded for article:', article.id);
+
+  //       // Check if view is already recorded in AsyncStorage
+  //       const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
+  //       const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
+
+  //       if (viewedArticles.includes(article.id)) {
+  //         console.log('View already recorded for this article, skipping...');
+  //         setViewRecorded(true);
+  //         return;
+  //       }
+
+  //       console.log('Recording new view for article:', article.id);
+
+  //       // Record the view via API
+  //       const userId = currentUser?.id || null;
+  //       const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
+        
+  //       const result = await apiService.recordArticleView(article.id, userId, referrer);
+        
+  //       if (result.success) {
+  //         console.log('View recorded successfully:', result.message);
+          
+  //         // Store the article id locally to prevent future posts
+  //         const updatedViewedArticles = [...viewedArticles, article.id];
+  //         await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
+          
+  //         setViewRecorded(true);
+          
+  //         // Update view count only if it was actually incremented
+  //         if (result.incrementedCount) {
+  //           setViewCount(prev => prev + 1);
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.error('Failed to record unique view:', error);
+  //       // Still mark as recorded to prevent retry loops
+  //       setViewRecorded(true);
+  //     }
+  //   };
+
+  //   // Add a small delay to ensure all other loading is complete
+  //   const timer = setTimeout(() => {
+  //     checkAndRecordUniqueView();
+  //   }, 1000);
+
+  //   return () => clearTimeout(timer);
+  // }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
   useEffect(() => {
-    const checkAndRecordUniqueView = async () => {
-      // Don't proceed if already recorded or article ID missing
-      if (!article.id || viewRecorded) return;
+  const checkAndRecordUniqueView = async () => {
+    if (!article.id || viewRecorded) return;
 
-      try {
-        // Wait for all other counts to load first
-        if (likeLoading || bookmarkLoading) {
-          console.log('Waiting for like/bookmark states to load...');
-          return;
-        }
-
-        console.log('Checking if view already recorded for article:', article.id);
-
-        // Check if view is already recorded in AsyncStorage
-        const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
-        const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
-
-        if (viewedArticles.includes(article.id)) {
-          console.log('View already recorded for this article, skipping...');
-          setViewRecorded(true);
-          return;
-        }
-
-        console.log('Recording new view for article:', article.id);
-
-        // Record the view via API
-        const userId = currentUser?.id || null;
-        const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
-        
-        const result = await apiService.recordArticleView(article.id, userId, referrer);
-        
-        if (result.success) {
-          console.log('View recorded successfully:', result.message);
-          
-          // Store the article id locally to prevent future posts
-          const updatedViewedArticles = [...viewedArticles, article.id];
-          await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
-          
-          setViewRecorded(true);
-          
-          // Update view count only if it was actually incremented
-          if (result.incrementedCount) {
-            setViewCount(prev => prev + 1);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to record unique view:', error);
-        // Still mark as recorded to prevent retry loops
-        setViewRecorded(true);
+    try {
+      if (likeLoading || bookmarkLoading) {
+        return;
       }
-    };
 
-    // Add a small delay to ensure all other loading is complete
-    const timer = setTimeout(() => {
-      checkAndRecordUniqueView();
-    }, 1000);
+      const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
+      const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
 
-    return () => clearTimeout(timer);
-  }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
+      if (viewedArticles.includes(article.id)) {
+        setViewRecorded(true);
+        return;
+      }
+
+      const userId = currentUser?.id || null;
+      const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
+      
+      const result = await apiService.recordArticleView(article.id, userId, referrer);
+      
+      if (result.success) {
+        const updatedViewedArticles = [...viewedArticles, article.id];
+        await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
+        
+        setViewRecorded(true);
+        
+        if (result.incrementedCount) {
+          setViewCount(prev => prev + 1);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to record unique view:', error);
+      setViewRecorded(true);
+    }
+  };
+
+  const timer = setTimeout(() => {
+    checkAndRecordUniqueView();
+  }, 1000);
+
+  return () => clearTimeout(timer);
+}, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
 
   // Add subtle animation to swipe indicator
   useEffect(() => {
@@ -646,171 +920,223 @@ const NewsDetailScreen = ({
   const nextArticle = getNextArticle();
   const prevArticle = getPrevArticle();
 
-  // Component to render a single news article
-// Replace the current renderNewsArticle function with this updated version:
-const renderNewsArticle = (articleData, isActive = false) => (
-  <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
-    {/* Article Image with overlaid action buttons */}
-    <View style={styles.articleImageContainer}>
-      <Image 
-        source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
-        style={styles.articleImage} 
-      />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.4)']}
-        style={styles.articleImageGradient}
-      />
-      
-      {/* Left bottom action buttons - Like and Comment */}
-      <View style={styles.leftActionButtons}>
-        {/* Like Button */}
-        <TouchableOpacity 
-          style={styles.overlayActionButton}
-          onPress={handleLike}
-          disabled={likeLoading}
-        >
-          {likeLoading ? (
-            <Ionicons 
-              name={"heart-outline"} 
-              size={28} 
-              color={"rgba(255,255,255,0.7)"} 
-            />
-          ) : (
-            <Ionicons 
-              name={liked ? "heart" : "heart-outline"} 
-              size={28} 
-              color={liked ? "#ff4757" : "rgba(255,255,255,0.9)"} 
-            />
-          )}
-          <Text style={styles.overlayActionText}>{likeCount}</Text>
-        </TouchableOpacity>
+  // Enhanced Ad Component with smooth transitions
+  const EnhancedAdComponent = ({ adData, onAdClick, onAdClose, visible }) => {
+    const opacity = useRef(new Animated.Value(0)).current;
 
-        {/* Comment Button */}
-        <TouchableOpacity 
-          style={styles.overlayActionButton}
-          onPress={() => setShowComments(true)}
-        >
-          <Ionicons name="chatbubble-outline" size={26} color="rgba(255,255,255,0.9)" />
-          <Text style={styles.overlayActionText}>{commentsCount}</Text>
-        </TouchableOpacity>
-      </View>
+    useEffect(() => {
+      if (visible) {
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      }
+    }, [visible]);
 
-      {/* Right bottom action buttons - Share and Save */}
-      <View style={styles.rightActionButtons}>
-        {/* Share Button */}
-        <TouchableOpacity 
-          style={styles.overlayActionButton}
-          onPress={handleShare}
-          disabled={shareLoading}
-        >
-          {shareLoading ? (
-            <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
-          ) : (
-            <Ionicons name="share-outline" size={26} color="rgba(255,255,255,0.9)" />
-          )}
-        </TouchableOpacity>
+    if (!visible) return null;
 
-        {/* Bookmark Button */}
-        <TouchableOpacity 
-          style={styles.overlayActionButton}
-          onPress={handleBookmark}
-          disabled={bookmarkLoading}
-        >
-          {bookmarkLoading ? (
-            <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
-          ) : (
-            <Ionicons 
-              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-              size={26} 
-              color={isBookmarked ? "#4CAF50" : "rgba(255,255,255,0.9)"} 
-            />
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-
-    {/* Article Content */}
-    <View style={styles.articleContentContainer}>
-      {/* Source */}
-      <Text style={styles.articleSource}>R. Republic TV</Text>
-
-      {/* Title */}
-      <Text style={styles.articleTitle}>{articleData.title}</Text>
-
-      {/* Article Body - Limited Content */}
-      <View style={styles.htmlContentContainer}>
-        {showFullContent ? (
-          <RenderHtml
-            contentWidth={width - 40}
-            source={{ html: articleData.content || '<p>No content available</p>' }}
-            tagsStyles={{
-              p: { 
-                fontSize: 14, 
-                lineHeight: 20, 
-                color: '#666',
-                marginBottom: 12,
-                textAlign: 'left',
-                fontFamily: 'Montserrat_500Medium'
-              },
-              h1: { 
-                fontSize: 20, 
-                fontWeight: 'bold', 
-                color: '#333',
-                marginBottom: 12,
-                marginTop: 8,
-                fontFamily: 'Montserrat_600SemiBold'
-              },
-              h2: { 
-                fontSize: 18, 
-                fontWeight: 'bold', 
-                color: '#333',
-                marginBottom: 10,
-                marginTop: 6,
-                fontFamily: 'Montserrat_600SemiBold'
-              },
-              h3: { 
-                fontSize: 16, 
-                fontWeight: 'bold', 
-                color: '#333',
-                marginBottom: 8,
-                fontFamily: 'Montserrat_600SemiBold'
-              },
-              img: {
-                marginVertical: 8
-              }
-            }}
+    return (
+      <Animated.View style={[styles.adContainer, { opacity }]}>
+        <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
+          <Image 
+            source={{ uri: adData.imageUrl }} 
+            style={styles.adImage}
+            resizeMode="cover"
           />
-        ) : (
-          <Text style={styles.articlePreview}>
-            {articleData.summary || 'Russian President Vladimir Putin called Prime Minister Narendra Modi on Monday and briefed him about the Alaska Summit. Putin went to Alaska for a summit with US President Donald Trump on Friday. The war in Ukraine was at the top of the summit\'s agenda. In a post on X, Modi thanked Putin for "sharing insights on his recent meeting with President Trump in Alaska".'}
-          </Text>
-        )}
-      </View>
-
-      {/* Swipe Indicator - only show on active article */}
-      {isActive && (
-        <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
-          <View style={styles.swipeDots}>
-            <View style={[styles.swipeDot, styles.swipeDotActive]} />
-            <View style={styles.swipeDot} />
-            <View style={styles.swipeDot} />
+          <View style={styles.adTextContainer}>
+            <Text style={styles.adTitle}>{adData.title}</Text>
+            <Text style={styles.adDescription}>{adData.description}</Text>
+            <Text style={styles.adAdvertiser}>Sponsored by {adData.advertiser}</Text>
+            <TouchableOpacity style={styles.adCtaButton}>
+              <Text style={styles.adCtaText}>{adData.ctaText}</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.swipeHint}>Swipe up for next news</Text>
-        </Animated.View>
-      )}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
+          <Ionicons name="close" size={24} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
-      {/* Show More Button - moved to bottom */}
-      <TouchableOpacity 
-        style={styles.showMoreButton} 
-        onPress={() => setShowFullContent(!showFullContent)}
-      >
-        <Text style={styles.showMoreText}>
-          {showFullContent ? 'Show Less' : 'Read More'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
+  // Component to render a single news article
+  const renderNewsArticle = (articleData, isActive = false, isAd: boolean =true) => {
+    if (isAd) {
+      return (
+        <EnhancedAdComponent
+          adData={articleData as AdData}
+          onAdClick={handleAdClick}
+          onAdClose={handleAdClose}
+          visible={true}
+        />
+      );
+    }
+    
+    return (
+      <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
+        {/* Article Image with overlaid action buttons */}
+        <View style={styles.articleImageContainer}>
+          <Image 
+            source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
+            style={styles.articleImage} 
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.4)']}
+            style={styles.articleImageGradient}
+          />
+          
+          {/* Left bottom action buttons - Like and Comment */}
+          <View style={styles.leftActionButtons}>
+            {/* Like Button */}
+            <TouchableOpacity 
+              style={styles.overlayActionButton}
+              onPress={handleLike}
+              disabled={likeLoading}
+            >
+              {likeLoading ? (
+                <Ionicons 
+                  name={"heart-outline"} 
+                  size={28} 
+                  color={"rgba(255,255,255,0.7)"} 
+                />
+              ) : (
+                <Ionicons 
+                  name={liked ? "heart" : "heart-outline"} 
+                  size={28} 
+                  color={liked ? "#ff4757" : "rgba(255,255,255,0.9)"} 
+                />
+              )}
+              <Text style={styles.overlayActionText}>{likeCount}</Text>
+            </TouchableOpacity>
+
+            {/* Comment Button */}
+            <TouchableOpacity 
+              style={styles.overlayActionButton}
+              onPress={() => setShowComments(true)}
+            >
+              <Ionicons name="chatbubble-outline" size={26} color="rgba(255,255,255,0.9)" />
+              <Text style={styles.overlayActionText}>{commentsCount}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Right bottom action buttons - Share and Save */}
+          <View style={styles.rightActionButtons}>
+            {/* Share Button */}
+            <TouchableOpacity 
+              style={styles.overlayActionButton}
+              onPress={handleShare}
+              disabled={shareLoading}
+            >
+              {shareLoading ? (
+                <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
+              ) : (
+                <Ionicons name="share-outline" size={26} color="rgba(255,255,255,0.9)" />
+              )}
+            </TouchableOpacity>
+
+            {/* Bookmark Button */}
+            <TouchableOpacity 
+              style={styles.overlayActionButton}
+              onPress={handleBookmark}
+              disabled={bookmarkLoading}
+            >
+              {bookmarkLoading ? (
+                <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
+              ) : (
+                <Ionicons 
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+                  size={26} 
+                  color={isBookmarked ? "#4CAF50" : "rgba(255,255,255,0.9)"} 
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Article Content */}
+        <View style={styles.articleContentContainer}>
+          {/* Source */}
+          <Text style={styles.articleSource}>R. Republic TV</Text>
+
+          {/* Title */}
+          <Text style={styles.articleTitle}>{articleData.title}</Text>
+
+          {/* Article Body - Limited Content */}
+          <View style={styles.htmlContentContainer}>
+            {showFullContent ? (
+              <RenderHtml
+                contentWidth={width - 40}
+                source={{ html: articleData.content || '<p>No content available</p>' }}
+                tagsStyles={{
+                  p: { 
+                    fontSize: 14, 
+                    lineHeight: 20, 
+                    color: '#666',
+                    marginBottom: 12,
+                    textAlign: 'left',
+                    fontFamily: 'Montserrat_500Medium'
+                  },
+                  h1: { 
+                    fontSize: 20, 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    marginBottom: 12,
+                    marginTop: 8,
+                    fontFamily: 'Montserrat_600SemiBold'
+                  },
+                  h2: { 
+                    fontSize: 18, 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    marginBottom: 10,
+                    marginTop: 6,
+                    fontFamily: 'Montserrat_600SemiBold'
+                  },
+                  h3: { 
+                    fontSize: 16, 
+                    fontWeight: 'bold', 
+                    color: '#333',
+                    marginBottom: 8,
+                    fontFamily: 'Montserrat_600SemiBold'
+                  },
+                  img: {
+                    marginVertical: 8
+                  }
+                }}
+              />
+            ) : (
+              <Text style={styles.articlePreview}>
+                {articleData.summary || 'Russian President Vladimir Putin called Prime Minister Narendra Modi on Monday and briefed him about the Alaska Summit. Putin went to Alaska for a summit with US President Donald Trump on Friday. The war in Ukraine was at the top of the summit\'s agenda. In a post on X, Modi thanked Putin for "sharing insights on his recent meeting with President Trump in Alaska".'}
+              </Text>
+            )}
+          </View>
+
+          {/* Swipe Indicator - only show on active article */}
+          {isActive && (
+            <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
+              <View style={styles.swipeDots}>
+                <View style={[styles.swipeDot, styles.swipeDotActive]} />
+                <View style={styles.swipeDot} />
+                <View style={styles.swipeDot} />
+              </View>
+              <Text style={styles.swipeHint}>Swipe up for next news</Text>
+            </Animated.View>
+          )}
+
+          {/* Show More Button - moved to bottom */}
+          <TouchableOpacity 
+            style={styles.showMoreButton} 
+            onPress={() => setShowFullContent(!showFullContent)}
+          >
+            <Text style={styles.showMoreText}>
+              {showFullContent ? 'Show Less' : 'Read More'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   // Don't render until fonts are loaded
   if (!fontsLoaded) {
@@ -860,18 +1186,28 @@ const renderNewsArticle = (articleData, isActive = false) => (
 
           {/* Current Article (on top) */}
           <Animated.View 
-            style={[
-              styles.newsStackItem,
-              styles.currentNewsItem,
-              {
-                transform: [{ translateY: pan.y }],
-                opacity: opacity,
-              }
-            ]}
-            {...panResponder.panHandlers}
-          >
-            {renderNewsArticle(article, true)}
-          </Animated.View>
+  style={[
+    styles.newsStackItem,
+    styles.currentNewsItem,
+    {
+      transform: [{ translateY: pan.y }],
+      opacity: opacity,
+    }
+  ]}
+  {...panResponder.panHandlers}
+>
+  {adState.shouldShowAd && adState.adQueue.length > 0 ? (
+    <>
+      {console.log('Rendering ad:', adState.adQueue[adState.currentAdIndex])}
+      {renderNewsArticle(adState.adQueue[adState.currentAdIndex], true, true)}
+    </>
+  ) : (
+    <>
+      {console.log('Rendering article:', article.title)}
+      {renderNewsArticle(article, true, false)}
+    </>
+  )}
+</Animated.View>
 
           {/* Next Article (behind current) */}
           {nextArticle && (
@@ -1158,6 +1494,70 @@ const styles = StyleSheet.create({
     fontSize: 11, // Reduced from 12
     color: '#999',
     fontFamily: 'Montserrat_500Medium',
+  },
+  // Ad Component Styles
+  adContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    zIndex: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  adContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    width: '90%',
+    maxWidth: 400,
+  },
+  adImage: {
+    width: '100%',
+    height: 200,
+  },
+  adTextContainer: {
+    padding: 16,
+  },
+  adTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#000',
+  },
+  adDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+    color: '#666',
+  },
+  adAdvertiser: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  adCtaButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  adCtaText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  adCloseButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
   },
 });
 

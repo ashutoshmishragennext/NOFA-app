@@ -50,7 +50,7 @@ const getInitials = (name: string) => {
   }, [visible, articleId]);
 
   // Helper function to parse dates safely
-  const parseDateSafe = (dateStr) => {
+  const parseDateSafe = (dateStr :any) => {
     if (!dateStr) return new Date();
     // Handle both ISO format and space-separated format
     if (dateStr.includes('T')) {
@@ -62,7 +62,7 @@ const getInitials = (name: string) => {
   const fetchRootComments = async () => {
     setIsInitialLoading(true);
     try {
-      const response = await apiService.getComments({
+      const response :any = await apiService.getComments({
         articleId: articleId
       });
 
@@ -87,7 +87,7 @@ const getInitials = (name: string) => {
   };
 
   // Toggle replies visibility
-  const toggleRepliesVisibility = (commentId) => {
+  const toggleRepliesVisibility = (commentId :any) => {
     setExpandedComments((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(commentId)) {
@@ -100,7 +100,7 @@ const getInitials = (name: string) => {
   };
 
   // Load replies with new API parameter
-  const loadReplies = async (commentId) => {
+  const loadReplies = async (commentId :any) => {
     if (loadedReplies[commentId] || loadingReplies[commentId]) return;
 
     setLoadingReplies(prev => ({ ...prev, [commentId]: true }));
