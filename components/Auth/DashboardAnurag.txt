@@ -18,11 +18,10 @@ import {
     Text,
     TouchableOpacity,
     View,
-    Animated, 
-    Dimensions 
+    Animated, // Add this
+    Dimensions // Add this
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import HamburgerIcon from "@/components/HamburgerMenu";
 
 const NewsApp = () => {
   const { logout, user } = useAuth();
@@ -339,8 +338,7 @@ if (currentView === "categoryChange") {
           style={styles.menuButton}
           onPress={openDrawer} // Changed from setMenuVisible toggle
         >
-          {/* <Ionicons name="menu" size={24} color="#333" /> */}
-          <HamburgerIcon size={22} />
+          <Ionicons name="menu" size={24} color="#333" />
         </TouchableOpacity>
       </View>
 
@@ -511,7 +509,7 @@ const styles = StyleSheet.create({
   menuButton: {
     padding: 6,
     borderRadius: 16,
-    // backgroundColor: "#f8f9fa",
+    backgroundColor: "#f8f9fa",
   },
   menuDropdown: {
     position: "absolute",
