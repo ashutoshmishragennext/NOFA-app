@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Dimensions, 
-  ScrollView, 
-  ActivityIndicator,
-  Image,
-  Alert 
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext'; // Add this import
+import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import CategorySelectionScreen from './categorySelection';
 
 const { width } = Dimensions.get('window');
 
@@ -65,7 +66,7 @@ const OnboardingScreen = ({ onComplete }) => {
     'science': { icon: 'flask-outline', color: '#10B981' },
     'football': { icon: 'football-outline', color: '#6B7280' },
     'education': { icon: 'school-outline', color: '#F59E0B' },
-    'technology': { icon: 'laptop-outline', color: '#1F2937' },
+    // 'technology': { icon: 'laptop-outline', color: '#1F2937' },
     'travel': { icon: 'airplane-outline', color: '#06B6D4' },
     'cricket': { icon: 'baseball-outline', color: '#F59E0B' },
     'business': { icon: 'briefcase-outline', color: '#8B5CF6' },
@@ -385,8 +386,7 @@ const OnboardingScreen = ({ onComplete }) => {
               <Text style={styles.title}>{currentData.title}</Text>
               <Text style={styles.description}>{currentData.description}</Text>
             </View>
-            {renderCategoriesScreen()}
-          </>
+<CategorySelectionScreen onComplete={onComplete} />          </>
         )}
       </View>
     </View>
