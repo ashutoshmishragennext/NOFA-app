@@ -8,7 +8,7 @@ const HamburgerIcon = ({ color = '#000000', size = 24 }) => {
   const middleOffset = size * 0.4; // How much the middle line is offset
 
   return (
-    <View style={[styles.container, { width: size * 1.4, height: size }]}>
+    <View style={[styles.container, { width: size * 1.4, height: 18 }]}>
       {/* Top line - left aligned */}
       <View 
         style={[

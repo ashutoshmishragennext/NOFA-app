@@ -17,6 +17,15 @@ import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
 
+// Define your images at the top level - replace these paths with your actual image paths
+const onboardingImages = {
+  news1: require('../../assets/images/logo.png'), // Replace with your actual image
+  news2: require('../../assets/images/logo.png'), // Replace with your actual image  
+  news3: require('../../assets/images/logo.png'), // Replace with your actual image
+  logo: require('../../assets/images/logo.png'),
+  // Add more images as needed
+};
+
 const OnboardingScreen = ({ onComplete }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const insets = useSafeAreaInsets();
@@ -28,21 +37,21 @@ const OnboardingScreen = ({ onComplete }) => {
       title: "News On The Go",
       description: "I provide essential news for your general knowledge everyday!",
       backgroundColor: "#ffffff",
-      imageUrl: "/Illustration.jpg"
+      imageKey: "news1" // Use key instead of direct path
     },
     {
       id: 2,
       title: "Wherever you want",
       description: "I provide essential news for your general knowledge everyday!",
       backgroundColor: "#ffffff", 
-      imageUrl: "https://images.unsplash.com/photo-1586339949916-3e9457bef6d3?w=400&h=400&fit=crop&crop=center"
+      imageKey: "news2"
     },
     {
       id: 3,
       title: "Whenever you want",
       description: "I provide essential news for your general knowledge everyday!",
       backgroundColor: "#ffffff",
-      imageUrl: "https://images.unsplash.com/photo-1559526324-593bc073d938?w=400&h=400&fit=crop&crop=center"
+      imageKey: "news3"
     }
   ];
 
@@ -88,6 +97,11 @@ const OnboardingScreen = ({ onComplete }) => {
     );
   };
 
+  // Function to get the correct image source
+  const getImageSource = (imageKey) => {
+    return onboardingImages[imageKey] || onboardingImages.logo;
+  };
+
   const currentData = onboardingData[currentPage];
   const isCategoriesPage = currentPage === 3;
 
@@ -99,14 +113,14 @@ const OnboardingScreen = ({ onComplete }) => {
             paddingBottom: insets.bottom
           }]}>
         <StatusBar style="dark" />
-      <CategorySelectionScreen 
-        onComplete={handleCategoriesComplete}
-        onBack={handleBackFromCategories}
-        mode="onboarding"
-        title="Select Categories?"
-        description="We'll recommend news according to your interests and familiarity."
-        showBackButton={true} // Show back button in onboarding mode
-      />
+        <CategorySelectionScreen 
+          onComplete={handleCategoriesComplete}
+          onBack={handleBackFromCategories}
+          mode="onboarding"
+          title="Choose your interests"
+          description="We'll recommend news according to your interests and familiarity."
+          showBackButton={true} // Show back button in onboarding mode
+        />
       </View>
     );
   }
@@ -119,6 +133,8 @@ const OnboardingScreen = ({ onComplete }) => {
         paddingBottom: insets.bottom
       }
     ]}>
+      <StatusBar style="dark" />
+      
       {/* Header */}
       <View style={styles.header}>
         {renderProgressIndicator()}
@@ -133,9 +149,13 @@ const OnboardingScreen = ({ onComplete }) => {
         <View style={styles.imageContainer}>
           <View style={styles.illustrationCircle}>
             <Image
-              source={{ uri: currentData.imageUrl }}
+              source={getImageSource(currentData.imageKey)}
               style={styles.onboardingImage}
-              resizeMode="cover"
+              resizeMode="contain"
+              onError={(error) => {
+                console.log('Image load error:', error);
+                // You could set a fallback image here if needed
+              }}
             />
           </View>
         </View>
@@ -220,21 +240,29 @@ const styles = StyleSheet.create({
     marginVertical: 40,
   },
   illustrationCircle: {
-    width: width * 0.7,
-    height: width * 0.7,
-    borderRadius: (width * 0.7) / 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: width * 0.6,
+    height: width * 0.6,
+    borderRadius: (width * 0.6) / 2,
+    backgroundColor: '#F8F9FA',
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   onboardingImage: {
-    width: '100%',
-    height: '100%',
+    width: '80%',
+    height: '80%',
   },
   textContainer: {
     alignItems: 'center',
     marginBottom: 40,
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 28,
@@ -247,18 +275,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 20,
+    lineHeight: 24,
+    paddingHorizontal: 10,
   },
   navigationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingBottom: 20,
+    paddingHorizontal: 10,
   },
   navButton: {
-    minWidth: 60,
+    minWidth: 80,
     alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   hiddenButton: {
     opacity: 0,
