@@ -138,8 +138,9 @@ export default function ApartmentLoginScreen() {
         <View style={styles.card}>
           {/* Logo */}
           <Image
-            source={require("../../assets/images/logo.png")}
+            source={require("../../assets/images/logo2.png")}
             style={styles.logo}
+            
             contentFit="contain"
             onError={(error) => console.error('Logo loading error:', error)}
           />

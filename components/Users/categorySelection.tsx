@@ -185,7 +185,7 @@ const CategorySelectionScreen: React.FC<CategorySelectionScreenProps> = ({
   if (loadingCategories) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#333" />
+        <ActivityIndicator size="large" color="#22C55E" />
         <Text style={styles.loadingText}>Loading categories...</Text>
       </View>
     );

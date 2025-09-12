@@ -19,9 +19,9 @@ const { width } = Dimensions.get('window');
 
 // Define your images at the top level - replace these paths with your actual image paths
 const onboardingImages = {
-  news1: require('../../assets/images/logo.png'), // Replace with your actual image
-  news2: require('../../assets/images/logo.png'), // Replace with your actual image  
-  news3: require('../../assets/images/logo.png'), // Replace with your actual image
+  news1: require('../../assets/images/Illustration.jpg'), // Replace with your actual image
+  news2: require('../../assets/images/Illustration2.jpg'), // Replace with your actual image  
+  news3: require('../../assets/images/Illustration3.jpg'), // Replace with your actual image
   logo: require('../../assets/images/logo.png'),
   // Add more images as needed
 };
@@ -240,24 +240,18 @@ const styles = StyleSheet.create({
     marginVertical: 40,
   },
   illustrationCircle: {
-    width: width * 0.6,
-    height: width * 0.6,
-    borderRadius: (width * 0.6) / 2,
-    backgroundColor: '#F8F9FA',
+    width: width ,
+    height: width ,
+    borderRadius: (width) / 2,
+    backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    
   },
   onboardingImage: {
-    width: '80%',
-    height: '80%',
+    width: '70%',
+    height: '70%',
   },
   textContainer: {
     alignItems: 'center',
