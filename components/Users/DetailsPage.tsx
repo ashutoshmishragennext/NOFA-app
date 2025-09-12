@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import RenderHtml from "react-native-render-html";
 import CommentsSection from './CommentsPage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -910,6 +912,7 @@ useEffect(() => {
     return null;
   };
 
+  const insights = useSafeAreaInsets();
   const getPrevArticle = () => {
     if (hasPrev && allArticles.length > 0) {
       return allArticles[currentIndex - 1];
@@ -1148,7 +1151,7 @@ useEffect(() => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container,{paddingBottom : insights.bottom}]}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
       
       <Animated.View 
