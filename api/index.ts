@@ -209,6 +209,30 @@ async logout(): Promise<void> {
     await this.clearAuth();
   }
 }
+private async updateUserLoginTime(): Promise<void> {
+  try {
+    console.log("🕒 Updating user loginTime to 1");
+    
+    // Get current user data from AsyncStorage
+    const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
+    
+    if (userData) {
+      const user = JSON.parse(userData);
+      
+      // Update loginTime to 1
+      user.loginTime = 1;
+      
+      // Save updated user data back to AsyncStorage
+      await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(user));
+      
+    } else {
+      console.warn("⚠️ No user data found in AsyncStorage to update");
+    }
+  } catch (error) {
+    console.warn("❌ Error updating user loginTime:", error);
+    // Don't throw error - this shouldn't break the category update flow
+  }
+}
 
   // In your ApiService class, add this method
 
@@ -284,17 +308,6 @@ private async cleanupFailedGoogleSignIn(): Promise<void> {
   }
 }
 
-
-  // async getCurrentUser(): Promise<User | null> {
-  //   try {
-  //     const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
-  //     return userData ? JSON.parse(userData) : null;
-  //   } catch (error) {
-  //     console.error('Error getting current user:', error);
-  //     return null;
-  //   }
-  // }
-
   async createUser(data: CreateDocumentRequest): Promise<CreateDocumentResponse> {
   // console.log("Creating document:", documentData);
   
@@ -309,6 +322,41 @@ private async cleanupFailedGoogleSignIn(): Promise<void> {
   return result;
 }
 
+// In your ApiService class
+async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    userId: string;
+    categoryCount: number;
+    categories: string[];
+  };
+}> {
+  console.log("🚀 Updating user categories:", userId, categoryIds);
+  
+  const response = await this.fetchWithTimeout('/api/users', {
+    method: 'PUT',
+    body: JSON.stringify({
+      userId,
+      categoryIds,
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    message: string;
+    data: {
+      userId: string;
+      categoryCount: number;
+      categories: string[];
+    };
+  }>(response);
+
+  if (result.success) {
+    await this.updateUserLoginTime();
+  }
+  return result;
+}
   async getUserById(id: string): Promise<User> {
     const response = await this.fetchWithTimeout(`/api/users?id=${id}`, {
       method: 'GET',
@@ -328,6 +376,8 @@ private async cleanupFailedGoogleSignIn(): Promise<void> {
     
     return users;
   }
+
+  
 
   
 
@@ -1124,39 +1174,7 @@ async signup(userData: {
     ...result 
   };
 }
-// In your ApiService class
-async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
-  success: boolean;
-  message: string;
-  data: {
-    userId: string;
-    categoryCount: number;
-    categories: string[];
-  };
-}> {
-  console.log("🚀 Updating user categories:", userId, categoryIds);
-  
-  const response = await this.fetchWithTimeout('/api/users', {
-    method: 'PUT',
-    body: JSON.stringify({
-      userId,
-      categoryIds,
-    }),
-  });
-  
-  const result = await this.handleResponse<{
-    success: boolean;
-    message: string;
-    data: {
-      userId: string;
-      categoryCount: number;
-      categories: string[];
-    };
-  }>(response);
-  
-  console.log("📦 Categories updated:", result);
-  return result;
-}
+
 
 async getUserCategories(userId: string): Promise<{
   success: boolean;

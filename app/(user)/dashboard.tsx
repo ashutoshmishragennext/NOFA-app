@@ -1,34 +1,34 @@
+import HamburgerIcon from "@/components/HamburgerMenu";
 import NewsDetailScreen from "@/components/Users/DetailsPage";
 import ExploreScreen from "@/components/Users/Explore";
 import HomeScreen from "@/components/Users/Home";
 import OnboardingScreen from "@/components/Users/OnboardingScreen"; // Add this import
+import PasswordChangeScreen from "@/components/Users/PasswordChangeScreen";
 import ProfileScreen from "@/components/Users/Profile";
 import FeedScreen from "@/components/Users/Save";
 import TrendingScreen from "@/components/Users/Trending";
+import CategorySelectionScreen from "@/components/Users/categorySelection";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from "react";
-import PasswordChangeScreen from "@/components/Users/PasswordChangeScreen";
-import CategorySelectionScreen from "@/components/Users/CategorySelectionScreen";
 import {
-    Alert,
-    BackHandler,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Animated, 
-    Dimensions 
+  Alert,
+  Animated,
+  BackHandler,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import HamburgerIcon from "@/components/HamburgerMenu";
 
 const NewsApp = () => {
   const { logout, user } = useAuth();
 
   const [currentTab, setCurrentTab] = useState("Home");
-const [currentView, setCurrentView] = useState<"main" | "detail" | "passwordChange" | "categoryChange">("main");
+  const [currentView, setCurrentView] = useState<"main" | "detail" | "passwordChange" | "categoryChange">("main");
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -157,7 +157,6 @@ useEffect(() => {
 
 const openDrawer = () => {
   setDrawerVisible(true);
-  setMenuVisible(false); // Close the old menu
   
   Animated.parallel([
     Animated.timing(slideAnim, {
@@ -280,7 +279,6 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
   );
 }
 
-// Show Category Selection Screen
 if (currentView === "categoryChange") {
   return (
     <View style={[styles.container, {
@@ -288,7 +286,12 @@ if (currentView === "categoryChange") {
       paddingBottom: insets.bottom
     }]}>
       <StatusBar style="dark" />
-      <CategorySelectionScreen onBack={handleBackToMain} />
+      <CategorySelectionScreen 
+        onBack={handleBackToMain}
+        mode="settings"
+        title="Select Categories"
+        description="We'll recommend news according to your interests and familiarity."
+      />
     </View>
   );
 }
@@ -512,38 +515,6 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 16,
     // backgroundColor: "#f8f9fa",
-  },
-  menuDropdown: {
-    position: "absolute",
-    top: 60,
-    right: 20,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 1000,
-    minWidth: 150,
-  },
-  menuItem: {
-    flexDirection:"row",
-    alignItems:"center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  menuItemText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  logoutText: {
-    fontSize: 16,
-    color: "#e74c3c",
-    marginLeft: 12,
-    fontWeight: "500",
   },
   // CONTENT STYLES
   content: {
