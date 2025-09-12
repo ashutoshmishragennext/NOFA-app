@@ -28,7 +28,7 @@ const OnboardingScreen = ({ onComplete }) => {
       title: "News On The Go",
       description: "I provide essential news for your general knowledge everyday!",
       backgroundColor: "#ffffff",
-      imageUrl: "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&h=400&fit=crop&crop=center"
+      imageUrl: "/Illustration.jpg"
     },
     {
       id: 2,
