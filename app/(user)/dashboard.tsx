@@ -10,6 +10,7 @@ import TrendingScreen from "@/components/Users/Trending";
 import CategorySelectionScreen from "@/components/Users/categorySelection";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -333,10 +334,14 @@ if (currentView === "categoryChange") {
       <StatusBar style="dark" />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.logoContainer}>
+          {/* <View style={styles.logoContainer}>
             <View style={styles.logoIcon} />
             <Text style={styles.appName}>Apartment Times</Text>
-          </View>
+          </View> */}
+            <Image
+              source={require("../../assets/images/logo.png")}
+              style={styles.logo1}
+            />
         </View>
         <TouchableOpacity
           style={styles.menuButton}
