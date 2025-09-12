@@ -18,6 +18,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    Vibration,
     View
 } from 'react-native';
 import RenderHtml from "react-native-render-html";
@@ -55,6 +56,12 @@ const NewsDetailScreen = ({
   const [likeLoading, setLikeLoading] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
   const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
+  
+  // Animation states for buttons
+  const likeScale = useRef(new Animated.Value(1)).current;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
+  const shareScale = useRef(new Animated.Value(1)).current;
+  const commentScale = useRef(new Animated.Value(1)).current;
   
   // Local state for pending likes
   const [pendingLikeAction, setPendingLikeAction] = useState(null);
@@ -237,11 +244,13 @@ const NewsDetailScreen = ({
       const newCount = newLiked ? likeCount + 1 : likeCount - 1;
       const timestamp = Date.now();
 
-      // Immediate UI update
-      setLiked(newLiked);
-      setLikeCount(newCount);
-      setLastLikeUpdate(timestamp);
-      setPendingLikeAction('pending');
+      // Animate button and update UI
+      animateButton(likeScale, () => {
+        setLiked(newLiked);
+        setLikeCount(newCount);
+        setLastLikeUpdate(timestamp);
+        setPendingLikeAction('pending');
+      });
 
       // Store in AsyncStorage with proper structure
       const localLikeData = {
@@ -294,6 +303,31 @@ const NewsDetailScreen = ({
     setCommentsCount(count);
   };
 
+  // Animation helper functions
+  const animateButton = (scaleRef, callback) => {
+    Vibration.vibrate(50); // Haptic feedback
+    Animated.sequence([
+      Animated.timing(scaleRef, {
+        toValue: 0.8,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleRef, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    if (callback) callback();
+  };
+
+  // Handle comment button press with animation
+  const handleCommentPress = () => {
+    animateButton(commentScale, () => {
+      setShowComments(true);
+    });
+  };
+
   // Optimized navigation handlers for instant transitions
   const handleNext = () => {
     if (hasNext && !isTransitioning) {
@@ -331,7 +365,11 @@ const NewsDetailScreen = ({
         return;
       }
 
-      setIsBookmarked(!isBookmarked);
+      // Animate button
+      animateButton(bookmarkScale, () => {
+        setIsBookmarked(!isBookmarked);
+      });
+      
       const result = await apiService.toggleBookmark(currentUser.id, article.id);
       setIsBookmarked(result.bookmarked);
 
@@ -474,6 +512,9 @@ const NewsDetailScreen = ({
     
     try {
       setShareLoading(true);
+      
+      // Animate button
+      animateButton(shareScale);
       
       const shareOptions = {
         message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
@@ -823,82 +864,98 @@ const NewsDetailScreen = ({
           )}
         </View>
 
-        {/* Action Bar */}
+        {/* Enhanced Action Bar */}
         <View style={styles.actionBar}>
           {/* Like Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleLike}
-            disabled={likeLoading}
-          >
-            {likeLoading ? (
-              <Ionicons 
-                name={"heart-outline"} 
-                size={24} 
-                color={"#999"} 
-              />
-            ) : (
-              <Ionicons 
-                name={liked ? "heart" : "heart-outline"} 
-                size={24} 
-                color={liked ? "#ae0202ff" : "#999"} 
-              />
-            )}
-            <Text style={[
-                styles.actionText,
-                liked ? { color: "#ae0202ff" } : { color: "#999" }
-              ]}>
-              {likeCount}
-            </Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+            <TouchableOpacity 
+              style={[
+                styles.actionButton,
+                liked && styles.activeActionButton
+              ]}
+              onPress={handleLike}
+              disabled={likeLoading}
+            >
+              {likeLoading ? (
+                <Ionicons 
+                  name={"heart-outline"} 
+                  size={26} 
+                  color={"#999"} 
+                />
+              ) : (
+                <Ionicons 
+                  name={liked ? "heart" : "heart-outline"} 
+                  size={26} 
+                  color={liked ? "#FF6B6B" : "#666"} 
+                />
+              )}
+              <Text style={[
+                  styles.actionText,
+                  liked ? styles.likedText : styles.defaultActionText
+                ]}>
+                {likeCount > 0 ? likeCount : 'Like'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Comment Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => setShowComments(true)}
-          >
-            <Ionicons name="chatbubble-outline" size={24} color="#999" />
-            <Text style={styles.actionText}>{commentsCount}</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: commentScale }] }}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handleCommentPress}
+            >
+              <Ionicons name="chatbubble-outline" size={26} color="#666" />
+              <Text style={styles.defaultActionText}>
+                {commentsCount > 0 ? commentsCount : 'Comment'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Share Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleShare}
-            disabled={shareLoading}
-          >
-            {shareLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
-            ) : (
-              <Ionicons name="share-outline" size={24} color="#999" />
-            )}
-            <Text style={styles.actionText}>
-              {shareLoading ? 'Sharing...' : shareCount > 0 ? shareCount : 'Share'}
-            </Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: shareScale }] }}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handleShare}
+              disabled={shareLoading}
+            >
+              {shareLoading ? (
+                <Ionicons name="hourglass-outline" size={26} color="#999" />
+              ) : (
+                <Ionicons name="share-outline" size={26} color="#666" />
+              )}
+              <Text style={styles.defaultActionText}>
+                {shareLoading ? 'Sharing...' : 'Share'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Bookmark Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleBookmark}
-            disabled={bookmarkLoading}
-          >
-            {bookmarkLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
-            ) : (
-              <Ionicons 
-                name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-                size={24} 
-                color={isBookmarked ? "#4CAF50" : "#999"} 
-              />
-            )}
-            <Text style={[
-              styles.actionText,
-              isBookmarked && styles.activeActionText
-            ]}>
-              Saved
-            </Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+            <TouchableOpacity 
+              style={[
+                styles.actionButton,
+                isBookmarked && styles.activeActionButton
+              ]}
+              onPress={handleBookmark}
+              disabled={bookmarkLoading}
+            >
+              {bookmarkLoading ? (
+                <Ionicons name="hourglass-outline" size={26} color="#999" />
+              ) : (
+                <Ionicons 
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+                  size={26} 
+                  color={isBookmarked ? "#4CAF50" : "#666"} 
+                />
+              )}
+              <Text style={[
+                styles.defaultActionText,
+                isBookmarked && styles.bookmarkedText
+              ]}>
+                {isBookmarked ? 'Saved' : 'Save'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </Animated.View>
 
@@ -1096,33 +1153,58 @@ const styles = StyleSheet.create({
   activeNewsContainer: {
     // Additional styles for active news if needed
   },
-  // Updated Action Bar styles
+  // Enhanced Action Bar styles
   actionBar: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     backgroundColor: "#fff", 
-    paddingVertical: 4,     
-    paddingBottom: 4,       
+    paddingVertical: 12,     
+    paddingHorizontal: 16,
     borderTopWidth: 1,       
     borderTopColor: "#f0f0f0",
-    elevation: 1,          
+    elevation: 8,          
     shadowColor: "#000",     
-    shadowOffset: { width: 0, height: -2 }, 
-    shadowOpacity: 0.1,      
-    shadowRadius: 3,         
+    shadowOffset: { width: 0, height: -4 }, 
+    shadowOpacity: 0.15,      
+    shadowRadius: 8,
+    minHeight: 70,
   },
   actionButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 60,
-    paddingVertical: 1,
+    minWidth: 70,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  activeActionButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   actionText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#999',
     marginTop: 4,
     fontWeight: '500',
+    textAlign: 'center',
+  },
+  defaultActionText: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  likedText: {
+    color: '#FF6B6B',
+    fontWeight: '600',
+  },
+  bookmarkedText: {
+    color: '#4CAF50',
+    fontWeight: '600',
   },
   activeActionText: {
     color: '#4CAF50',

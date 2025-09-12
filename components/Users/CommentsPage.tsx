@@ -2,17 +2,17 @@ import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 const CommentsSection = ({
@@ -470,11 +470,18 @@ const getInitials = (name: string) => {
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}
+      presentationStyle="pageSheet"
     >
       <SafeAreaView style={styles.commentsModal}>
         <View style={styles.commentsHeader}>
-          <Text style={styles.commentsTitle}>Comments</Text>
-          <TouchableOpacity onPress={onClose}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.commentsTitle}>Comments</Text>
+            <Text style={styles.commentsSubtitle}>{comments.length} comments</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.closeButtonContainer}
+            onPress={onClose}
+          >
             <Text style={styles.closeButton}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -635,63 +642,121 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: '#fafafa',
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  headerLeft: {
+    flex: 1,
   },
   commentsTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 2,
+  },
+  commentsSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  closeButtonContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButton: {
-    fontSize: 20,
+    fontSize: 18,
     color: '#666',
     fontWeight: 'bold',
-    padding: 5,
   },
   commentsList: {
     flex: 1,
     paddingHorizontal: 20,
   },
   commentItem: {
-    paddingVertical: 15,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fff',
+  },
+  commentWithAvatar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  avatarContainer: {
+    marginRight: 12,
+    marginTop: 4,
+  },
+  profilePhoto: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  defaultAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  commentContent: {
+    flex: 1,
   },
   commentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   commentAuthor: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#333',
   },
   commentTime: {
     fontSize: 12,
     color: '#999',
+    fontWeight: '500',
   },
   commentText: {
-    fontSize: 14,
-    color: '#444',
-    lineHeight: 20,
-    marginBottom: 10,
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    marginBottom: 8,
   },
   commentActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginTop: 4,
   },
   replyButton: {
-    marginRight: 15,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   replyButtonText: {
-    fontSize: 12,
-    color: '#2196F3',
+    fontSize: 13,
+    color: '#4CAF50',
     fontWeight: '600',
   },
   viewRepliesButton: {
@@ -763,96 +828,85 @@ const styles = StyleSheet.create({
     color: '#999',
     fontWeight: 'bold',
   },
+  inputSection: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 24,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#333',
     maxHeight: 100,
-    fontSize: 14,
-    backgroundColor: '#f9f9f9',
+    minHeight: 44,
   },
   sendButton: {
     backgroundColor: '#4CAF50',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
+    marginLeft: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   sendButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '600',
     fontSize: 14,
   },
   characterCount: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#999',
     textAlign: 'right',
-    marginTop: 5,
+    marginTop: 6,
+    marginRight: 8,
+    fontWeight: '500',
   },
-  // Add these to your existing styles object
-commentWithAvatar: {
-  flexDirection: 'row',
-  alignItems: 'flex-start',
-},
-avatarContainer: {
-  marginRight: 12,
-  marginTop: 2,
-},
-profilePhoto: {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
-  backgroundColor: '#f0f0f0',
-},
-defaultAvatar: {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
-  backgroundColor: '#4CAF50',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-avatarText: {
-  color: '#fff',
-  fontSize: 12,
-  fontWeight: 'bold',
-},
-commentContent: {
-  flex: 1,
-},
-inputAvatarContainer: {
-  marginRight: 8,
-  marginBottom: 8,
-},
-inputProfilePhoto: {
-  width: 28,
-  height: 28,
-  borderRadius: 14,
-  backgroundColor: '#f0f0f0',
-},
-inputDefaultAvatar: {
-  width: 30,
-  height: 30,
-  borderRadius: 14,
-  backgroundColor: '#4CAF50',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-inputAvatarText: {
-  color: '#fff',
-  fontSize: 10,
-  fontWeight: 'bold',
-},
+  replyContext: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  replyContextText: {
+    fontSize: 13,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  cancelReplyBtn: {
+    padding: 4,
+  },
+  cancelReplyText: {
+    fontSize: 14,
+    color: '#999',
+    fontWeight: 'bold',
+  },
 });
 
 export default CommentsSection;
