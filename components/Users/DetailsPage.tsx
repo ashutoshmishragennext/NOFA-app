@@ -927,7 +927,7 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
     
     <Animated.View 
       style={[
-        ((!adState.shouldShowAd) ? styles.container : styles.container2), 
+        ((!adState.shouldShowAd) ? styles.container : styles.container3), 
         {
           transform: [{ translateX: pan.x }],
           opacity: opacity,
@@ -1117,6 +1117,9 @@ const styles = StyleSheet.create({
   container2: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  container3: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
