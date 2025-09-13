@@ -1041,7 +1041,7 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
         >
           <Ionicons name="chatbubble-outline" size={24} color="#666" />
           <Text style={styles.footerActionText}>
-            {commentsCount > 0 ? commentsCount : 'Comment'}
+            {commentsCount > 0 ? commentsCount : '0'}
           </Text>
         </TouchableOpacity>
       </Animated.View>
