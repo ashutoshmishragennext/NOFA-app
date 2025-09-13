@@ -923,12 +923,12 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
   }
 
   return (
-  <SafeAreaView style={[styles.container, {paddingBottom: insets.bottom}]}>
+  <SafeAreaView style={[ ((!adState.shouldShowAd) ? styles.container : styles.container2), {paddingBottom: insets.bottom}]}>
     <StatusBar barStyle="light-content" backgroundColor="#000" />
     
     <Animated.View 
       style={[
-        styles.container, 
+        ((!adState.shouldShowAd) ? styles.container : styles.container2), 
         {
           transform: [{ translateX: pan.x }],
           opacity: opacity,
@@ -1114,6 +1114,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  container2: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
   },
   loadingContainer: {
     flex: 1,
