@@ -1,0 +1,3 @@
+
+For Navigating to render to the clickable title after show more is clciked
+{articleData.title}

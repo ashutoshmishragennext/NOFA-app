@@ -5,12 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
+import { WebView } from 'react-native-webview';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
   Image,
+  Modal,
   PanResponder,
   SafeAreaView,
   Share,
@@ -27,14 +29,14 @@ import { AdClickData, AdData, AdDisplayState, dummyAds, NewsDetailScreenProps } 
 
 const { width, height } = Dimensions.get('window');
 
-const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({ 
-  article, 
-  onBack, 
-  onNext, 
-  hasNext, 
+const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
+  article,
+  onBack,
+  onNext,
+  hasNext,
   onPrev,
   hasPrev = false,
-  currentIndex, 
+  currentIndex,
   totalArticles,
   sourceTab,
   allArticles = []
@@ -61,7 +63,8 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const [likeLoading, setLikeLoading] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
   const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
-  
+  const [showWebView, setShowWebView] = useState(false);
+  const [webViewUrl, setWebViewUrl] = useState('');
   // Ad state management
   const [adState, setAdState] = useState<AdDisplayState>({
     shouldShowAd: false,
@@ -74,11 +77,11 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   // Local state for pending likes
   const [pendingLikeAction, setPendingLikeAction] = useState(null);
   const [lastLikeUpdate, setLastLikeUpdate] = useState(null);
-  
+
   const currentUser = useAuth().user;
   const pan = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(1)).current;
-  
+
   // Timer ref for batching like updates
   const likeUpdateTimer = useRef(null);
 
@@ -106,7 +109,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     // Only increment on article navigation, not on initial load
     if (article.id && !viewRecorded) {
       const newCount = adState.articlesViewedCount + 1;
-      
+
       // Check if we should show an ad
       if (newCount >= adState.nextAdAfter) {
         setAdState(prev => ({
@@ -124,7 +127,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   // Add these handler functions:
   const handleAdClick = (adData: AdData): void => {
     console.log('Ad clicked:', adData);
-    
+
     // You can add analytics tracking here
     const clickData: AdClickData = {
       adId: adData.id,
@@ -132,9 +135,9 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       advertiser: adData.advertiser,
       timestamp: Date.now()
     };
-    
+
   };
-  
+
   const handleAdClose = (): void => {
     setAdState(prev => ({
       ...prev,
@@ -148,7 +151,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     if (adState.adQueue.length > 0) {
       const nextAdIndex = adState.currentAdIndex >= adState.adQueue.length - 1 ? 0 : adState.currentAdIndex + 1;
       const nextAd = adState.adQueue[nextAdIndex];
-      
+
       // Preload the ad image
       if (nextAd.imageUrl) {
         Image.prefetch(nextAd.imageUrl).catch(() => {
@@ -162,36 +165,36 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   useEffect(() => {
     preloadNextAd();
   }, [adState.currentAdIndex, adState.adQueue]);
-useEffect(() => {
-  // Track article changes for ad display
-  const updateArticleCount = () => {
-    setAdState(prev => {
-      const newCount = prev.articlesViewedCount + 1;
-      console.log(`Article viewed count: ${newCount}, Next ad after: ${prev.nextAdAfter}`);
-      
-      // Check if we should show an ad
-      if (newCount >= prev.nextAdAfter) {
-        console.log('Should show ad now!');
+  useEffect(() => {
+    // Track article changes for ad display
+    const updateArticleCount = () => {
+      setAdState(prev => {
+        const newCount = prev.articlesViewedCount + 1;
+        console.log(`Article viewed count: ${newCount}, Next ad after: ${prev.nextAdAfter}`);
+
+        // Check if we should show an ad
+        if (newCount >= prev.nextAdAfter) {
+          console.log('Should show ad now!');
+          return {
+            ...prev,
+            shouldShowAd: true,
+            articlesViewedCount: 0, // Reset counter
+            nextAdAfter: getRandomAdInterval(), // Set next interval
+          };
+        }
+
         return {
           ...prev,
-          shouldShowAd: true,
-          articlesViewedCount: 0, // Reset counter
-          nextAdAfter: getRandomAdInterval(), // Set next interval
+          articlesViewedCount: newCount
         };
-      }
-      
-      return {
-        ...prev,
-        articlesViewedCount: newCount
-      };
-    });
-  };
+      });
+    };
 
-  // Only update count when article ID changes (not on initial load)
-  if (article.id) {
-    updateArticleCount();
-  }
-}, [article.id]);
+    // Only update count when article ID changes (not on initial load)
+    if (article.id) {
+      updateArticleCount();
+    }
+  }, [article.id]);
   // Add smooth transition for ad display
   const adTransitionOpacity = useRef(new Animated.Value(0)).current;
 
@@ -213,17 +216,17 @@ useEffect(() => {
       try {
         if (currentUser && article.id) {
           setLikeLoading(true);
-          
+
           // STEP 1: Check for pending likes in AsyncStorage FIRST
           const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
-          
+
           if (localLikeData) {
             const parsedData = JSON.parse(localLikeData);
-            
+
             // Verify this is for the same user and article
             if (parsedData.userId === currentUser.id && parsedData.articleId === article.id) {
               console.log('Found pending likes, syncing to server first...');
-              
+
               // STEP 2: Sync pending likes to server immediately
               await syncPendingLikesToServer(parsedData);
             } else {
@@ -231,14 +234,14 @@ useEffect(() => {
               await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
             }
           }
-          
+
           // STEP 3: Now load fresh server state
           await loadServerLikeState();
-          
+
           // Load bookmark status
           const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
           setIsBookmarked(bookmarked);
-          
+
           setLikeLoading(false);
         }
       } catch (error) {
@@ -275,7 +278,7 @@ useEffect(() => {
   const syncPendingLikesToServer = async (pendingData = null) => {
     try {
       let dataToSync = pendingData;
-      
+
       if (!dataToSync) {
         const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
         if (!localLikeData) return;
@@ -291,10 +294,10 @@ useEffect(() => {
       // Compare final local state with server state
       if (dataToSync.finalLikedState !== currentServerState.userLiked) {
         console.log('States differ, making API call...');
-        
+
         const result = await apiService.toggleArticleLike(article.id, currentUser ? currentUser.id : '');
         console.log('API result:', result);
-        
+
         // Update UI with server response
         setLiked(result.liked);
         setLikeCount(result.likeCount);
@@ -304,14 +307,14 @@ useEffect(() => {
         setLiked(currentServerState.userLiked);
         setLikeCount(currentServerState.likeCount);
       }
-      
+
       // Clear AsyncStorage after successful sync
       await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
       setPendingLikeAction(null);
       setLastLikeUpdate(null);
-      
+
       console.log('Pending likes synced and cleared');
-      
+
     } catch (error) {
       console.error('Error syncing pending likes:', error);
       throw error; // Re-throw to handle in caller
@@ -451,13 +454,57 @@ useEffect(() => {
     }
   };
 
+  // WebView Modal Component
+  const WebViewModal = ({ visible, url, onClose }) => {
+    const webviewRef = useRef(null);
+
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onClose}
+      >
+        <SafeAreaView style={styles.webViewContainer}>
+          {/* Header with close button */}
+          {/* <View style={styles.webViewHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.webViewCloseButton}>
+            <Ionicons name="close" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.webViewTitle} numberOfLines={1}>
+            Apartment Times
+          </Text>
+          <View style={styles.webViewHeaderSpacer} />
+        </View> */}
+
+          {/* WebView */}
+          <WebView
+            ref={webviewRef}
+            source={{ uri: url }}
+            style={styles.webView}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.webViewLoading}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.webViewLoadingText}>Loading...</Text>
+              </View>
+            )}
+            onError={() => {
+              Alert.alert('Error', 'Failed to load the webpage');
+            }}
+          />
+        </SafeAreaView>
+      </Modal>
+    );
+  };
+
   // Updated bookmark handler
   const handleBookmark = async () => {
     if (bookmarkLoading) return;
-    
+
     try {
       setBookmarkLoading(true);
-      
+
       if (!currentUser) {
         Alert.alert('Login Required', 'Please login to bookmark articles');
         return;
@@ -479,7 +526,7 @@ useEffect(() => {
   // Load comment count
   useEffect(() => {
     const loadCommentCount = async () => {
-      try {      
+      try {
         if (article.id) {
           const commentData = await apiService.getArticleCommentCount(article.id);
           setCommentsCount(commentData.commentCount);
@@ -494,49 +541,49 @@ useEffect(() => {
     }
   }, [article.id]);
   useEffect(() => {
-  const checkAndRecordUniqueView = async () => {
-    if (!article.id || viewRecorded) return;
+    const checkAndRecordUniqueView = async () => {
+      if (!article.id || viewRecorded) return;
 
-    try {
-      if (likeLoading || bookmarkLoading) {
-        return;
-      }
-
-      const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
-      const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
-
-      if (viewedArticles.includes(article.id)) {
-        setViewRecorded(true);
-        return;
-      }
-
-      const userId = currentUser?.id || null;
-      const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
-      
-      const result = await apiService.recordArticleView(article.id, userId, referrer);
-      
-      if (result.success) {
-        const updatedViewedArticles = [...viewedArticles, article.id];
-        await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
-        
-        setViewRecorded(true);
-        
-        if (result.incrementedCount) {
-          setViewCount(prev => prev + 1);
+      try {
+        if (likeLoading || bookmarkLoading) {
+          return;
         }
+
+        const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
+        const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
+
+        if (viewedArticles.includes(article.id)) {
+          setViewRecorded(true);
+          return;
+        }
+
+        const userId = currentUser?.id || null;
+        const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
+
+        const result = await apiService.recordArticleView(article.id, userId, referrer);
+
+        if (result.success) {
+          const updatedViewedArticles = [...viewedArticles, article.id];
+          await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
+
+          setViewRecorded(true);
+
+          if (result.incrementedCount) {
+            setViewCount(prev => prev + 1);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to record unique view:', error);
+        setViewRecorded(true);
       }
-    } catch (error) {
-      console.error('Failed to record unique view:', error);
-      setViewRecorded(true);
-    }
-  };
+    };
 
-  const timer = setTimeout(() => {
-    checkAndRecordUniqueView();
-  }, 1000);
+    const timer = setTimeout(() => {
+      checkAndRecordUniqueView();
+    }, 1000);
 
-  return () => clearTimeout(timer);
-}, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
+    return () => clearTimeout(timer);
+  }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
 
   // Add subtle animation to swipe indicator
   useEffect(() => {
@@ -582,13 +629,21 @@ useEffect(() => {
     }
   }, [article.id]);
 
+  const handleArticleShowMoreClick = (articleData) => {
+    if (showFullContent && (articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
+      console.log("HELOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", articleData.url);
+
+      setWebViewUrl(articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
+      setShowWebView(true);
+    }
+  }
   // Share handler
   const handleShare = async () => {
     if (shareLoading) return;
-    
+
     try {
       setShareLoading(true);
-      
+
       const shareOptions = {
         message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
         url: `https://nofa-sepia.vercel.app/article/${article.id}`,
@@ -596,10 +651,10 @@ useEffect(() => {
       };
 
       const result = await Share.share(shareOptions);
-      
+
       if (result.action === Share.sharedAction) {
         let platform = 'other';
-        
+
         if (result.activityType) {
           const activityType = result.activityType.toLowerCase();
           if (activityType.includes('twitter') || activityType.includes('com.twitter')) platform = 'twitter';
@@ -613,8 +668,8 @@ useEffect(() => {
 
         try {
           const shareResult = await apiService.recordArticleShare(
-            article.id, 
-            platform, 
+            article.id,
+            platform,
             currentUser?.id
           );
           setShareCount(shareResult.shareCount);
@@ -623,7 +678,7 @@ useEffect(() => {
           setShareCount(prev => prev + 1);
         }
       }
-      
+
     } catch (error) {
       console.error('Error sharing article:', error);
       Alert.alert('Error', 'Failed to share article');
@@ -649,18 +704,18 @@ useEffect(() => {
       onPanResponderMove: (evt, gestureState) => {
         // Direct movement - no resistance for immediate feedback
         pan.y.setValue(gestureState.dy);
-        
+
         // Dynamic opacity change based on swipe distance
         const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
         opacity.setValue(1 - progress);
       },
       onPanResponderRelease: (evt, gestureState) => {
         pan.flattenOffset();
-        
+
         // More sensitive thresholds for better UX
         const swipeThreshold = height * 0.12;
         const velocityThreshold = 0.15;
-        
+
         const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && gestureState.dy < 0;
         const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && gestureState.dy > 0;
 
@@ -781,8 +836,8 @@ useEffect(() => {
     return (
       <Animated.View style={[styles.adContainer, { opacity }]}>
         <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
-          <Image 
-            source={{ uri: adData.imageUrl }} 
+          <Image
+            source={{ uri: adData.imageUrl }}
             style={styles.adImage}
             resizeMode="cover"
           />
@@ -802,7 +857,7 @@ useEffect(() => {
     );
   };
 
-const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) => {
+  const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) => {
     if (isAd) {
       return (
         <EnhancedAdComponent
@@ -813,19 +868,112 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
         />
       );
     }
-    
+
     return (
       <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
         {/* Article Image - Clean without overlay buttons */}
         <View style={styles.articleImageContainer}>
-          <Image 
-            source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
-            style={styles.articleImage} 
+          <Image
+            source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }}
+            style={styles.articleImage}
           />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.4)']}
             style={styles.articleImageGradient}
           />
+
+        </View>
+
+        {/* Share Button */}
+
+        <View style={[styles.ArticleButtonStyle]}>
+          <View style={[styles.ArticleButtonStyleGroup]}>
+            <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.footerActionButton,
+                  liked && styles.activeFooterButton
+                ]}
+                onPress={handleLike}
+                disabled={likeLoading}
+              >
+                {likeLoading ? (
+                  <ActivityIndicator size={16} color="#999" />
+                ) : (
+                  <Ionicons
+                    name={liked ? "heart" : "heart-outline"}
+                    size={16}
+                    color={liked ? "#ff4757" : "#666"}
+                  />
+                )}
+                <Text style={[
+                  styles.footerActionText,
+                  liked && styles.activeFooterText
+                ]}>
+                  {likeCount > 0 ? likeCount : 'Like'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Comment Button */}
+            <Animated.View style={{ transform: [{ scale: commentScale }] }}>
+              <TouchableOpacity
+                style={styles.footerActionButton}
+                onPress={() => setShowComments(true)}
+              >
+                <Ionicons name="chatbubble-outline" size={16} color="#666" />
+                <Text style={styles.footerActionText}>
+                  {commentsCount > 0 ? commentsCount : '0'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+          <View style={[styles.ArticleButtonStyleGroup]}>
+            <Animated.View style={{ transform: [{ scale: shareScale }] }}>
+              <TouchableOpacity
+                style={styles.footerActionButton}
+                onPress={handleShare}
+                disabled={shareLoading}
+              >
+                {shareLoading ? (
+                  <ActivityIndicator size={16} color="#999" />
+                ) : (
+                  <Ionicons name="share-social-outline" size={16} color="#666" />
+                )}
+                <Text style={styles.footerActionText}>
+                  {'Share'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Bookmark Button */}
+            <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.footerActionButton,
+                  isBookmarked && styles.activeFooterButton
+                ]}
+                onPress={handleBookmark}
+                disabled={bookmarkLoading}
+              >
+                {bookmarkLoading ? (
+                  <ActivityIndicator size={16} color="#999" />
+                ) : (
+                  <Ionicons
+                    name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                    size={16}
+                    color={isBookmarked ? "#4CAF50" : "#666"}
+                  />
+                )}
+                <Text style={[
+                  styles.footerActionText,
+                  isBookmarked && styles.activeBookmarkText
+                ]}>
+                  {isBookmarked ? 'Saved' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
         </View>
 
         {/* Article Content */}
@@ -833,8 +981,24 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
           {/* Source */}
           <Text style={styles.articleSource}>R. Republic TV</Text>
 
-          {/* Title */}
-          <Text style={styles.articleTitle}>{articleData.title}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (showFullContent && (articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
+                console.log("HELOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", articleData.url);
+
+                setWebViewUrl(articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
+                setShowWebView(true);
+              }
+            }}
+            disabled={!showFullContent}
+          >
+            <Text style={[
+              styles.articleTitle,
+              showFullContent && styles.clickableTitle
+            ]}>
+              {articleData.title}
+            </Text>
+          </TouchableOpacity>
 
           {/* Article Body - Limited Content */}
           <View style={styles.htmlContentContainer}>
@@ -843,33 +1007,33 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
                 contentWidth={width - 40}
                 source={{ html: articleData.content || '<p>No content available</p>' }}
                 tagsStyles={{
-                  p: { 
-                    fontSize: 14, 
-                    lineHeight: 20, 
+                  p: {
+                    fontSize: 14,
+                    lineHeight: 20,
                     color: '#666',
                     marginBottom: 12,
                     textAlign: 'left',
                     fontFamily: 'Montserrat-Medium'
                   },
-                  h1: { 
-                    fontSize: 20, 
-                    fontWeight: 'bold', 
+                  h1: {
+                    fontSize: 20,
+                    fontWeight: 'bold',
                     color: '#333',
                     marginBottom: 12,
                     marginTop: 8,
                     fontFamily: 'NeuePlakExtended-SemiBold'
                   },
-                  h2: { 
-                    fontSize: 18, 
-                    fontWeight: 'bold', 
+                  h2: {
+                    fontSize: 18,
+                    fontWeight: 'bold',
                     color: '#333',
                     marginBottom: 10,
                     marginTop: 6,
                     fontFamily: 'NeuePlakExtended-SemiBold'
                   },
-                  h3: { 
-                    fontSize: 16, 
-                    fontWeight: 'bold', 
+                  h3: {
+                    fontSize: 16,
+                    fontWeight: 'bold',
                     color: '#333',
                     marginBottom: 8,
                     fontFamily: 'NeuePlakExtended-SemiBold'
@@ -887,9 +1051,10 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
           </View>
 
           {/* Show More Button - moved to bottom */}
-          <TouchableOpacity 
-            style={styles.showMoreButton} 
+          <TouchableOpacity
+            style={styles.showMoreButton}
             onPress={() => setShowFullContent(!showFullContent)}
+          // onPress={() =>  handleArticleShowMoreClick(articleData)}
           >
             <Text style={styles.showMoreText}>
               {showFullContent ? 'Show Less' : 'Show More'}
@@ -922,191 +1087,109 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
   }
 
   return (
-  <SafeAreaView style={[ ((!adState.shouldShowAd) ? styles.container : styles.container2), {paddingBottom: insets.bottom}]}>
-    <StatusBar barStyle="light-content" backgroundColor="#000" />
-    
-    <Animated.View 
-      style={[
-        ((!adState.shouldShowAd) ? styles.container : styles.container3), 
-        {
-          transform: [{ translateX: pan.x }],
-          opacity: opacity,
-        }
-      ]}
-      {...panResponder.panHandlers}
-    >
-      {/* Back Button */}
-      <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
-      </TouchableOpacity>
+    <SafeAreaView style={[((!adState.shouldShowAd) ? styles.container : styles.container2), { paddingBottom: insets.bottom }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* Stacked News Articles Container */}
-      <View style={styles.newsStackContainer}>
-        {/* Previous Article (behind current) */}
-        {prevArticle && (
-          <Animated.View 
+      <Animated.View
+        style={[
+          ((!adState.shouldShowAd) ? styles.container : styles.container3),
+          {
+            transform: [{ translateX: pan.x }],
+            opacity: opacity,
+          }
+        ]}
+        {...panResponder.panHandlers}
+      >
+        {/* Back Button */}
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+
+        {/* Stacked News Articles Container */}
+        <View style={styles.newsStackContainer}>
+          {/* Previous Article (behind current) */}
+          {prevArticle && (
+            <Animated.View
+              style={[
+                styles.newsStackItem,
+                styles.prevNewsItem,
+                {
+                  transform: [{ translateY: pan.y }],
+                  opacity: opacity,
+                }
+              ]}
+            >
+              {renderNewsArticle(prevArticle, false)}
+            </Animated.View>
+          )}
+
+          {/* Current Article (on top) */}
+          <Animated.View
             style={[
               styles.newsStackItem,
-              styles.prevNewsItem,
+              styles.currentNewsItem,
               {
                 transform: [{ translateY: pan.y }],
                 opacity: opacity,
               }
             ]}
+            {...panResponder.panHandlers}
           >
-            {renderNewsArticle(prevArticle, false)}
+            {adState.shouldShowAd && adState.adQueue.length > 0 ? (
+              <>
+                {console.log('Rendering ad:', adState.adQueue[adState.currentAdIndex])}
+                {renderNewsArticle(adState.adQueue[adState.currentAdIndex], true, true)}
+              </>
+            ) : (
+              <>
+                {console.log('Rendering article:', article.title)}
+                {renderNewsArticle(article, true, false)}
+              </>
+            )}
           </Animated.View>
-        )}
 
-        {/* Current Article (on top) */}
-        <Animated.View 
-          style={[
-            styles.newsStackItem,
-            styles.currentNewsItem,
-            {
-              transform: [{ translateY: pan.y }],
-              opacity: opacity,
-            }
-          ]}
-          {...panResponder.panHandlers}
-        >
-          {adState.shouldShowAd && adState.adQueue.length > 0 ? (
-            <>
-              {console.log('Rendering ad:', adState.adQueue[adState.currentAdIndex])}
-              {renderNewsArticle(adState.adQueue[adState.currentAdIndex], true, true)}
-            </>
-          ) : (
-            <>
-              {console.log('Rendering article:', article.title)}
-              {renderNewsArticle(article, true, false)}
-            </>
+          {/* Next Article (behind current) */}
+          {nextArticle && (
+            <Animated.View
+              style={[
+                styles.newsStackItem,
+                styles.nextNewsItem,
+                {
+                  transform: [{ translateY: pan.y }],
+                  opacity: opacity,
+                }
+              ]}
+            >
+              {renderNewsArticle(nextArticle, false)}
+            </Animated.View>
           )}
-        </Animated.View>
-
-        {/* Next Article (behind current) */}
-        {nextArticle && (
-          <Animated.View 
-            style={[
-              styles.newsStackItem,
-              styles.nextNewsItem,
-              {
-                transform: [{ translateY: pan.y }],
-                opacity: opacity,
-              }
-            ]}
-          >
-            {renderNewsArticle(nextArticle, false)}
-          </Animated.View>
-        )}
-      </View>
-    </Animated.View>
-
-    {/* Fixed Footer with Action Buttons */}
-    {!adState.shouldShowAd && (
-    <View style={styles.fixedActionFooter}>
-      {/* Like Button */}
-      <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-        <TouchableOpacity 
-          style={[
-            styles.footerActionButton,
-            liked && styles.activeFooterButton
-          ]}
-          onPress={handleLike}
-          disabled={likeLoading}
-        >
-          {likeLoading ? (
-            <ActivityIndicator size={20} color="#999" />
-          ) : (
-            <Ionicons 
-              name={liked ? "heart" : "heart-outline"} 
-              size={24} 
-              color={liked ? "#ff4757" : "#666"} 
-            />
-          )}
-          <Text style={[
-            styles.footerActionText,
-            liked && styles.activeFooterText
-          ]}>
-            {likeCount > 0 ? likeCount : 'Like'}
-          </Text>
-        </TouchableOpacity>
+        </View>
       </Animated.View>
 
-      {/* Comment Button */}
-      <Animated.View style={{ transform: [{ scale: commentScale }] }}>
-        <TouchableOpacity 
-          style={styles.footerActionButton}
-          onPress={() => setShowComments(true)}
-        >
-          <Ionicons name="chatbubble-outline" size={24} color="#666" />
-          <Text style={styles.footerActionText}>
-            {commentsCount > 0 ? commentsCount : '0'}
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+      <WebViewModal
+        visible={showWebView}
+        url={webViewUrl}
+        onClose={() => {
+          setShowWebView(false);
+          setWebViewUrl('');
+        }}
+      />
 
-      {/* Share Button */}
-      <Animated.View style={{ transform: [{ scale: shareScale }] }}>
-        <TouchableOpacity 
-          style={styles.footerActionButton}
-          onPress={handleShare}
-          disabled={shareLoading}
-        >
-          {shareLoading ? (
-            <ActivityIndicator size={20} color="#999" />
-          ) : (
-            <Ionicons name="share-social-outline" size={24} color="#666" />
-          )}
-          <Text style={styles.footerActionText}>
-            {shareCount > 0 ? shareCount : 'Share'}
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+      {/* Comments Section Component */}
+      <CommentsSection
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        articleId={article.id}
+      />
 
-      {/* Bookmark Button */}
-      <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-        <TouchableOpacity 
-          style={[
-            styles.footerActionButton,
-            isBookmarked && styles.activeFooterButton
-          ]}
-          onPress={handleBookmark}
-          disabled={bookmarkLoading}
-        >
-          {bookmarkLoading ? (
-            <ActivityIndicator size={20} color="#999" />
-          ) : (
-            <Ionicons 
-              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-              size={24} 
-              color={isBookmarked ? "#4CAF50" : "#666"} 
-            />
-          )}
-          <Text style={[
-            styles.footerActionText,
-            isBookmarked && styles.activeBookmarkText
-          ]}>
-            {isBookmarked ? 'Saved' : 'Save'}
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
-)}
-    {/* Comments Section Component */}
-    <CommentsSection
-      visible={showComments}
-      onClose={() => setShowComments(false)}
-      articleId={article.id}
-    />
-
-    {/* Loading Overlay during transitions */}
-    {isTransitioning && (
-      <View style={styles.loadingOverlay}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-      </View>
-    )}
-  </SafeAreaView>
-);
+      {/* Loading Overlay during transitions */}
+      {isTransitioning && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+        </View>
+      )}
+    </SafeAreaView>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -1227,6 +1310,7 @@ const styles = StyleSheet.create({
   },
   articleContentContainer: {
     padding: 20,
+    paddingTop : 5,
     paddingBottom: 100, // Extra space to prevent overlap with footer
   },
   currentNewsItem: {
@@ -1252,16 +1336,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#fff", 
-    paddingVertical: 4,     
-    paddingBottom: 4,       
-    borderTopWidth: 1,       
+    backgroundColor: "#fff",
+    paddingVertical: 4,
+    paddingBottom: 4,
+    borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
-    elevation: 1,          
-    shadowColor: "#000",     
-    shadowOffset: { width: 0, height: -2 }, 
-    shadowOpacity: 0.1,      
-    shadowRadius: 3,         
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   actionButton: {
     alignItems: 'center',
@@ -1286,7 +1370,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
   },
-  
+
   rightActionButtons: {
     position: 'absolute',
     bottom: 15,
@@ -1294,7 +1378,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
   },
-  
+
   overlayActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1305,7 +1389,7 @@ const styles = StyleSheet.create({
     minWidth: 50,
     minHeight: 50,
   },
-  
+
   overlayActionText: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.9)',
@@ -1340,7 +1424,8 @@ const styles = StyleSheet.create({
 
   showMoreButton: {
     backgroundColor: '#000',
-    paddingVertical: 12, // Reduced from 15
+    paddingTop: 8, // Reduced from 15
+    paddingBottom : 12,
     paddingHorizontal: 40, // Reduced from 60
     borderRadius: 16, // Reduced from 18
     alignSelf: 'center',
@@ -1355,6 +1440,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     fontFamily: 'NeuePlakExtended-SemiBold',
+
   },
 
   swipeHint: {
@@ -1379,7 +1465,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     overflow: 'hidden',
-    height : "100%",
+    height: "100%",
     width: '95%',
     maxWidth: 400,
   },
@@ -1458,9 +1544,9 @@ const styles = StyleSheet.create({
   footerActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 70,
+    minWidth: 50,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 4,
     borderRadius: 12,
     backgroundColor: 'transparent',
   },
@@ -1475,7 +1561,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
-    fontWeight: '500',
+    fontWeight: '700',
     textAlign: 'center',
     fontFamily: 'Montserrat-Medium',
   },
@@ -1489,7 +1575,67 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
-
+  webViewContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  webViewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  webViewCloseButton: {
+    padding: 8,
+  },
+  webViewTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  webViewHeaderSpacer: {
+    width: 40, // Same width as close button for centering
+  },
+  webView: {
+    flex: 1,
+  },
+  webViewLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  webViewLoadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+    fontFamily: 'Montserrat-Medium',
+  },
+  clickableTitle: {
+    textDecorationLine: 'underline',
+    textDecorationColor: '#4CAF50',
+    color: '#2196F3',
+  },
+  ArticleButtonStyle: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal : 8,
+  },
+  ArticleButtonStyleGroup: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "flex-start"
+  }
 });
 
 export default NewsDetailScreen;
