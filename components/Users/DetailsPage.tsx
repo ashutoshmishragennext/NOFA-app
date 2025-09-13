@@ -434,25 +434,8 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     }
   };
 
-  // Load comment count
-  useEffect(() => {
-    const loadCommentCount = async () => {
-      try {
-        if (article.id) {
-          const commentData = await apiService.getArticleCommentCount(article.id);
-          setCommentsCount(commentData.commentCount);
-        }
-      } catch (error) {
-        console.error('Error loading comment count:', error);
-      }
-    };
 
-    if (article.id) {
-      loadCommentCount();
-    }
-  }, [article.id]);
-
-  // Add subtle animation to swipe indicator
+  // Add subtle animation to swipe indicator Needs Checking for the animation
   useEffect(() => {
     const animateIndicator = () => {
       Animated.sequence([
@@ -478,14 +461,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   }, [swipeIndicatorOpacity]);
 
 
-  const handleArticleShowMoreClick = (articleData) => {
-    if (showFullContent && (articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
-      console.log("HELOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", articleData.url);
-
-      setWebViewUrl(articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
-      setShowWebView(true);
-    }
-  }
   // Share handler
   const handleShare = async () => {
     if (shareLoading) return;
@@ -732,7 +707,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
               >
                 <Ionicons name="chatbubble-outline" size={16} color="#666" />
                 <Text style={styles.footerActionText}>
-                  {commentsCount > 0 ? commentsCount : '0'}
+                  {articleData.commentCount > 0 ? articleData.commentCount : '0'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>
@@ -1020,7 +995,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 50,
+    top: 40,
     left: 30,
     zIndex: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
@@ -1028,13 +1003,9 @@ const styles = StyleSheet.create({
     padding: 8,
     elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    // shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
-  },
-  detailContent: {
-    flex: 1,
-    backgroundColor: '#fff',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -1051,8 +1022,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: 240,
     marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 28,
+    marginTop: 10,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   articleImage: {
@@ -1066,25 +1037,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '30%',
-  },
-  exclusiveTagDetail: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: '#FF0000',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-  },
-  exclusiveText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   htmlContentContainer: {
     marginBottom: 20,
@@ -1135,70 +1087,6 @@ const styles = StyleSheet.create({
   newsContainer: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  actionBar: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    paddingVertical: 4,
-    paddingBottom: 4,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  actionButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 60,
-    paddingVertical: 1,
-  },
-  actionText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  activeActionText: {
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  leftActionButtons: {
-    position: 'absolute',
-    bottom: 15,
-    left: 15,
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-
-  rightActionButtons: {
-    position: 'absolute',
-    bottom: 15,
-    right: 15,
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-
-  overlayActionButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 8,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 25,
-    padding: 8,
-    minWidth: 50,
-    minHeight: 50,
-  },
-
-  overlayActionText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
-    fontWeight: '600',
   },
 
   articleSource: {
@@ -1322,28 +1210,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
-  // Fixed Footer Styles
-  fixedActionFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 0,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    zIndex: 10,
-  },
-
   footerActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1381,28 +1247,6 @@ const styles = StyleSheet.create({
   webViewContainer: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  webViewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
-  },
-  webViewCloseButton: {
-    padding: 8,
-  },
-  webViewTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
-  webViewHeaderSpacer: {
-    width: 40, // Same width as close button for centering
   },
   webView: {
     flex: 1,
