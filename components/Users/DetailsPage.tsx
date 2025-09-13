@@ -56,7 +56,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const [commentsCount, setCommentsCount] = useState(0);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(article.likeCount || 0);
-  const [shareCount, setShareCount] = useState(article.shareCount || 0);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
@@ -330,23 +329,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     };
   }, []);
 
-  // Load share count
-  useEffect(() => {
-    const loadShareCount = async () => {
-      try {
-        if (article.id) {
-          const shareData = await apiService.getArticleShares(article.id);
-          setShareCount(shareData.shareCount);
-        }
-      } catch (error) {
-        console.error('Error loading share count:', error);
-      }
-    };
-
-    if (article.id) {
-      loadShareCount();
-    }
-  }, [article.id]);
 
   // Schedule like sync with server
   const scheduleLikeSync = () => {
@@ -665,20 +647,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
           else if (activityType.includes('copy') || activityType.includes('pasteboard')) platform = 'copy_link';
           else platform = 'other';
         }
-
-        try {
-          const shareResult = await apiService.recordArticleShare(
-            article.id,
-            platform,
-            currentUser?.id
-          );
-          setShareCount(shareResult.shareCount);
-        } catch (error) {
-          console.error('Error recording share:', error);
-          setShareCount(prev => prev + 1);
-        }
       }
-
     } catch (error) {
       console.error('Error sharing article:', error);
       Alert.alert('Error', 'Failed to share article');
