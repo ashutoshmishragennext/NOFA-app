@@ -263,7 +263,7 @@ useEffect(() => {
   // Separate function to load server state
   const loadServerLikeState = async () => {
     try {
-      const status = await apiService.getArticleLikes(article.id, currentUser.id);
+      const status = await apiService.getArticleLikes(article.id, currentUser?.id);
       setLiked(status.userLiked);
       setLikeCount(status.likeCount);
       console.log('Loaded server state:', status);
