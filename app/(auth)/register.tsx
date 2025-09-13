@@ -181,7 +181,7 @@ const SignupScreen = () => {
       >
         <View style={styles.card}>
           <Image
-            source={require('../../assets/images/logo.png')}
+            source={require('../../assets/images/logo2.png')}
             style={styles.logo}
           />
           <Text style={styles.title}>Sign up your account</Text>

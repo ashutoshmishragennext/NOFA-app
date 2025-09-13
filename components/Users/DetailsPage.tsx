@@ -23,111 +23,9 @@ import {
 import RenderHtml from "react-native-render-html";
 import CommentsSection from './CommentsPage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { AdClickData, AdData, AdDisplayState, dummyAds, NewsDetailScreenProps } from './DummyAds';
 
 const { width, height } = Dimensions.get('window');
-
-interface AdData {
-  id: string;
-  type: 'banner' | 'video' | 'product' | 'app' | 'service' | 'travel';
-  title: string;
-  description: string;
-  imageUrl: string;
-  ctaText: string;
-  advertiser: string;
-  backgroundColor: string;
-}
-
-export interface AdClickData {
-  adId: string;
-  adType: string;
-  advertiser: string;
-  timestamp: number;
-}
-
-interface NewsDetailScreenProps {
-  article: any;
-  onBack: () => void;
-  onNext?: () => void;
-  hasNext: boolean;
-  onPrev?: () => void;
-  hasPrev?: boolean;
-  currentIndex: number;
-  totalArticles: number;
-  sourceTab?: string;
-  allArticles?: any[];
-}
-
-interface AdDisplayState {
-  shouldShowAd: boolean;
-  currentAdIndex: number;
-  articlesViewedCount: number;
-  nextAdAfter: number;
-  adQueue: AdData[];
-}
-
-const dummyAds: AdData[] = [
-  {
-    id: 'ad_1',
-    type: 'banner',
-    title: 'Best Online Shopping',
-    description: 'Get 50% off on all electronics. Limited time offer!',
-    imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400',
-    ctaText: 'Shop Now',
-    advertiser: 'ShopMart',
-    backgroundColor: '#FF6B6B'
-  },
-  {
-    id: 'ad_2',
-    type: 'video',
-    title: 'Learn Coding Online',
-    description: 'Master programming skills with expert instructors',
-    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400',
-    ctaText: 'Start Learning',
-    advertiser: 'CodeAcademy',
-    backgroundColor: '#4ECDC4'
-  },
-  {
-    id: 'ad_3',
-    type: 'product',
-    title: 'Premium Coffee Beans',
-    description: 'Freshly roasted coffee beans delivered to your door',
-    imageUrl: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=400',
-    ctaText: 'Order Now',
-    advertiser: 'Coffee Co.',
-    backgroundColor: '#8B4513'
-  },
-  {
-    id: 'ad_4',
-    type: 'app',
-    title: 'Fitness Tracker App',
-    description: 'Track your daily activities and achieve fitness goals',
-    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400',
-    ctaText: 'Download',
-    advertiser: 'FitTrack',
-    backgroundColor: '#45B7D1'
-  },
-  {
-    id: 'ad_5',
-    type: 'service',
-    title: 'Food Delivery',
-    description: 'Order your favorite food from top restaurants',
-    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
-    ctaText: 'Order Food',
-    advertiser: 'FoodExpress',
-    backgroundColor: '#FF8C42'
-  },
-  {
-    id: 'ad_6',
-    type: 'travel',
-    title: 'Book Your Dream Vacation',
-    description: 'Explore amazing destinations with exclusive deals',
-    imageUrl: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400',
-    ctaText: 'Book Now',
-    advertiser: 'TravelDeals',
-    backgroundColor: '#6C5CE7'
-  }
-];
 
 const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({ 
   article, 
@@ -146,6 +44,8 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     Montserrat_500Medium,
     Montserrat_600SemiBold,
   });
+
+  const insets = useSafeAreaInsets();
 
   const getRandomAdInterval = (): number => {
     return Math.floor(Math.random() * 3) + 2;
@@ -190,6 +90,10 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [viewRecorded, setViewRecorded] = useState(false);
   const [viewCount, setViewCount] = useState(article.viewCount || 0);
+  const likeScale = useRef(new Animated.Value(1)).current;
+  const commentScale = useRef(new Animated.Value(1)).current;
+  const shareScale = useRef(new Animated.Value(1)).current;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
 
   // Add this useEffect to initialize ad queue:
   useEffect(() => {
@@ -230,8 +134,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       timestamp: Date.now()
     };
     
-    // Send to analytics service
-    // analytics.track('ad_clicked', clickData);
   };
   
   const handleAdClose = (): void => {
@@ -592,68 +494,6 @@ useEffect(() => {
       loadCommentCount();
     }
   }, [article.id]);
-
-  // Handle unique view recording
-  // useEffect(() => {
-  //   const checkAndRecordUniqueView = async () => {
-  //     // Don't proceed if already recorded or article ID missing
-  //     if (!article.id || viewRecorded) return;
-
-  //     try {
-  //       // Wait for all other counts to load first
-  //       if (likeLoading || bookmarkLoading) {
-  //         console.log('Waiting for like/bookmark states to load...');
-  //         return;
-  //       }
-
-  //       console.log('Checking if view already recorded for article:', article.id);
-
-  //       // Check if view is already recorded in AsyncStorage
-  //       const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
-  //       const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
-
-  //       if (viewedArticles.includes(article.id)) {
-  //         console.log('View already recorded for this article, skipping...');
-  //         setViewRecorded(true);
-  //         return;
-  //       }
-
-  //       console.log('Recording new view for article:', article.id);
-
-  //       // Record the view via API
-  //       const userId = currentUser?.id || null;
-  //       const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
-        
-  //       const result = await apiService.recordArticleView(article.id, userId, referrer);
-        
-  //       if (result.success) {
-  //         console.log('View recorded successfully:', result.message);
-          
-  //         // Store the article id locally to prevent future posts
-  //         const updatedViewedArticles = [...viewedArticles, article.id];
-  //         await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
-          
-  //         setViewRecorded(true);
-          
-  //         // Update view count only if it was actually incremented
-  //         if (result.incrementedCount) {
-  //           setViewCount(prev => prev + 1);
-  //         }
-  //       }
-  //     } catch (error) {
-  //       console.error('Failed to record unique view:', error);
-  //       // Still mark as recorded to prevent retry loops
-  //       setViewRecorded(true);
-  //     }
-  //   };
-
-  //   // Add a small delay to ensure all other loading is complete
-  //   const timer = setTimeout(() => {
-  //     checkAndRecordUniqueView();
-  //   }, 1000);
-
-  //   return () => clearTimeout(timer);
-  // }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
   useEffect(() => {
   const checkAndRecordUniqueView = async () => {
     if (!article.id || viewRecorded) return;
@@ -963,8 +803,7 @@ useEffect(() => {
     );
   };
 
-  // Component to render a single news article
-  const renderNewsArticle = (articleData, isActive = false, isAd: boolean =true) => {
+const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) => {
     if (isAd) {
       return (
         <EnhancedAdComponent
@@ -978,7 +817,7 @@ useEffect(() => {
     
     return (
       <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
-        {/* Article Image with overlaid action buttons */}
+        {/* Article Image - Clean without overlay buttons */}
         <View style={styles.articleImageContainer}>
           <Image 
             source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }} 
@@ -988,73 +827,6 @@ useEffect(() => {
             colors={['transparent', 'rgba(0,0,0,0.4)']}
             style={styles.articleImageGradient}
           />
-          
-          {/* Left bottom action buttons - Like and Comment */}
-          <View style={styles.leftActionButtons}>
-            {/* Like Button */}
-            <TouchableOpacity 
-              style={styles.overlayActionButton}
-              onPress={handleLike}
-              disabled={likeLoading}
-            >
-              {likeLoading ? (
-                <Ionicons 
-                  name={"heart-outline"} 
-                  size={28} 
-                  color={"rgba(255,255,255,0.7)"} 
-                />
-              ) : (
-                <Ionicons 
-                  name={liked ? "heart" : "heart-outline"} 
-                  size={28} 
-                  color={liked ? "#ff4757" : "rgba(255,255,255,0.9)"} 
-                />
-              )}
-              <Text style={styles.overlayActionText}>{likeCount}</Text>
-            </TouchableOpacity>
-
-            {/* Comment Button */}
-            <TouchableOpacity 
-              style={styles.overlayActionButton}
-              onPress={() => setShowComments(true)}
-            >
-              <Ionicons name="chatbubble-outline" size={26} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.overlayActionText}>{commentsCount}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Right bottom action buttons - Share and Save */}
-          <View style={styles.rightActionButtons}>
-            {/* Share Button */}
-            <TouchableOpacity 
-              style={styles.overlayActionButton}
-              onPress={handleShare}
-              disabled={shareLoading}
-            >
-              {shareLoading ? (
-                <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
-              ) : (
-                <Ionicons name="share-outline" size={26} color="rgba(255,255,255,0.9)" />
-              )}
-            </TouchableOpacity>
-
-            {/* Bookmark Button */}
-            <TouchableOpacity 
-              style={styles.overlayActionButton}
-              onPress={handleBookmark}
-              disabled={bookmarkLoading}
-            >
-              {bookmarkLoading ? (
-                <Ionicons name="hourglass-outline" size={26} color="rgba(255,255,255,0.7)" />
-              ) : (
-                <Ionicons 
-                  name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-                  size={26} 
-                  color={isBookmarked ? "#4CAF50" : "rgba(255,255,255,0.9)"} 
-                />
-              )}
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Article Content */}
@@ -1115,6 +887,15 @@ useEffect(() => {
             )}
           </View>
 
+          {/* Show More Button - moved to bottom */}
+          <TouchableOpacity 
+            style={styles.showMoreButton} 
+            onPress={() => setShowFullContent(!showFullContent)}
+          >
+            <Text style={styles.showMoreText}>
+              {showFullContent ? 'Show Less' : 'Show More'}
+            </Text>
+          </TouchableOpacity>
           {/* Swipe Indicator - only show on active article */}
           {isActive && (
             <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
@@ -1127,15 +908,6 @@ useEffect(() => {
             </Animated.View>
           )}
 
-          {/* Show More Button - moved to bottom */}
-          <TouchableOpacity 
-            style={styles.showMoreButton} 
-            onPress={() => setShowFullContent(!showFullContent)}
-          >
-            <Text style={styles.showMoreText}>
-              {showFullContent ? 'Show Less' : 'Read More'}
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
     );
@@ -1151,101 +923,191 @@ useEffect(() => {
   }
 
   return (
-    <SafeAreaView style={[styles.container,{paddingBottom : insights.bottom}]}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-      
-      <Animated.View 
-        style={[
-          styles.container, 
-          {
-            transform: [{ translateX: pan.x }],
-            opacity: opacity,
-          }
-        ]}
-        {...panResponder.panHandlers}
-      >
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
+  <SafeAreaView style={[styles.container, {paddingBottom: insets.bottom}]}>
+    <StatusBar barStyle="light-content" backgroundColor="#000" />
+    
+    <Animated.View 
+      style={[
+        styles.container, 
+        {
+          transform: [{ translateX: pan.x }],
+          opacity: opacity,
+        }
+      ]}
+      {...panResponder.panHandlers}
+    >
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+        <Ionicons name="arrow-back" size={24} color="#000" />
+      </TouchableOpacity>
 
-        {/* Stacked News Articles Container */}
-        <View style={styles.newsStackContainer}>
-          {/* Previous Article (behind current) */}
-          {prevArticle && (
-            <Animated.View 
-              style={[
-                styles.newsStackItem,
-                styles.prevNewsItem,
-                {
-                  transform: [{ translateY: pan.y }],
-                  opacity: opacity,
-                }
-              ]}
-            >
-              {renderNewsArticle(prevArticle, false)}
-            </Animated.View>
-          )}
-
-          {/* Current Article (on top) */}
+      {/* Stacked News Articles Container */}
+      <View style={styles.newsStackContainer}>
+        {/* Previous Article (behind current) */}
+        {prevArticle && (
           <Animated.View 
-  style={[
-    styles.newsStackItem,
-    styles.currentNewsItem,
-    {
-      transform: [{ translateY: pan.y }],
-      opacity: opacity,
-    }
-  ]}
-  {...panResponder.panHandlers}
->
-  {adState.shouldShowAd && adState.adQueue.length > 0 ? (
-    <>
-      {console.log('Rendering ad:', adState.adQueue[adState.currentAdIndex])}
-      {renderNewsArticle(adState.adQueue[adState.currentAdIndex], true, true)}
-    </>
-  ) : (
-    <>
-      {console.log('Rendering article:', article.title)}
-      {renderNewsArticle(article, true, false)}
-    </>
-  )}
-</Animated.View>
+            style={[
+              styles.newsStackItem,
+              styles.prevNewsItem,
+              {
+                transform: [{ translateY: pan.y }],
+                opacity: opacity,
+              }
+            ]}
+          >
+            {renderNewsArticle(prevArticle, false)}
+          </Animated.View>
+        )}
 
-          {/* Next Article (behind current) */}
-          {nextArticle && (
-            <Animated.View 
-              style={[
-                styles.newsStackItem,
-                styles.nextNewsItem,
-                {
-                  transform: [{ translateY: pan.y }],
-                  opacity: opacity,
-                }
-              ]}
-            >
-              {renderNewsArticle(nextArticle, false)}
-            </Animated.View>
+        {/* Current Article (on top) */}
+        <Animated.View 
+          style={[
+            styles.newsStackItem,
+            styles.currentNewsItem,
+            {
+              transform: [{ translateY: pan.y }],
+              opacity: opacity,
+            }
+          ]}
+          {...panResponder.panHandlers}
+        >
+          {adState.shouldShowAd && adState.adQueue.length > 0 ? (
+            <>
+              {console.log('Rendering ad:', adState.adQueue[adState.currentAdIndex])}
+              {renderNewsArticle(adState.adQueue[adState.currentAdIndex], true, true)}
+            </>
+          ) : (
+            <>
+              {console.log('Rendering article:', article.title)}
+              {renderNewsArticle(article, true, false)}
+            </>
           )}
-        </View>
+        </Animated.View>
 
+        {/* Next Article (behind current) */}
+        {nextArticle && (
+          <Animated.View 
+            style={[
+              styles.newsStackItem,
+              styles.nextNewsItem,
+              {
+                transform: [{ translateY: pan.y }],
+                opacity: opacity,
+              }
+            ]}
+          >
+            {renderNewsArticle(nextArticle, false)}
+          </Animated.View>
+        )}
+      </View>
+    </Animated.View>
+
+    {/* Fixed Footer with Action Buttons */}
+    {!adState.shouldShowAd && (
+    <View style={styles.fixedActionFooter}>
+      {/* Like Button */}
+      <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+        <TouchableOpacity 
+          style={[
+            styles.footerActionButton,
+            liked && styles.activeFooterButton
+          ]}
+          onPress={handleLike}
+          disabled={likeLoading}
+        >
+          {likeLoading ? (
+            <ActivityIndicator size={20} color="#999" />
+          ) : (
+            <Ionicons 
+              name={liked ? "heart" : "heart-outline"} 
+              size={24} 
+              color={liked ? "#ff4757" : "#666"} 
+            />
+          )}
+          <Text style={[
+            styles.footerActionText,
+            liked && styles.activeFooterText
+          ]}>
+            {likeCount > 0 ? likeCount : 'Like'}
+          </Text>
+        </TouchableOpacity>
       </Animated.View>
 
-      {/* Comments Section Component */}
-      <CommentsSection
-        visible={showComments}
-        onClose={() => setShowComments(false)}
-        articleId={article.id}
-      />
+      {/* Comment Button */}
+      <Animated.View style={{ transform: [{ scale: commentScale }] }}>
+        <TouchableOpacity 
+          style={styles.footerActionButton}
+          onPress={() => setShowComments(true)}
+        >
+          <Ionicons name="chatbubble-outline" size={24} color="#666" />
+          <Text style={styles.footerActionText}>
+            {commentsCount > 0 ? commentsCount : 'Comment'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
 
-      {/* Loading Overlay during transitions */}
-      {isTransitioning && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-        </View>
-      )}
-    </SafeAreaView>
-  );
+      {/* Share Button */}
+      <Animated.View style={{ transform: [{ scale: shareScale }] }}>
+        <TouchableOpacity 
+          style={styles.footerActionButton}
+          onPress={handleShare}
+          disabled={shareLoading}
+        >
+          {shareLoading ? (
+            <ActivityIndicator size={20} color="#999" />
+          ) : (
+            <Ionicons name="share-social-outline" size={24} color="#666" />
+          )}
+          <Text style={styles.footerActionText}>
+            {shareCount > 0 ? shareCount : 'Share'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* Bookmark Button */}
+      <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+        <TouchableOpacity 
+          style={[
+            styles.footerActionButton,
+            isBookmarked && styles.activeFooterButton
+          ]}
+          onPress={handleBookmark}
+          disabled={bookmarkLoading}
+        >
+          {bookmarkLoading ? (
+            <ActivityIndicator size={20} color="#999" />
+          ) : (
+            <Ionicons 
+              name={isBookmarked ? "bookmark" : "bookmark-outline"} 
+              size={24} 
+              color={isBookmarked ? "#4CAF50" : "#666"} 
+            />
+          )}
+          <Text style={[
+            styles.footerActionText,
+            isBookmarked && styles.activeBookmarkText
+          ]}>
+            {isBookmarked ? 'Saved' : 'Save'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+)}
+    {/* Comments Section Component */}
+    <CommentsSection
+      visible={showComments}
+      onClose={() => setShowComments(false)}
+      articleId={article.id}
+    />
+
+    {/* Loading Overlay during transitions */}
+    {isTransitioning && (
+      <View style={styles.loadingOverlay}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    )}
+  </SafeAreaView>
+);
 };
 
 const styles = StyleSheet.create({
@@ -1290,7 +1152,7 @@ const styles = StyleSheet.create({
   },
   articleImageContainer: {
     position: 'relative',
-    height: 300,
+    height: 240,
     marginHorizontal: 20,
     marginTop: 20,
     borderRadius: 28,
@@ -1327,9 +1189,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  articleContentContainer: {
-    padding: 20,
-  },
   htmlContentContainer: {
     marginBottom: 20,
   },
@@ -1352,11 +1211,6 @@ const styles = StyleSheet.create({
   swipeDotActive: {
     backgroundColor: '#8B5CF6',
   },
-  // Stacked News Layout Styles
-  newsStackContainer: {
-    flex: 1,
-    position: 'relative',
-  },
   newsStackItem: {
     position: 'absolute',
     top: 0,
@@ -1364,6 +1218,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#fff',
+  },
+  articleContentContainer: {
+    padding: 20,
+    paddingBottom: 100, // Extra space to prevent overlap with footer
   },
   currentNewsItem: {
     zIndex: 3,
@@ -1480,7 +1338,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40, // Reduced from 60
     borderRadius: 16, // Reduced from 18
     alignSelf: 'center',
-    marginTop: 20,
+    marginTop: 0,
     marginBottom: 10,
     minWidth: 150, // Reduced from 200
   },
@@ -1515,7 +1373,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     overflow: 'hidden',
-    width: '90%',
+    height : "100%",
+    width: '95%',
     maxWidth: 400,
   },
   adImage: {
@@ -1562,6 +1421,69 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 8,
   },
+  newsStackContainer: {
+    flex: 1,
+    position: 'relative',
+    marginBottom: 80, // Space for fixed footer
+  },
+
+  // Fixed Footer Styles
+  fixedActionFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 0,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    zIndex: 10,
+  },
+
+  footerActionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 70,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+
+  activeFooterButton: {
+    backgroundColor: '#f8f9fa',
+    // borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+
+  footerActionText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
+    fontFamily: 'Montserrat_500Medium',
+  },
+
+  activeFooterText: {
+    color: '#ff4757',
+    fontWeight: '600',
+  },
+
+  activeBookmarkText: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+
 });
 
 export default NewsDetailScreen;
