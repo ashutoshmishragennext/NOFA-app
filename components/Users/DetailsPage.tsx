@@ -1,11 +1,10 @@
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
-import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
-import { WebView } from 'react-native-webview';
 import {
   ActivityIndicator,
   Alert,
@@ -23,8 +22,8 @@ import {
   View
 } from 'react-native';
 import RenderHtml from "react-native-render-html";
+import { WebView } from 'react-native-webview';
 import CommentsSection from './CommentsPage';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdClickData, AdData, AdDisplayState, dummyAds, NewsDetailScreenProps } from './DummyAds';
 
 const { width, height } = Dimensions.get('window');
@@ -45,8 +44,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
     'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
   });
-
-  const insets = useSafeAreaInsets();
 
   const getRandomAdInterval = (): number => {
     return Math.floor(Math.random() * 3) + 2;
@@ -75,7 +72,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
 
   // Local state for pending likes
   const [pendingLikeAction, setPendingLikeAction] = useState(null);
-  const [lastLikeUpdate, setLastLikeUpdate] = useState(null);
 
   const currentUser = useAuth().user;
   const pan = useRef(new Animated.ValueXY()).current;
@@ -310,7 +306,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       // Clear AsyncStorage after successful sync
       await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
       setPendingLikeAction(null);
-      setLastLikeUpdate(null);
 
       console.log('Pending likes synced and cleared');
 
@@ -357,7 +352,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       // Immediate UI update
       setLiked(newLiked);
       setLikeCount(newCount);
-      setLastLikeUpdate(timestamp);
       setPendingLikeAction('pending');
 
       // Store in AsyncStorage with proper structure
@@ -764,8 +758,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     return [];
   };
 
-  const tagsArray = processTags(article.tags);
-  const keywordsArray = processKeywords(article.keywords);
 
   // Get next and previous articles for preview
   const getNextArticle = () => {
@@ -775,7 +767,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     return null;
   };
 
-  const insights = useSafeAreaInsets();
   const getPrevArticle = () => {
     if (hasPrev && allArticles.length > 0) {
       return allArticles[currentIndex - 1];
@@ -839,7 +830,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     }
 
     return (
-      <View style={[styles.newsContainer, isActive && styles.activeNewsContainer]}>
+      <View style={[styles.newsContainer]}>
         {/* Article Image - Clean without overlay buttons */}
         <View style={styles.articleImageContainer}>
           <Image
@@ -1296,10 +1287,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  activeNewsContainer: {
-    // Additional styles for active news if needed
-  },
-  // Updated Action Bar styles
   actionBar: {
     flexDirection: "row",
     justifyContent: "space-around",
