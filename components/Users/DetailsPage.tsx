@@ -85,8 +85,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
 
   // Add these state variables
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [viewRecorded, setViewRecorded] = useState(false);
-  const [viewCount, setViewCount] = useState(article.viewCount || 0);
   const likeScale = useRef(new Animated.Value(1)).current;
   const commentScale = useRef(new Animated.Value(1)).current;
   const shareScale = useRef(new Animated.Value(1)).current;
@@ -98,26 +96,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     const shuffledAds: AdData[] = [...dummyAds].sort(() => Math.random() - 0.5);
     setAdState(prev => ({ ...prev, adQueue: shuffledAds }));
   }, []);
-
-  // Add this useEffect to track article views and determine when to show ads:
-  useEffect(() => {
-    // Only increment on article navigation, not on initial load
-    if (article.id && !viewRecorded) {
-      const newCount = adState.articlesViewedCount + 1;
-
-      // Check if we should show an ad
-      if (newCount >= adState.nextAdAfter) {
-        setAdState(prev => ({
-          ...prev,
-          shouldShowAd: true,
-          articlesViewedCount: 0,
-          nextAdAfter: getRandomAdInterval(),
-        }));
-      } else {
-        setAdState(prev => ({ ...prev, articlesViewedCount: newCount }));
-      }
-    }
-  }, [article.id, viewRecorded, adState.nextAdAfter]);
 
   // Add these handler functions:
   const handleAdClick = (adData: AdData): void => {
@@ -390,38 +368,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     }
   };
 
-  // Force sync likes (can be called manually if needed)
-  const forceSyncLikes = async () => {
-    if (pendingLikeAction) {
-      if (likeUpdateTimer.current) {
-        clearTimeout(likeUpdateTimer.current);
-      }
-      await syncLikesToServer();
-    }
-  };
-
-  // Callback to update comments count from CommentsSection
-  const handleCommentsCountChange = (count) => {
-    setCommentsCount(count);
-  };
-
-  // Optimized navigation handlers for instant transitions
-  const handleNext = () => {
-    if (hasNext && !isTransitioning) {
-      setIsTransitioning(true);
-      onNext();
-      setTimeout(() => setIsTransitioning(false), 100);
-    }
-  };
-
-  const handlePrev = () => {
-    if (hasPrev && !isTransitioning) {
-      setIsTransitioning(true);
-      onPrev();
-      setTimeout(() => setIsTransitioning(false), 100);
-    }
-  };
-
   const handleBack = () => {
     if (!isTransitioning && onBack) {
       setIsTransitioning(true);
@@ -442,17 +388,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
         onRequestClose={onClose}
       >
         <SafeAreaView style={styles.webViewContainer}>
-          {/* Header with close button */}
-          {/* <View style={styles.webViewHeader}>
-          <TouchableOpacity onPress={onClose} style={styles.webViewCloseButton}>
-            <Ionicons name="close" size={24} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.webViewTitle} numberOfLines={1}>
-            Apartment Times
-          </Text>
-          <View style={styles.webViewHeaderSpacer} />
-        </View> */}
-
           {/* WebView */}
           <WebView
             ref={webviewRef}
@@ -516,50 +451,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       loadCommentCount();
     }
   }, [article.id]);
-  useEffect(() => {
-    const checkAndRecordUniqueView = async () => {
-      if (!article.id || viewRecorded) return;
-
-      try {
-        if (likeLoading || bookmarkLoading) {
-          return;
-        }
-
-        const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
-        const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
-
-        if (viewedArticles.includes(article.id)) {
-          setViewRecorded(true);
-          return;
-        }
-
-        const userId = currentUser?.id || null;
-        const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
-
-        const result = await apiService.recordArticleView(article.id, userId, referrer);
-
-        if (result.success) {
-          const updatedViewedArticles = [...viewedArticles, article.id];
-          await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
-
-          setViewRecorded(true);
-
-          if (result.incrementedCount) {
-            setViewCount(prev => prev + 1);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to record unique view:', error);
-        setViewRecorded(true);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      checkAndRecordUniqueView();
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
 
   // Add subtle animation to swipe indicator
   useEffect(() => {
@@ -586,24 +477,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     return () => clearTimeout(timer);
   }, [swipeIndicatorOpacity]);
 
-  // Load initial view count
-  useEffect(() => {
-    const loadInitialViewCount = async () => {
-      try {
-        if (article.id) {
-          const viewData = await apiService.getArticleViews(article.id);
-          setViewCount(viewData.viewCount);
-          console.log('Initial view count loaded:', viewData.viewCount);
-        }
-      } catch (error) {
-        console.error('Error loading initial view count:', error);
-      }
-    };
-
-    if (article.id) {
-      loadInitialViewCount();
-    }
-  }, [article.id]);
 
   const handleArticleShowMoreClick = (articleData) => {
     if (showFullContent && (articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
@@ -734,30 +607,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       },
     })
   ).current;
-
-  // Helper functions for processing tags and keywords
-  const processTags = (tags) => {
-    if (!tags) return [];
-    if (typeof tags === 'string') {
-      return tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-    }
-    if (Array.isArray(tags)) {
-      return tags.filter(tag => tag && tag.trim());
-    }
-    return [];
-  };
-
-  const processKeywords = (keywords) => {
-    if (!keywords) return [];
-    if (typeof keywords === 'string') {
-      return keywords.split(',').map(keyword => keyword.trim()).filter(keyword => keyword);
-    }
-    if (Array.isArray(keywords)) {
-      return keywords.filter(keyword => keyword && keyword.trim());
-    }
-    return [];
-  };
-
 
   // Get next and previous articles for preview
   const getNextArticle = () => {
