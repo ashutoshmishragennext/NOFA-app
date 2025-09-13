@@ -40,9 +40,13 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   allArticles = []
 }) => {
   // Load custom fonts
+  // const [fontsLoaded] = useFonts({
+  //   Montserrat_500Medium,
+  //   Montserrat_600SemiBold,
+  // });
   const [fontsLoaded] = useFonts({
-    Montserrat_500Medium,
-    Montserrat_600SemiBold,
+    'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
+    'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
   });
 
   const insets = useSafeAreaInsets();
