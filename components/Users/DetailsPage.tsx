@@ -602,46 +602,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const nextArticle = getNextArticle();
   const prevArticle = getPrevArticle();
 
-  // Enhanced Ad Component with smooth transitions
-  // const EnhancedAdComponent = ({ adData, onAdClick, onAdClose, visible }) => {
-  //   const opacity = useRef(new Animated.Value(0)).current;
-
-  //   useEffect(() => {
-  //     if (visible) {
-  //       Animated.timing(opacity, {
-  //         toValue: 1,
-  //         duration: 400,
-  //         useNativeDriver: true,
-  //       }).start();
-  //     }
-  //   }, [visible]);
-
-  //   if (!visible) return null;
-
-  //   return (
-  //     <Animated.View style={[styles.adContainer, { opacity }]}>
-  //       <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
-  //         <Image
-  //           source={{ uri: adData.imageUrl }}
-  //           style={styles.adImage}
-  //           resizeMode="cover"
-  //         />
-  //         <View style={styles.adTextContainer}>
-  //           <Text style={styles.adTitle}>{adData.title}</Text>
-  //           <Text style={styles.adDescription}>{adData.description}</Text>
-  //           <Text style={styles.adAdvertiser}>Sponsored by {adData.advertiser}</Text>
-  //           <TouchableOpacity style={styles.adCtaButton}>
-  //             <Text style={styles.adCtaText}>{adData.ctaText}</Text>
-  //           </TouchableOpacity>
-  //         </View>
-  //       </TouchableOpacity>
-  //       <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
-  //         <Ionicons name="close" size={24} color="#fff" />
-  //       </TouchableOpacity>
-  //     </Animated.View>
-  //   );
-  // };
-
   const EnhancedAdComponent = ({ adData, onAdClick, onAdClose, visible }) => {
   if (!visible) return null;
   
@@ -999,13 +959,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
         onClose={() => setShowComments(false)}
         articleId={article.id}
       />
-
-      {/* Loading Overlay during transitions */}
-      {/* {isTransitioning && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-        </View>
-      )} */}
     </SafeAreaView>
   );
 };
