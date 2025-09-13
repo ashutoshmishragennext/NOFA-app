@@ -1040,12 +1040,10 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
               <Text style={styles.swipeHint}>Swipe up for next news</Text>
             </Animated.View>
           )}
-
         </View>
       </View>
     );
   };
-
   // Don't render until fonts are loaded
   if (!fontsLoaded) {
     return (
@@ -1056,7 +1054,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   }
 
   return (
-    <SafeAreaView style={[((!adState.shouldShowAd) ? styles.container : styles.container2), { paddingBottom: insets.bottom }]}>
+    <SafeAreaView style={[((!adState.shouldShowAd) ? styles.container : styles.container2)]}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       <Animated.View
@@ -1171,6 +1169,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.9)',
   },
   container3: {
+    backgroundColor: 'rgba(0,0,0,0.9)',
     flex: 1,
   },
   loadingContainer: {
@@ -1485,7 +1484,6 @@ const styles = StyleSheet.create({
   newsStackContainer: {
     flex: 1,
     position: 'relative',
-    marginBottom: 80, // Space for fixed footer
   },
 
   // Fixed Footer Styles
