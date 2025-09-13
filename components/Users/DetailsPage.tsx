@@ -41,6 +41,8 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const [fontsLoaded] = useFonts({
     'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
     'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
+     'Newsreader-Italic-VariableFont_opsz' : require('../../assets/fonts/Newsreader-Italic-VariableFont_opsz,wght.ttf')
+
   });
 
   const getRandomAdInterval = (): number => {
@@ -145,29 +147,34 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     preloadNextAd();
   }, [adState.currentAdIndex, adState.adQueue]);
   useEffect(() => {
-    const updateArticleCount = () => {
-      setAdState(prev => {
-        const showAd = Math.random();
-        if (showAd >= 0.5) {
-          console.log('Should show ad now!');
-          return {
-            ...prev,
-            shouldShowAd: true,
-            articlesViewedCount: 0, // Reset counter
-            nextAdAfter: getRandomAdInterval(), // Set next interval
-          };
-        }
+  const updateArticleCount = () => {
+    // Don't show ads during transitions
+    if (isTransitioning) return;
+    
+    setAdState(prev => {
+      const showAd = Math.random();
+      if (showAd >= 0.5) {
+        console.log('Should show ad now!');
         return {
-          ...prev
+          ...prev,
+          shouldShowAd: true,
+          articlesViewedCount: 0,
+          nextAdAfter: getRandomAdInterval(),
         };
-      });
-    };
+      }
+      return prev;
+    });
+  };
 
+  // Add a small delay to prevent immediate state change during navigation
+  const timer = setTimeout(() => {
     if (article.id) {
       updateArticleCount();
     }
-  }, [article.id]);
-  // Add smooth transition for ad display
+  }, 100); // Small delay to let animations settle
+
+  return () => clearTimeout(timer);
+}, [article.id, isTransitioning]); // Add isTransitioning dependency
   const adTransitionOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -182,7 +189,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     }
   }, [adState.shouldShowAd]);
 
-  // Load initial states including local like state
   useEffect(() => {
     const initializeLikeState = async () => {
       try {
@@ -499,11 +505,11 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   // Vertical swipe panResponder for Instagram reels-like functionality
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to vertical swipes with minimal movement
-        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
-      },
+    onStartShouldSetPanResponder: (evt, gestureState) => false,
+    onMoveShouldSetPanResponder: (evt, gestureState) => {
+      if (isTransitioning) return false;
+      return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
+    },
       onPanResponderGrant: () => {
         pan.setOffset({
           x: pan.x._value,
@@ -597,44 +603,78 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const prevArticle = getPrevArticle();
 
   // Enhanced Ad Component with smooth transitions
+  // const EnhancedAdComponent = ({ adData, onAdClick, onAdClose, visible }) => {
+  //   const opacity = useRef(new Animated.Value(0)).current;
+
+  //   useEffect(() => {
+  //     if (visible) {
+  //       Animated.timing(opacity, {
+  //         toValue: 1,
+  //         duration: 400,
+  //         useNativeDriver: true,
+  //       }).start();
+  //     }
+  //   }, [visible]);
+
+  //   if (!visible) return null;
+
+  //   return (
+  //     <Animated.View style={[styles.adContainer, { opacity }]}>
+  //       <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
+  //         <Image
+  //           source={{ uri: adData.imageUrl }}
+  //           style={styles.adImage}
+  //           resizeMode="cover"
+  //         />
+  //         <View style={styles.adTextContainer}>
+  //           <Text style={styles.adTitle}>{adData.title}</Text>
+  //           <Text style={styles.adDescription}>{adData.description}</Text>
+  //           <Text style={styles.adAdvertiser}>Sponsored by {adData.advertiser}</Text>
+  //           <TouchableOpacity style={styles.adCtaButton}>
+  //             <Text style={styles.adCtaText}>{adData.ctaText}</Text>
+  //           </TouchableOpacity>
+  //         </View>
+  //       </TouchableOpacity>
+  //       <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
+  //         <Ionicons name="close" size={24} color="#fff" />
+  //       </TouchableOpacity>
+  //     </Animated.View>
+  //   );
+  // };
+
   const EnhancedAdComponent = ({ adData, onAdClick, onAdClose, visible }) => {
-    const opacity = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-      if (visible) {
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
-      }
-    }, [visible]);
-
-    if (!visible) return null;
-
-    return (
-      <Animated.View style={[styles.adContainer, { opacity }]}>
-        <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
-          <Image
-            source={{ uri: adData.imageUrl }}
-            style={styles.adImage}
-            resizeMode="cover"
-          />
-          <View style={styles.adTextContainer}>
-            <Text style={styles.adTitle}>{adData.title}</Text>
-            <Text style={styles.adDescription}>{adData.description}</Text>
-            <Text style={styles.adAdvertiser}>Sponsored by {adData.advertiser}</Text>
-            <TouchableOpacity style={styles.adCtaButton}>
-              <Text style={styles.adCtaText}>{adData.ctaText}</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
-          <Ionicons name="close" size={24} color="#fff" />
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
+  if (!visible) return null;
+  
+  // Add safety checks for your text content
+  const title = adData?.title || 'Default Title';
+  const description = adData?.description || 'Default Description';
+  const advertiser = adData?.advertiser || 'Unknown Advertiser';
+  const ctaText = adData?.ctaText || 'Click Here';
+  
+  return (
+    <View style={styles.adContainer}>
+      <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
+        <Image
+          source={{ uri: adData?.imageUrl || 'https://via.placeholder.com/300x200' }}
+          style={styles.adImage}
+          resizeMode="cover"
+        />
+        <View style={styles.adTextContainer}>
+          <Text style={styles.adTitle}>{title}</Text>
+          <Text style={styles.adDescription}>{description}</Text>
+          <Text style={styles.adAdvertiser}>Sponsored by {advertiser}</Text>
+          <TouchableOpacity style={styles.adCtaButton}>
+            <Text style={styles.adCtaText}>{ctaText}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
+        {/* <Ionicons name="close" size={24} color="#fff" /> */}
+            <Text style={styles.adAdvertiser2}>Skip</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
   const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) => {
     const handleArticleShowMoreClick = () => {
@@ -773,7 +813,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
           >
             <Text style={[
               styles.articleTitle,
-              showFullContent && styles.clickableTitle
             ]}>
               {articleData.title}
             </Text>
@@ -918,12 +957,10 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
           >
             {adState.shouldShowAd && adState.adQueue.length > 0 ? (
               <>
-                {console.log('Rendering ad:', adState.adQueue[adState.currentAdIndex])}
                 {renderNewsArticle(adState.adQueue[adState.currentAdIndex], true, true)}
               </>
             ) : (
               <>
-                {console.log('Rendering article:', article.title)}
                 {renderNewsArticle(article, true, false)}
               </>
             )}
@@ -1097,7 +1134,7 @@ const styles = StyleSheet.create({
   },
 
   articleTitle: {
-    fontSize: 20, // Reduced from 24
+    fontSize: 18, // Reduced from 24
     fontWeight: 'bold',
     color: '#000',
     lineHeight: 26, // Reduced from 30
@@ -1106,11 +1143,17 @@ const styles = StyleSheet.create({
   },
 
   articlePreview: {
-    fontSize: 14, // Reduced from 16
+    fontSize: 16, // Reduced from 16
     lineHeight: 20, // Reduced from 24
     color: '#666', // Changed from #989898
+    fontWeight : 600,
     textAlign: 'left',
-    fontFamily: 'Montserrat-Medium',
+        fontStyle: 'normal',
+
+    // fontFamily: 'Montserrat-Medium',
+        fontFamily: 'Newsreader-Italic-VariableFont_opsz',
+        
+
   },
 
   showMoreButton: {
@@ -1177,8 +1220,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: '#666',
   },
+  adAdvertiser2: {
+    fontSize: 12,
+    color: '#ffffffff',
+    fontStyle: 'normal',
+    marginBottom: 8,
+  },
   adAdvertiser: {
     fontSize: 12,
+    fontWeight : '500',
     color: '#888',
     fontStyle: 'italic',
     marginBottom: 16,
@@ -1197,11 +1247,12 @@ const styles = StyleSheet.create({
   },
   adCloseButton: {
     position: 'absolute',
-    top: 40,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 8,
+    bottom: 40,
+    margin : "auto",
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius:16,
+    paddingHorizontal: 40,
+    paddingTop : 8
   },
   newsStackContainer: {
     flex: 1,
@@ -1253,9 +1304,9 @@ const styles = StyleSheet.create({
   footerActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 50,
+    width: 48,
     height: 50,
-    marginBottom: 15, // Add spacing between buttons instead of gap
+    marginBottom: 10, // Add spacing between buttons instead of gap
     borderRadius: 25,
     backgroundColor: 'rgba(0, 0, 0, 0.5)', // Slightly darker for better visibility
     shadowColor: '#000',
@@ -1266,18 +1317,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8, // Increased shadow opacity
     shadowRadius: 4,
     elevation: 8, // Increased elevation for Android
-
   },
 
   footerActionText: {
-    fontSize: 9, // Slightly smaller for better fit
+    fontSize: 8, // Slightly smaller for better fit
     color: '#fff',
     fontWeight: '600',
     textAlign: 'center',
     fontFamily: 'Montserrat-Medium',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   activeFooterText: {
     color: '#ff4757',
