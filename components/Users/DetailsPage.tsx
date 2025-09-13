@@ -1,6 +1,6 @@
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
-import { Montserrat_500Medium, Montserrat_600SemiBold, useFonts } from '@expo-google-fonts/montserrat';
+import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,11 +39,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   sourceTab,
   allArticles = []
 }) => {
-  // Load custom fonts
-  // const [fontsLoaded] = useFonts({
-  //   Montserrat_500Medium,
-  //   Montserrat_600SemiBold,
-  // });
   const [fontsLoaded] = useFonts({
     'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
     'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
@@ -854,7 +849,7 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
                     color: '#666',
                     marginBottom: 12,
                     textAlign: 'left',
-                    fontFamily: 'Montserrat_500Medium'
+                    fontFamily: 'Montserrat-Medium'
                   },
                   h1: { 
                     fontSize: 20, 
@@ -862,7 +857,7 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
                     color: '#333',
                     marginBottom: 12,
                     marginTop: 8,
-                    fontFamily: 'Montserrat_600SemiBold'
+                    fontFamily: 'NeuePlakExtended-SemiBold'
                   },
                   h2: { 
                     fontSize: 18, 
@@ -870,14 +865,14 @@ const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) 
                     color: '#333',
                     marginBottom: 10,
                     marginTop: 6,
-                    fontFamily: 'Montserrat_600SemiBold'
+                    fontFamily: 'NeuePlakExtended-SemiBold'
                   },
                   h3: { 
                     fontSize: 16, 
                     fontWeight: 'bold', 
                     color: '#333',
                     marginBottom: 8,
-                    fontFamily: 'Montserrat_600SemiBold'
+                    fontFamily: 'NeuePlakExtended-SemiBold'
                   },
                   img: {
                     marginVertical: 8
@@ -1320,7 +1315,7 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '400',
     marginBottom: 12,
-    fontFamily: 'Montserrat_500Medium',
+    fontFamily: 'Montserrat-Medium',
   },
 
   articleTitle: {
@@ -1329,7 +1324,7 @@ const styles = StyleSheet.create({
     color: '#000',
     lineHeight: 26, // Reduced from 30
     marginBottom: 16,
-    fontFamily: 'Montserrat_600SemiBold',
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
 
   articlePreview: {
@@ -1337,7 +1332,7 @@ const styles = StyleSheet.create({
     lineHeight: 20, // Reduced from 24
     color: '#666', // Changed from #989898
     textAlign: 'left',
-    fontFamily: 'Montserrat_500Medium',
+    fontFamily: 'Montserrat-Medium',
   },
 
   showMoreButton: {
@@ -1356,13 +1351,13 @@ const styles = StyleSheet.create({
     fontSize: 14, // Reduced from 16
     fontWeight: '600',
     textAlign: 'center',
-    fontFamily: 'Montserrat_600SemiBold',
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
 
   swipeHint: {
     fontSize: 11, // Reduced from 12
     color: '#999',
-    fontFamily: 'Montserrat_500Medium',
+    fontFamily: 'Montserrat-Medium',
   },
   // Ad Component Styles
   adContainer: {
@@ -1479,7 +1474,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
     textAlign: 'center',
-    fontFamily: 'Montserrat_500Medium',
+    fontFamily: 'Montserrat-Medium',
   },
 
   activeFooterText: {

@@ -21,7 +21,9 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "apartmenttimes",
-            "CFBundleURLSchemes": ["apartmenttimes"]
+            "CFBundleURLSchemes": [
+              "apartmenttimes"
+            ]
           }
         ]
       }
@@ -47,7 +49,10 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": ["DEFAULT", "BROWSABLE"],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ],
           "data": {
             "scheme": "apartmenttimes"
           }
@@ -71,7 +76,8 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
