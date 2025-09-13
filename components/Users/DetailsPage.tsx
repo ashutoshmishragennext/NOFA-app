@@ -36,8 +36,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   onPrev,
   hasPrev = false,
   currentIndex,
-  totalArticles,
-  sourceTab,
   allArticles = []
 }) => {
   const [fontsLoaded] = useFonts({
@@ -50,7 +48,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   };
 
   const [showComments, setShowComments] = useState(false);
-  const [commentsCount, setCommentsCount] = useState(0);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(article.likeCount || 0);
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -134,19 +131,24 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     }
   };
 
+  const handleRedirectToIframe = (articleData: any) => {
+    if (showFullContent && (articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
+      console.log("HELOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", articleData.sourceUrl);
+
+      setWebViewUrl(articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
+      setShowWebView(true);
+    }
+  }
+
   // Call preloadNextAd when component mounts and when ad changes
   useEffect(() => {
     preloadNextAd();
   }, [adState.currentAdIndex, adState.adQueue]);
   useEffect(() => {
-    // Track article changes for ad display
     const updateArticleCount = () => {
       setAdState(prev => {
-        const newCount = prev.articlesViewedCount + 1;
-        console.log(`Article viewed count: ${newCount}, Next ad after: ${prev.nextAdAfter}`);
-
-        // Check if we should show an ad
-        if (newCount >= prev.nextAdAfter) {
+        const showAd = Math.random();
+        if (showAd >= 0.5) {
           console.log('Should show ad now!');
           return {
             ...prev,
@@ -155,15 +157,12 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
             nextAdAfter: getRandomAdInterval(), // Set next interval
           };
         }
-
         return {
-          ...prev,
-          articlesViewedCount: newCount
+          ...prev
         };
       });
     };
 
-    // Only update count when article ID changes (not on initial load)
     if (article.id) {
       updateArticleCount();
     }
@@ -434,7 +433,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     }
   };
 
-
   // Add subtle animation to swipe indicator Needs Checking for the animation
   useEffect(() => {
     const animateIndicator = () => {
@@ -523,22 +521,20 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       onPanResponderRelease: (evt, gestureState) => {
         pan.flattenOffset();
 
-        // More sensitive thresholds for better UX
         const swipeThreshold = height * 0.12;
         const velocityThreshold = 0.15;
 
         const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && gestureState.dy < 0;
         const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && gestureState.dy > 0;
 
-        if (shouldGoNext && hasNext) {
-          // Swipe up - complete the transition to next article
+        // For circular navigation, always allow navigation if there are multiple articles
+        if (shouldGoNext && allArticles.length > 1) {
           setIsTransitioning(true);
           Animated.timing(pan.y, {
             toValue: -height,
-            duration: 200,
+            duration: 200, // Add proper duration
             useNativeDriver: true,
           }).start(() => {
-            // Reset position and navigate
             pan.setValue({ x: 0, y: 0 });
             opacity.setValue(1);
             if (onNext) {
@@ -546,15 +542,13 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
             }
             setIsTransitioning(false);
           });
-        } else if (shouldGoPrev && hasPrev) {
-          // Swipe down - complete the transition to previous article
+        } else if (shouldGoPrev && allArticles.length > 1) {
           setIsTransitioning(true);
           Animated.timing(pan.y, {
             toValue: height,
-            duration: 200,
+            duration: 200, // Add proper duration  
             useNativeDriver: true,
           }).start(() => {
-            // Reset position and navigate
             pan.setValue({ x: 0, y: 0 });
             opacity.setValue(1);
             if (onPrev) {
@@ -563,7 +557,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
             setIsTransitioning(false);
           });
         } else {
-          // Return to original position with smooth spring animation
+          // Return to original position
           Animated.parallel([
             Animated.spring(pan.y, {
               toValue: 0,
@@ -580,20 +574,21 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
           ]).start();
         }
       },
+
     })
   ).current;
 
   // Get next and previous articles for preview
   const getNextArticle = () => {
-    if (hasNext && allArticles.length > 0) {
-      return allArticles[currentIndex + 1];
+    if (allArticles.length > 0) {
+      return allArticles[(currentIndex + 1) % allArticles.length];
     }
     return null;
   };
 
   const getPrevArticle = () => {
-    if (hasPrev && allArticles.length > 0) {
-      return allArticles[currentIndex - 1];
+    if (allArticles.length > 0) {
+      return allArticles[(currentIndex - 1 + allArticles.length) % allArticles.length];
     }
     return null;
   };
@@ -642,6 +637,14 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   };
 
   const renderNewsArticle = (articleData, isActive = false, isAd: boolean = true) => {
+    const handleArticleShowMoreClick = () => {
+      if ((articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
+        console.log("HELOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", articleData.sourceUrl);
+
+        setWebViewUrl(articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
+        setShowWebView(true);
+      }
+    }
     if (isAd) {
       return (
         <EnhancedAdComponent
@@ -656,7 +659,8 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     return (
       <View style={[styles.newsContainer]}>
         {/* Article Image - Clean without overlay buttons */}
-        <View style={styles.articleImageContainer}>
+        {/* Article Image - Clean without overlay buttons */}
+        <View style={[styles.articleImageContainer]}>
           <Image
             source={{ uri: articleData.featuredImage || 'https://via.placeholder.com/800x400' }}
             style={styles.articleImage}
@@ -666,114 +670,105 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
             style={styles.articleImageGradient}
           />
 
-        </View>
+          {/* Move the action buttons here - overlaid on the image */}
+          <View style={[styles.ArticleButtonStyle]}>
+            <View style={[styles.ArticleButtonStyleGroup]}>
+              <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+                <TouchableOpacity
+                  style={[
+                    styles.footerActionButton,
+                  ]}
+                  onPress={handleLike}
+                  disabled={likeLoading}
+                >
+                  {likeLoading ? (
+                    <ActivityIndicator size={16} color="#999" />
+                  ) : (
+                    <Ionicons
+                      name={liked ? "heart" : "heart-outline"}
+                      size={16}
+                      color={liked ? "#ff4757" : "#fff"}
+                    />
+                  )}
+                  <Text style={[
+                    styles.footerActionText,
+                    liked && styles.activeFooterText
+                  ]}>
+                    {likeCount > 0 ? likeCount : 'Like'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-        {/* Share Button */}
+              {/* Comment Button */}
+              <Animated.View style={{ transform: [{ scale: commentScale }] }}>
+                <TouchableOpacity
+                  style={styles.footerActionButton}
+                  onPress={() => setShowComments(true)}
+                >
+                  <Ionicons name="chatbubble-outline" size={16} color="#fff" />
+                  <Text style={styles.footerActionText}>
+                    {articleData.commentCount > 0 ? articleData.commentCount : '0'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-        <View style={[styles.ArticleButtonStyle]}>
-          <View style={[styles.ArticleButtonStyleGroup]}>
-            <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.footerActionButton,
-                  liked && styles.activeFooterButton
-                ]}
-                onPress={handleLike}
-                disabled={likeLoading}
-              >
-                {likeLoading ? (
-                  <ActivityIndicator size={16} color="#999" />
-                ) : (
-                  <Ionicons
-                    name={liked ? "heart" : "heart-outline"}
-                    size={16}
-                    color={liked ? "#ff4757" : "#666"}
-                  />
-                )}
-                <Text style={[
-                  styles.footerActionText,
-                  liked && styles.activeFooterText
-                ]}>
-                  {likeCount > 0 ? likeCount : 'Like'}
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
+              {/* Share Button */}
+              <Animated.View style={{ transform: [{ scale: shareScale }] }}>
+                <TouchableOpacity
+                  style={styles.footerActionButton}
+                  onPress={handleShare}
+                  disabled={shareLoading}
+                >
+                  {shareLoading ? (
+                    <ActivityIndicator size={16} color="#999" />
+                  ) : (
+                    <Ionicons name="share-social-outline" size={16} color="#fff" />
+                  )}
+                  <Text style={styles.footerActionText}>
+                    {'Share'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-            {/* Comment Button */}
-            <Animated.View style={{ transform: [{ scale: commentScale }] }}>
-              <TouchableOpacity
-                style={styles.footerActionButton}
-                onPress={() => setShowComments(true)}
-              >
-                <Ionicons name="chatbubble-outline" size={16} color="#666" />
-                <Text style={styles.footerActionText}>
-                  {articleData.commentCount > 0 ? articleData.commentCount : '0'}
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-          <View style={[styles.ArticleButtonStyleGroup]}>
-            <Animated.View style={{ transform: [{ scale: shareScale }] }}>
-              <TouchableOpacity
-                style={styles.footerActionButton}
-                onPress={handleShare}
-                disabled={shareLoading}
-              >
-                {shareLoading ? (
-                  <ActivityIndicator size={16} color="#999" />
-                ) : (
-                  <Ionicons name="share-social-outline" size={16} color="#666" />
-                )}
-                <Text style={styles.footerActionText}>
-                  {'Share'}
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* Bookmark Button */}
-            <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.footerActionButton,
-                  isBookmarked && styles.activeFooterButton
-                ]}
-                onPress={handleBookmark}
-                disabled={bookmarkLoading}
-              >
-                {bookmarkLoading ? (
-                  <ActivityIndicator size={16} color="#999" />
-                ) : (
-                  <Ionicons
-                    name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                    size={16}
-                    color={isBookmarked ? "#4CAF50" : "#666"}
-                  />
-                )}
-                <Text style={[
-                  styles.footerActionText,
-                  isBookmarked && styles.activeBookmarkText
-                ]}>
-                  {isBookmarked ? 'Saved' : 'Save'}
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
+              {/* Bookmark Button */}
+              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                <TouchableOpacity
+                  style={[
+                    styles.footerActionButton,
+                  ]}
+                  onPress={handleBookmark}
+                  disabled={bookmarkLoading}
+                >
+                  {bookmarkLoading ? (
+                    <ActivityIndicator size={16} color="#999" />
+                  ) : (
+                    <Ionicons
+                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                      size={16}
+                      color={isBookmarked ? "#4CAF50" : "#fff"}
+                    />
+                  )}
+                  <Text style={[
+                    styles.footerActionText,
+                    isBookmarked && styles.activeBookmarkText
+                  ]}>
+                    {isBookmarked ? 'Saved' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
           </View>
         </View>
+
+        {/* Remove the old button container from here - it was after the image container */}
 
         {/* Article Content */}
-        <View style={styles.articleContentContainer}>
+        <View style={[styles.articleContentContainer]}>
           {/* Source */}
           <Text style={styles.articleSource}>R. Republic TV</Text>
 
           <TouchableOpacity
-            onPress={() => {
-              if (showFullContent && (articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
-                console.log("HELOOOOOOOOOOOOOOOOOOOOOOOOOOOOO", articleData.url);
 
-                setWebViewUrl(articleData.url || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
-                setShowWebView(true);
-              }
-            }}
             disabled={!showFullContent}
           >
             <Text style={[
@@ -829,16 +824,19 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
               />
             ) : (
               <Text style={styles.articlePreview}>
-                {articleData.summary || 'Russian President Vladimir Putin called Prime Minister Narendra Modi on Monday and briefed him about the Alaska Summit. Putin went to Alaska for a summit with US President Donald Trump on Friday. The war in Ukraine was at the top of the summit\'s agenda. In a post on X, Modi thanked Putin for "sharing insights on his recent meeting with President Trump in Alaska".'}
+                {articleData.summary || '".'}
               </Text>
             )}
           </View>
 
-          {/* Show More Button - moved to bottom */}
+
+        </View>
+        {/* Show More Button - moved to bottom */}
+        <View style={[styles.bottomShowMore]}>
           <TouchableOpacity
             style={styles.showMoreButton}
-            onPress={() => setShowFullContent(!showFullContent)}
-          // onPress={() =>  handleArticleShowMoreClick(articleData)}
+            // onPress={() => setShowFullContent(!showFullContent)}
+            onPress={() => handleArticleShowMoreClick()}
           >
             <Text style={styles.showMoreText}>
               {showFullContent ? 'Show Less' : 'Show More'}
@@ -847,12 +845,13 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
           {/* Swipe Indicator - only show on active article */}
           {isActive && (
             <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
-              <View style={styles.swipeDots}>
-                <View style={[styles.swipeDot, styles.swipeDotActive]} />
-                <View style={styles.swipeDot} />
-                <View style={styles.swipeDot} />
-              </View>
+
               <Text style={styles.swipeHint}>Swipe up for next news</Text>
+              <Ionicons
+                name="arrow-up"
+                size={16}
+                color={"#000000b6"}
+              />
             </Animated.View>
           )}
         </View>
@@ -965,11 +964,11 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       />
 
       {/* Loading Overlay during transitions */}
-      {isTransitioning && (
+      {/* {isTransitioning && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#4CAF50" />
         </View>
-      )}
+      )} */}
     </SafeAreaView>
   );
 };
@@ -1043,8 +1042,7 @@ const styles = StyleSheet.create({
   },
   swipeIndicator: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
+    paddingVertical: 4
   },
   swipeDots: {
     flexDirection: 'row',
@@ -1070,8 +1068,8 @@ const styles = StyleSheet.create({
   },
   articleContentContainer: {
     padding: 20,
-    paddingTop : 5,
-    paddingBottom: 100, // Extra space to prevent overlap with footer
+    paddingTop: 5,
+    paddingBottom: 20, // Extra space to prevent overlap with footer
   },
   currentNewsItem: {
     zIndex: 3,
@@ -1087,6 +1085,7 @@ const styles = StyleSheet.create({
   newsContainer: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingBottom: 0
   },
 
   articleSource: {
@@ -1117,7 +1116,7 @@ const styles = StyleSheet.create({
   showMoreButton: {
     backgroundColor: '#000',
     paddingTop: 8, // Reduced from 15
-    paddingBottom : 12,
+    paddingBottom: 12,
     paddingHorizontal: 40, // Reduced from 60
     borderRadius: 16, // Reduced from 18
     alignSelf: 'center',
@@ -1132,7 +1131,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     fontFamily: 'NeuePlakExtended-SemiBold',
-
   },
 
   swipeHint: {
@@ -1210,40 +1208,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
-  footerActionButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 50,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 12,
-    backgroundColor: 'transparent',
-  },
-
-  activeFooterButton: {
-    backgroundColor: '#f8f9fa',
-    // borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-
-  footerActionText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    fontWeight: '700',
-    textAlign: 'center',
-    fontFamily: 'Montserrat-Medium',
-  },
-
-  activeFooterText: {
-    color: '#ff4757',
-    fontWeight: '600',
-  },
-
-  activeBookmarkText: {
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
   webViewContainer: {
     flex: 1,
     backgroundColor: '#fff',
@@ -1273,15 +1237,62 @@ const styles = StyleSheet.create({
     color: '#2196F3',
   },
   ArticleButtonStyle: {
-    display: "flex",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal : 8,
+    position: 'absolute',
+    right: 15,
+    bottom: 4,
+    zIndex: 5,
+    elevation: 5,
   },
+
   ArticleButtonStyleGroup: {
-    display: "flex",
+    width: "90%",
     flexDirection: "row",
-    justifyContent: "flex-start"
+    justifyContent: 'space-between',
+  },
+
+  footerActionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 50,
+    height: 50,
+    marginBottom: 15, // Add spacing between buttons instead of gap
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Slightly darker for better visibility
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.8, // Increased shadow opacity
+    shadowRadius: 4,
+    elevation: 8, // Increased elevation for Android
+
+  },
+
+  footerActionText: {
+    fontSize: 9, // Slightly smaller for better fit
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: 'Montserrat-Medium',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  activeFooterText: {
+    color: '#ff4757',
+    textShadowColor: 'transparent',
+    fontWeight: '700',
+  },
+  activeBookmarkText: {
+    color: '#4CAF50',
+    textShadowColor: 'transparent',
+    fontWeight: '700',
+  },
+  bottomShowMore: {
+    position: "absolute",
+    bottom: 10,
+    left: 100,
   }
 });
 

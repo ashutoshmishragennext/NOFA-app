@@ -220,27 +220,25 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
     setCurrentArticleIndex(0);
   };
 
-  // Handle next article navigation
-  const handleNextArticle = () => {
-    if (currentArticleIndex < articlesList.length - 1) {
-      const nextIndex = currentArticleIndex + 1;
-      const nextArticle = articlesList[nextIndex];
+const handleNextArticle = () => {
+  // Circular navigation: wrap to index 0 when reaching the end
+  const nextIndex = (currentArticleIndex + 1) % articlesList.length;
+  const nextArticle = articlesList[nextIndex];
+  
+  setSelectedArticle(nextArticle);
+  setCurrentArticleIndex(nextIndex);
+  
+};
 
-      setSelectedArticle(nextArticle);
-      setCurrentArticleIndex(nextIndex);
-    }
-  };
-
-  // Handle previous article navigation
-  const handlePrevArticle = () => {
-    if (currentArticleIndex > 0) {
-      const prevIndex = currentArticleIndex - 1;
-      const prevArticle = articlesList[prevIndex];
-
-      setSelectedArticle(prevArticle);
-      setCurrentArticleIndex(prevIndex);
-    }
-  };
+const handlePrevArticle = () => {
+  // Circular navigation: wrap to last index when going before 0
+  const prevIndex = (currentArticleIndex - 1 + articlesList.length) % articlesList.length;
+  const prevArticle = articlesList[prevIndex];
+  
+  setSelectedArticle(prevArticle);
+  setCurrentArticleIndex(prevIndex);
+  
+};
 
   const handleTabPress = (tabName:string) => {
     setCurrentTab(tabName);
@@ -312,10 +310,10 @@ if (currentView === "categoryChange") {
           key={selectedArticle.id}
           article={selectedArticle}
           onBack={handleBackPress}
-          onNext={hasNext ? handleNextArticle : null}
-          onPrev={hasPrev ? handlePrevArticle : handleBackPress}
-          hasNext={hasNext}
-          hasPrev={hasPrev}
+          onNext={ handleNextArticle}
+          onPrev={ handlePrevArticle}
+          hasNext={articlesList.length > 1}
+          hasPrev={articlesList.length > 1}
           currentIndex={currentArticleIndex}
           totalArticles={articlesList.length}
           sourceTab={sourceTab}
