@@ -50,7 +50,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   // Advertisement configuration
   const AD_CONFIG = {
     ARRAY_LENGTH: 100,                // Pre-generate for 100 positions
-    AD_PROBABILITY: 0.3,             // 30% chance for each position
+    AD_PROBABILITY: 1,             // 70% chance for each position
     MIN_GAP_BETWEEN_ADS: 2,          // Minimum 2 articles between ads
     MAX_ADS_PER_SESSION: 3,          // Maximum 3 ads per session
     STORAGE_KEY: 'ad_binary_array'
@@ -1187,7 +1187,7 @@ return (
                 }
               ]}
             >
-              {renderContentByTypeEnhanced(contentMap.prev, false, 'prev')}
+              {renderContentByTypeEnhanced(contentMap.prev, true, 'prev')}
             </Animated.View>
           )}
 
@@ -1218,7 +1218,7 @@ return (
                 }
               ]}
             >
-              {renderContentByTypeEnhanced(contentMap.next, false, 'next')}
+              {renderContentByTypeEnhanced(contentMap.next, true, 'next')}
             </Animated.View>
           )}
         </View>
