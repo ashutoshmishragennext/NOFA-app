@@ -209,50 +209,52 @@ const NewsApp = () => {
     }));
   }, [currentTab, createContentList, prerenderAdjacentContent]);
 
-  const handleNextContent = useCallback(() => {
-    if (contentTransition.isTransitioning || contentList.length <= 1) return;
-    
-    const nextIndex = (currentContentIndex + 1) % contentList.length;
-    const nextContent = contentList[nextIndex];
-    
+const handleNextContent = useCallback(() => {
+  if (contentTransition.isTransitioning || contentList.length <= 1) return;
+  
+  const nextIndex = (currentContentIndex + 1) % contentList.length;
+  const nextContent = contentList[nextIndex];
+  
+  setContentTransition({
+    isTransitioning: true,
+    direction: 'next',
+    nextContent: nextContent
+  });
+  
+  // Immediate state update - no setTimeout delay (consistent with handlePrevContent)
+  setCurrentContentIndex(nextIndex);
+  
+  // Update selected article if next content is an article
+  if (nextContent.type === 'article') {
+    setSelectedArticle(nextContent.data);
+    // Update legacy article index
+    const articleOnlyList = contentList.filter(item => item.type === 'article');
+    const articleIndex = articleOnlyList.findIndex(item => item.data.id === nextContent.data.id);
+    if (articleIndex !== -1) {
+      setCurrentArticleIndex(articleIndex);
+    }
+  }
+  
+  // Immediately prerender new adjacent content
+  prerenderAdjacentContent(nextContent, contentList, nextIndex);
+  
+  // Reset transition state after a brief moment
+  setTimeout(() => {
     setContentTransition({
-      isTransitioning: true,
-      direction: 'next',
-      nextContent: nextContent
+      isTransitioning: false,
+      direction: null,
+      nextContent: null
     });
-    
-    setTimeout(() => {
-      setCurrentContentIndex(nextIndex);
-      
-      // Update selected article if next content is an article
-      if (nextContent.type === 'article') {
-        setSelectedArticle(nextContent.data);
-        // Update legacy article index
-        const articleOnlyList = contentList.filter(item => item.type === 'article');
-        const articleIndex = articleOnlyList.findIndex(item => item.data.id === nextContent.data.id);
-        if (articleIndex !== -1) {
-          setCurrentArticleIndex(articleIndex);
-        }
-      }
-      
-      // Prerender new adjacent content
-      prerenderAdjacentContent(nextContent, contentList, nextIndex);
-      
-      setContentTransition({
-        isTransitioning: false,
-        direction: null,
-        nextContent: null
-      });
+  }, 100);
 
-      // Update view count for articles
-      if (nextContent.type === 'article') {
-        setAdDisplayState(prev => ({
-          ...prev,
-          articlesViewedCount: prev.articlesViewedCount + 1
-        }));
-      }
-    }, 50);
-  }, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]);
+  // Update view count for articles
+  if (nextContent.type === 'article') {
+    setAdDisplayState(prev => ({
+      ...prev,
+      articlesViewedCount: prev.articlesViewedCount + 1
+    }));
+  }
+}, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]);
 
   const handlePrevContent = useCallback(() => {
     if (contentTransition.isTransitioning || contentList.length <= 1) return;
