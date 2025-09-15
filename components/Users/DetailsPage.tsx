@@ -183,6 +183,19 @@ const [prevContentReady, setPrevContentReady] = useState(false);
     }
   }, [liked, likeCount, currentUser, syncPendingLikesToServer]);
 
+  // Add these to your existing state in OptimizedNewsDetailScreen
+const [stableArticleData, setStableArticleData] = useState(article);
+const [isContentChanging, setIsContentChanging] = useState(false);
+
+// Add this effect to manage stable content during transitions
+useEffect(() => {
+  if (!isTransitioning) {
+    setStableArticleData(article);
+    setIsContentChanging(false);
+  } else {
+    setIsContentChanging(true);
+  }
+}, [article, isTransitioning]);
   // ========================================
   // OTHER INTERACTIONS (Simplified)
   // ========================================
@@ -233,11 +246,6 @@ const [prevContentReady, setPrevContentReady] = useState(false);
     setWebViewUrl(url);
     setShowWebView(true);
   }, []);
-
-  // ========================================
-  // GESTURE HANDLING (Optimized)
-  // ========================================
-// In OptimizedNewsDetailScreen, replace the panResponder logic with this:
 
 const panResponder = useMemo(() => PanResponder.create({
   onStartShouldSetPanResponder: () => false,
@@ -382,22 +390,22 @@ const panResponder = useMemo(() => PanResponder.create({
   }, [fontsLoaded, article.id, currentUser, loadServerLikeState, syncPendingLikesToServer]);
 
   // Handle transition animations
-  useEffect(() => {
-    if (isTransitioning) {
-      Animated.timing(transitionOpacity, {
-        toValue: 0.7,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(transitionOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [isTransitioning, transitionOpacity]);
-
+// In your useEffect for transition handling
+useEffect(() => {
+  if (isTransitioning) {
+    Animated.timing(transitionOpacity, {
+      toValue: 0.95, // Don't go completely transparent
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  } else {
+    Animated.timing(transitionOpacity, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  }
+}, [isTransitioning, transitionOpacity]);
   // Swipe indicator animation
   useEffect(() => {
     const animateIndicator = () => {
@@ -424,36 +432,73 @@ const panResponder = useMemo(() => PanResponder.create({
   // ========================================
   // RENDER COMPONENTS
   // ========================================
-  const AdComponent = React.memo(({ adData, onAdClick, onAdClose }: any) => (
+// Replace the AdComponent in your child component with this:
+
+const AdComponent = React.memo(({ adData, onAdClick, onAdClose, isActive = false }: any) => {
+  // Ensure adData exists and has fallback values
+  const safeAdData = useMemo(() => ({
+    id: adData?.id || '',
+    title: adData?.title || 'Default Title',
+    description: adData?.description || 'Default Description',
+    imageUrl: adData?.imageUrl || 'https://via.placeholder.com/300x200',
+    ctaText: adData?.ctaText || 'Click Here',
+    advertiser: adData?.advertiser || 'Unknown'
+  }), [adData]);
+
+  return (
     <View style={styles.adContainer}>
-      <TouchableOpacity onPress={() => onAdClick?.(adData)} style={styles.adContent}>
+      <TouchableOpacity 
+        onPress={() => isActive && onAdClick?.(safeAdData)} 
+        style={styles.adContent}
+        disabled={!isActive}
+      >
         <Image
-          source={{ uri: adData?.imageUrl || 'https://via.placeholder.com/300x200' }}
+          source={{ uri: safeAdData.imageUrl }}
           style={styles.adImage}
           resizeMode="cover"
         />
         <View style={styles.adTextContainer}>
-          <Text style={styles.adTitle}>{adData?.title || 'Default Title'}</Text>
-          <Text style={styles.adDescription}>{adData?.description || 'Default Description'}</Text>
-          <Text style={styles.adAdvertiser}>Sponsored by {adData?.advertiser || 'Unknown'}</Text>
-          <TouchableOpacity style={styles.adCtaButton}>
-            <Text style={styles.adCtaText}>{adData?.ctaText || 'Click Here'}</Text>
+          <Text style={styles.adTitle}>{safeAdData.title}</Text>
+          <Text style={styles.adDescription}>{safeAdData.description}</Text>
+          <Text style={styles.adAdvertiser}>Sponsored by {safeAdData.advertiser}</Text>
+          <TouchableOpacity 
+            style={[styles.adCtaButton, { opacity: isActive ? 1 : 0.7 }]}
+            disabled={!isActive}
+          >
+            <Text style={styles.adCtaText}>{safeAdData.ctaText}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
-      <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
+      
+      {/* Always render skip button but conditionally enable */}
+      <TouchableOpacity 
+        onPress={() => isActive && onAdClose?.()} 
+        style={[styles.adCloseButton, { opacity: isActive ? 1 : 0.7 }]}
+        disabled={!isActive}
+      >
         <Text style={styles.adAdvertiser2}>Skip</Text>
       </TouchableOpacity>
     </View>
-  ));
+  );
+});
+// Replace the ArticleContent component in your child component with this fixed version:
 
-  const ArticleContent = React.memo(({ articleData, isActive = false }: any) => (
+const ArticleContent = React.memo(({ articleData, isActive = false }: any) => {
+  // Ensure articleData exists and has fallback values
+  const safeArticleData = useMemo(() => ({
+    id: articleData?.id || '',
+    title: articleData?.title || 'Loading...',
+    featuredImage: articleData?.featuredImage || 'https://via.placeholder.com/800x400',
+    summary: articleData?.summary || articleData?.content?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || 'No content available',
+    commentCount: articleData?.commentCount || 0,
+    sourceUrl: articleData?.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/"
+  }), [articleData]);
+
+  return (
     <View style={styles.newsContainer}>
       <View style={styles.articleImageContainer}>
         <Image
-          source={{ 
-            uri: articleData.featuredImage || 'https://via.placeholder.com/800x400'
-          }}
+          source={{ uri: safeArticleData.featuredImage }}
           style={styles.articleImage}
           loadingIndicatorSource={{ uri: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }}
         />
@@ -462,83 +507,104 @@ const panResponder = useMemo(() => PanResponder.create({
           style={styles.articleImageGradient}
         />
 
-        {isActive && (
-          <View style={styles.ArticleButtonStyle}>
-            <View style={styles.ArticleButtonStyleGroup}>
-              <TouchableOpacity style={styles.footerActionButton} onPress={handleLike} disabled={likeLoading}>
-                <Ionicons name={liked ? "heart" : "heart-outline"} size={16} color={liked ? "#ff4757" : "#fff"} />
-                <Text style={[styles.footerActionText, liked && styles.activeFooterText]}>
-                  {likeCount > 0 ? likeCount : 'Like'}
-                </Text>
-              </TouchableOpacity>
+        {/* Always render button container but conditionally show buttons */}
+        <View style={[styles.ArticleButtonStyle, { opacity: isActive ? 1 : 0 }]}>
+          <View style={styles.ArticleButtonStyleGroup}>
+            <TouchableOpacity 
+              style={styles.footerActionButton} 
+              onPress={handleLike} 
+              disabled={likeLoading || !isActive}
+            >
+              <Ionicons name={liked ? "heart" : "heart-outline"} size={16} color={liked ? "#ff4757" : "#fff"} />
+              <Text style={[styles.footerActionText, liked && styles.activeFooterText]}>
+                {likeCount > 0 ? likeCount : 'Like'}
+              </Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity style={styles.footerActionButton} onPress={() => setShowComments(true)}>
-                <Ionicons name="chatbubble-outline" size={16} color="#fff" />
-                <Text style={styles.footerActionText}>
-                  {articleData.commentCount > 0 ? articleData.commentCount : '0'}
-                </Text>
-              </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.footerActionButton} 
+              onPress={() => isActive && setShowComments(true)}
+              disabled={!isActive}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#fff" />
+              <Text style={styles.footerActionText}>
+                {safeArticleData.commentCount > 0 ? safeArticleData.commentCount : '0'}
+              </Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity style={styles.footerActionButton} onPress={handleShare} disabled={shareLoading}>
-                {shareLoading ? (
-                  <ActivityIndicator size={16} color="#999" />
-                ) : (
-                  <Ionicons name="share-social-outline" size={16} color="#fff" />
-                )}
-                <Text style={styles.footerActionText}>Share</Text>
-              </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.footerActionButton} 
+              onPress={handleShare} 
+              disabled={shareLoading || !isActive}
+            >
+              {shareLoading && isActive ? (
+                <ActivityIndicator size={16} color="#999" />
+              ) : (
+                <Ionicons name="share-social-outline" size={16} color="#fff" />
+              )}
+              <Text style={styles.footerActionText}>Share</Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity style={styles.footerActionButton} onPress={handleBookmark} disabled={bookmarkLoading}>
-                {bookmarkLoading ? (
-                  <ActivityIndicator size={16} color="#999" />
-                ) : (
-                  <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={16} color={isBookmarked ? "#4CAF50" : "#fff"} />
-                )}
-                <Text style={[styles.footerActionText, isBookmarked && styles.activeBookmarkText]}>
-                  {isBookmarked ? 'Saved' : 'Save'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              style={styles.footerActionButton} 
+              onPress={handleBookmark} 
+              disabled={bookmarkLoading || !isActive}
+            >
+              {bookmarkLoading && isActive ? (
+                <ActivityIndicator size={16} color="#999" />
+              ) : (
+                <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={16} color={isBookmarked ? "#4CAF50" : "#fff"} />
+              )}
+              <Text style={[styles.footerActionText, isBookmarked && styles.activeBookmarkText]}>
+                {isBookmarked ? 'Saved' : 'Save'}
+              </Text>
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
       </View>
 
       <View style={styles.articleContentContainer}>
         <Text style={styles.articleSource}>R. Republic TV</Text>
-        <Text style={styles.articleTitle}>{articleData.title}</Text>
+        <Text style={styles.articleTitle}>{safeArticleData.title}</Text>
         
         <View style={styles.htmlContentContainer}>
           <Text style={styles.articlePreview}>
-            {articleData.summary || articleData.content?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || 'No content available'}
+            {safeArticleData.summary}
           </Text>
         </View>
       </View>
 
+      {/* Always render bottom container */}
       <View style={styles.bottomShowMore}>
-        <TouchableOpacity style={styles.showMoreButton} onPress={() => handleRedirectToIframe(articleData)}>
+        <TouchableOpacity 
+          style={styles.showMoreButton} 
+          onPress={() => handleRedirectToIframe(safeArticleData)}
+          disabled={!isActive}
+        >
           <Text style={styles.showMoreText}>Show More</Text>
         </TouchableOpacity>
 
-        {isActive && (
-          <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
-            <Text style={styles.swipeHint}>Swipe up for next news</Text>
-            <Ionicons name="arrow-up" size={16} color="#000000b6" />
-          </Animated.View>
-        )}
+        {/* Always render swipe indicator container but conditionally show content */}
+        <Animated.View style={[
+          styles.swipeIndicator, 
+          { opacity: isActive ? swipeIndicatorOpacity : 0 }
+        ]}>
+          <Text style={styles.swipeHint}>Swipe up for next news</Text>
+          <Ionicons name="arrow-up" size={16} color="#000000b6" />
+        </Animated.View>
       </View>
     </View>
-  ));
+  );
+});
+const renderContent = useCallback((contentInfo: any, isActive = false) => {
+  if (!contentInfo?.data) return null;
 
-  const renderContent = useCallback((contentInfo: any, isActive = false) => {
-    if (!contentInfo?.data) return null;
+  if (contentInfo.type === 'ad') {
+    return <AdComponent adData={contentInfo.data} onAdClick={onAdClick} onAdClose={onAdClose} isActive={isActive} />;
+  }
 
-    if (contentInfo.type === 'ad') {
-      return <AdComponent adData={contentInfo.data} onAdClick={onAdClick} onAdClose={onAdClose} />;
-    }
-
-    return <ArticleContent articleData={contentInfo.data} isActive={isActive} />;
-  }, [onAdClick, onAdClose]);
-
+  return <ArticleContent articleData={contentInfo.data} isActive={isActive} />;
+}, [onAdClick, onAdClose]);
   // ========================================
   // RENDER
   // ========================================
@@ -718,10 +784,6 @@ const styles = StyleSheet.create({
   },
   htmlContentContainer: {
     marginBottom: 20,
-  },
-  swipeIndicator: {
-    alignItems: 'center',
-    paddingVertical: 4
   },
   swipeDots: {
     flexDirection: 'row',
@@ -929,20 +991,6 @@ const styles = StyleSheet.create({
     textDecorationColor: '#4CAF50',
     color: '#2196F3',
   },
-  ArticleButtonStyle: {
-    position: 'absolute',
-    right: 15,
-    bottom: 4,
-    zIndex: 5,
-    elevation: 5,
-  },
-
-  ArticleButtonStyleGroup: {
-    width: "90%",
-    flexDirection: "row",
-    justifyContent: 'space-between',
-  },
-
   footerActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -978,11 +1026,33 @@ const styles = StyleSheet.create({
     textShadowColor: 'transparent',
     fontWeight: '700',
   },
-  bottomShowMore: {
-    position: "absolute",
-    bottom: 10,
-    left: 100,
-  }
+  // Add these styles to your existing StyleSheet
+bottomShowMore: {
+  position: "absolute",
+  bottom: 10,
+  left: 100,
+  minHeight: 80, // Fixed height to prevent shifting
+},
+ArticleButtonStyle: {
+  position: 'absolute',
+  right: 15,
+  bottom: 4,
+  zIndex: 5,
+  elevation: 5,
+  minHeight: 60, // Fixed height
+  minWidth: 200, // Fixed width
+},
+ArticleButtonStyleGroup: {
+  width: "90%",
+  flexDirection: "row",
+  justifyContent: 'space-between',
+  minHeight: 50, // Ensure consistent height
+},
+swipeIndicator: {
+  alignItems: 'center',
+  paddingVertical: 4,
+  minHeight: 30, // Fixed height to prevent jumping
+},
 });
 
 export default OptimizedNewsDetailScreen;
