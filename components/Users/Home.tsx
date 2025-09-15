@@ -1,21 +1,28 @@
 import { apiService } from '@/api';
+import { useFonts, Montserrat_500Medium, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
 // FIXED: Updated prop type to support navigation
 const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
+  // Load custom fonts
+  const [fontsLoaded] = useFonts({
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+  });
+
   const [articles, setArticles] = useState<any>([]);
   const [trending, setTrending] = useState<any>([]);
   const [categories, setCategories] = useState<any>([]);
@@ -95,6 +102,9 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
     try {
       const response = await apiService.getDocuments();
       const articles = response.data; 
+
+      console.log("All Articles data" , articles);
+      
       setArticles(articles);
       if (articles && articles.length > 0) {
         setFilteredArticles(articles);
@@ -198,7 +208,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
     fetchData();
   }, []);
 
-  if (isLoading) {
+  if (isLoading || !fontsLoaded) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#4CAF50" />
@@ -209,17 +219,14 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
 
   return (
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Category Tabs */}
+      {/* Category Tabs - Updated Design */}
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
         style={styles.tabsContainer}
       >
         <TouchableOpacity 
-          style={[
-            styles.tab, 
-            selectedCategoryId === null && styles.activeTab
-          ]}
+          style={styles.tab}
           onPress={handleAllCategoryPress}
         >
           <Text style={[
@@ -228,15 +235,13 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
           ]}>
             All
           </Text>
+          {selectedCategoryId === null && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
         
         {categories.map((category) => (
           <TouchableOpacity 
             key={category.id} 
-            style={[
-              styles.tab, 
-              selectedCategoryId === category.id && styles.activeTab
-            ]}
+            style={styles.tab}
             onPress={() => handleCategoryPress(category)}
           >
             <Text style={[
@@ -245,6 +250,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
             ]}>
               {category.name}
             </Text>
+            {selectedCategoryId === category.id && <View style={styles.tabUnderline} />}
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -282,7 +288,7 @@ const HomeScreen = ({ onArticlePress }: { onArticlePress: (article: any, article
                   </View>
                 )}
 
-                <Text style={styles.mainNewsTitle}>{article.title}</Text>
+                <Text  numberOfLines={3} ellipsizeMode="tail" style={styles.mainNewsTitle}>{article.title}</Text>
                 <Text style={styles.mainNewsSource}>{article.authorName || article.source}</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -486,6 +492,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
     lineHeight: 28,
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
   mainNewsSource: {
     color: '#fff',
@@ -493,12 +500,13 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#000',
     marginLeft: 20,
     marginTop: 25,
     marginBottom: 15,
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
   trendingContainer: {
     paddingLeft: 20,
@@ -539,33 +547,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 14,
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
-  // TAB STYLES
+  // TAB STYLES - Updated for underline design
   tabsContainer: {
     backgroundColor: '#fff',
-    paddingVertical: 15,
-    paddingLeft: 10,
+    paddingVertical: 8,
+    paddingLeft: 20,
   },
   tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 4,
-    marginHorizontal: 5,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 15,
     backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  activeTab: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    position: 'relative',
   },
   tabText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: '#000',
+    fontFamily: 'Montserrat-SemiBold',
   },
   activeTabText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#8B5CF6', // Purple color like in the image
+    fontFamily: 'Montserrat-SemiBold',
+  },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#8B5CF6', // Purple underline
+    borderRadius: 2,
   },
 });
 

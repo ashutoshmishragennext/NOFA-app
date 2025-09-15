@@ -1,141 +1,140 @@
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
   Image,
+  Modal,
   PanResponder,
   SafeAreaView,
-  ScrollView,
   Share,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import RenderHtml from "react-native-render-html";
-import Navbar from '../Navbar';
+import { WebView } from 'react-native-webview';
 import CommentsSection from './CommentsPage';
 
 const { width, height } = Dimensions.get('window');
 
-const NewsDetailScreen = ({ 
-  article, 
-  onBack, 
-  onNext, 
-  hasNext, 
+// Simplified props interface
+interface OptimizedNewsDetailProps {
+  article: any;
+  onBack: () => void;
+  onNext: () => void;
+  onPrev: () => void;
+  hasNext: boolean;
+  hasPrev: boolean;
+  currentIndex: number;
+  allArticles: any[];
+  // Ad logic moved to parent
+  currentContent: { type: 'article' | 'ad'; data: any };
+  nextContent?: { type: 'article' | 'ad'; data: any };
+  prevContent?: { type: 'article' | 'ad'; data: any };
+  onAdClick?: (adData: any) => void;
+  onAdClose?: () => void;
+  // Prerendering props
+  prerenderedNextArticle?: any;
+  prerenderedPrevArticle?: any;
+  isTransitioning?: boolean;
+}
+
+const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
+  article,
+  onBack,
+  onNext,
   onPrev,
-  hasPrev = false,
-  currentIndex, 
-  totalArticles,
-  sourceTab 
+  hasNext,
+  hasPrev,
+  currentIndex,
+  allArticles,
+  currentContent,
+  nextContent,
+  prevContent,
+  onAdClick,
+  onAdClose,
+  prerenderedNextArticle,
+  prerenderedPrevArticle,
+  isTransitioning = false
 }) => {
+  const [fontsLoaded] = useFonts({
+    'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
+    'Montserrat-Medium': require('../../assets/fonts/Montserrat-Medium.ttf'),
+    'Newsreader-Italic-VariableFont_opsz': require('../../assets/fonts/Newsreader-Italic-VariableFont_opsz,wght.ttf'),
+    'Newsreader_24pt-Regular.ttf' : require('../../assets/fonts/Newsreader_24pt-Regular.ttf')
+  });
+
+  // Simplified state management
   const [showComments, setShowComments] = useState(false);
-  const [commentsCount, setCommentsCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(article.likeCount || 0);
-  const [shareCount, setShareCount] = useState(article.shareCount || 0);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
-  
-  // Local state for pending likes
-  const [pendingLikeAction, setPendingLikeAction] = useState(null);
-  const [lastLikeUpdate, setLastLikeUpdate] = useState(null);
-  
-  const currentUser = useAuth().user;
+  const [showWebView, setShowWebView] = useState(false);
+  const [webViewUrl, setWebViewUrl] = useState('');
+
+  // Animation refs
   const pan = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(1)).current;
-  
-  // Timer ref for batching like updates
-  const likeUpdateTimer = useRef(null);
+  const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
+  const transitionOpacity = useRef(new Animated.Value(1)).current;
+  const likeUpdateTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const LIKE_BATCH_DELAY = 1 * 60 * 1000; // 1 minute in milliseconds
+  const currentUser = useAuth().user;
+  const LIKE_BATCH_DELAY = 60 * 1000;
   const LIKE_STORAGE_KEY = `article_likes_${article.id}`;
 
-  // Add these state variables
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [viewRecorded, setViewRecorded] = useState(false);
-  const [viewCount, setViewCount] = useState(article.viewCount || 0);
+  // Memoized content to prevent unnecessary re-renders
+  const memoizedCurrentContent = useMemo(() => currentContent, [currentContent]);
+  const memoizedNextContent = useMemo(() => nextContent, [nextContent]);
+  const memoizedPrevContent = useMemo(() => prevContent, [prevContent]);
 
-  // Load initial states including local like state
-  useEffect(() => {
-    const initializeLikeState = async () => {
-      try {
-        if (currentUser && article.id) {
-          setLikeLoading(true);
-          
-          // STEP 1: Check for pending likes in AsyncStorage FIRST
-          const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
-          
-          if (localLikeData) {
-            const parsedData = JSON.parse(localLikeData);
-            
-            // Verify this is for the same user and article
-            if (parsedData.userId === currentUser.id && parsedData.articleId === article.id) {
-              console.log('Found pending likes, syncing to server first...');
-              
-              // STEP 2: Sync pending likes to server immediately
-              await syncPendingLikesToServer(parsedData);
-            } else {
-              // Different user/article, clear stale data
-              await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
-            }
-          }
-          
-          // STEP 3: Now load fresh server state
-          await loadServerLikeState();
-          
-          // Load bookmark status
-          const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
-          setIsBookmarked(bookmarked);
-          
-          setLikeLoading(false);
-        }
-      } catch (error) {
-        console.error('Error initializing like state:', error);
-        setLikeLoading(false);
-      }
-    };
+  // Add these to your existing state variables
+  const [showNextPreview, setShowNextPreview] = useState(false);
+  const [showPrevPreview, setShowPrevPreview] = useState(false);
+  const [nextContentReady, setNextContentReady] = useState(false);
+  const [prevContentReady, setPrevContentReady] = useState(false);
+  // ========================================
+  // LIKE SYSTEM (Simplified)
+  // ========================================
 
-    if (article.id) {
-      initializeLikeState();
-    }
+  // Add these after your existing state variables
+  const [pendingLikeAction, setPendingLikeAction] = useState<string | null>(null);
 
-    // Cleanup timer on unmount
-    return () => {
-      if (likeUpdateTimer.current) {
-        clearTimeout(likeUpdateTimer.current);
-      }
-    };
-  }, [article.id, currentUser?.id]);
+  // Animation refs for button feedback
+  const likeScale = useRef(new Animated.Value(1)).current;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
 
-  // Separate function to load server state
-  const loadServerLikeState = async () => {
+  const loadServerLikeState = useCallback(async () => {
+    if (!currentUser || !article.id) return;
+
     try {
       const status = await apiService.getArticleLikes(article.id, currentUser.id);
       setLiked(status.userLiked);
       setLikeCount(status.likeCount);
-      console.log('Loaded server state:', status);
     } catch (error) {
-      console.error('Error loading server like state:', error);
+      console.error('Error loading like state:', error);
     }
-  };
+  }, [article.id, currentUser?.id]);
 
-  // Updated sync function for pending likes
-  const syncPendingLikesToServer = async (pendingData = null) => {
+  const syncPendingLikesToServer = useCallback(async (pendingData = null) => {
+    if (!currentUser) return;
+
     try {
       let dataToSync = pendingData;
-      
+
       if (!dataToSync) {
         const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
         if (!localLikeData) return;
@@ -144,98 +143,64 @@ const NewsDetailScreen = ({
 
       console.log('Syncing pending data:', dataToSync);
 
-      // Get current server state
-      const currentServerState = await apiService.getArticleLikes(article.id, currentUser?.id);
+      const currentServerState = await apiService.getArticleLikes(article.id, currentUser.id);
       console.log('Current server state:', currentServerState);
 
-      // Compare final local state with server state
       if (dataToSync.finalLikedState !== currentServerState.userLiked) {
         console.log('States differ, making API call...');
-        
-        const result = await apiService.toggleArticleLike(article.id, currentUser ? currentUser.id : '');
+
+        const result = await apiService.toggleArticleLike(article.id, currentUser.id);
         console.log('API result:', result);
-        
-        // Update UI with server response
+
         setLiked(result.liked);
         setLikeCount(result.likeCount);
       } else {
         console.log('States match, no API call needed');
-        // States match, just update UI with server data
         setLiked(currentServerState.userLiked);
         setLikeCount(currentServerState.likeCount);
       }
-      
-      // Clear AsyncStorage after successful sync
+
       await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
       setPendingLikeAction(null);
-      setLastLikeUpdate(null);
-      
+
       console.log('Pending likes synced and cleared');
-      
+
     } catch (error) {
       console.error('Error syncing pending likes:', error);
-      throw error; // Re-throw to handle in caller
+      throw error;
     }
-  };
+  }, [article.id, currentUser]);
 
-  useEffect(() => {
-    // Only run cleanup, the article-specific initialization is handled above
-    return () => {
-      if (likeUpdateTimer.current) {
-        clearTimeout(likeUpdateTimer.current);
-      }
-    };
-  }, []);
-
-  // Load share count
-  useEffect(() => {
-    const loadShareCount = async () => {
-      try {
-        if (article.id) {
-          const shareData = await apiService.getArticleShares(article.id);
-          setShareCount(shareData.shareCount);
-        }
-      } catch (error) {
-        console.error('Error loading share count:', error);
-      }
-    };
-
-    if (article.id) {
-      loadShareCount();
-    }
-  }, [article.id]);
-
-  // Schedule like sync with server
-  const scheduleLikeSync = () => {
-    if (likeUpdateTimer.current) {
-      clearTimeout(likeUpdateTimer.current);
+  const handleLike = useCallback(async () => {
+    if (!currentUser) {
+      Alert.alert('Login Required', 'Please login to like articles');
+      return;
     }
 
-    likeUpdateTimer.current = setTimeout(() => {
-      syncLikesToServer();
-    }, LIKE_BATCH_DELAY);
-  };
+    // Button animation feedback
+    Animated.sequence([
+      Animated.timing(likeScale, {
+        toValue: 0.8,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(likeScale, {
+        toValue: 1,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-  // Updated handleLike with better data structure
-  const handleLike = async () => {
     try {
-      if (!currentUser) {
-        Alert.alert('Login Required', 'Please login to like articles');
-        return;
-      }
-
-      // Calculate new state
       const newLiked = !liked;
       const newCount = newLiked ? likeCount + 1 : likeCount - 1;
       const timestamp = Date.now();
 
-      // Immediate UI update
+      // Optimistic update
       setLiked(newLiked);
       setLikeCount(newCount);
-      setLastLikeUpdate(timestamp);
       setPendingLikeAction('pending');
 
-      // Store in AsyncStorage with proper structure
       const localLikeData = {
         userId: currentUser.id,
         articleId: article.id,
@@ -246,582 +211,576 @@ const NewsDetailScreen = ({
       };
 
       await AsyncStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(localLikeData));
-      // Schedule sync
-      scheduleLikeSync();
+
+      // Clear existing timer and set new one
+      if (likeUpdateTimer.current) {
+        clearTimeout(likeUpdateTimer.current);
+      }
+
+      likeUpdateTimer.current = setTimeout(() => {
+        syncPendingLikesToServer();
+      }, LIKE_BATCH_DELAY);
 
     } catch (error) {
       console.error('Error handling like:', error);
       // Revert on error
-      setLiked(!liked);
-      setLikeCount(!liked ? likeCount - 1 : likeCount + 1);
+      setLiked(!newLiked);
+      setLikeCount(newLiked ? newCount - 1 : newCount + 1);
+      setPendingLikeAction(null);
       Alert.alert('Error', 'Failed to update like status');
     }
-  };
+  }, [liked, likeCount, currentUser, syncPendingLikesToServer, likeScale]);
 
-  // Updated regular sync (called by timer)
-  const syncLikesToServer = async () => {
-    try {
-      await syncPendingLikesToServer();
-    } catch (error) {
-      console.error('Error in scheduled sync:', error);
-      // Retry after delay
-      setTimeout(() => {
-        syncLikesToServer();
-      }, 30000);
-    }
-  };
-
-  // Force sync likes (can be called manually if needed)
-  const forceSyncLikes = async () => {
-    if (pendingLikeAction) {
-      if (likeUpdateTimer.current) {
-        clearTimeout(likeUpdateTimer.current);
-      }
-      await syncLikesToServer();
-    }
-  };
-
-  // Callback to update comments count from CommentsSection
-  const handleCommentsCountChange = (count) => {
-    setCommentsCount(count);
-  };
-
-  // Updated navigation handlers with transition states
-  const handleNext = () => {
-    if (hasNext && !isTransitioning) {
-      setIsTransitioning(true);
-      setTimeout(() => {
-        onNext();
-        setIsTransitioning(false);
-      }, 300);
-    }
-  };
-
-  const handlePrev = () => {
-    if (hasPrev && !isTransitioning) {
-      setIsTransitioning(true);
-      setTimeout(() => {
-        onPrev();
-        setIsTransitioning(false);
-      }, 300);
-    }
-  };
-
-  const handleBack = () => {
-    if (!isTransitioning && onBack) {
-      setIsTransitioning(true);
-      setTimeout(() => {
-        onBack();
-        setIsTransitioning(false);
-      }, 300);
-    }
-  };
-
-  // Updated bookmark handler
-  const handleBookmark = async () => {
-    if (bookmarkLoading) return;
-    
-    try {
-      setBookmarkLoading(true);
-      
+  // OTHER INTERACTIONS (Simplified)
+  // ========================================
+  const handleBookmark = useCallback(async () => {
+    if (bookmarkLoading || !currentUser) {
       if (!currentUser) {
         Alert.alert('Login Required', 'Please login to bookmark articles');
-        return;
       }
+      return;
+    }
 
-      setIsBookmarked(!isBookmarked);
+    // Button animation feedback
+    Animated.sequence([
+      Animated.timing(bookmarkScale, {
+        toValue: 0.8,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookmarkScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setBookmarkLoading(true);
+    const optimisticBookmark = !isBookmarked;
+    setIsBookmarked(optimisticBookmark);
+
+    try {
       const result = await apiService.toggleBookmark(currentUser.id, article.id);
       setIsBookmarked(result.bookmarked);
-
     } catch (error) {
-      setIsBookmarked(!isBookmarked);
+      // Revert on error
+      setIsBookmarked(!optimisticBookmark);
       console.error('Error toggling bookmark:', error);
       Alert.alert('Error', 'Failed to update bookmark');
     } finally {
       setBookmarkLoading(false);
     }
-  };
+  }, [bookmarkLoading, isBookmarked, currentUser, article.id, bookmarkScale]);
 
-  // Load comment count
-  useEffect(() => {
-    const loadCommentCount = async () => {
-      try {      
-        if (article.id) {
-          const commentData = await apiService.getArticleCommentCount(article.id);
-          setCommentsCount(commentData.commentCount);
-        }
-      } catch (error) {
-        console.error('Error loading comment count:', error);
-      }
-    };
-
-    if (article.id) {
-      loadCommentCount();
-    }
-  }, [article.id]);
-
-  // Handle unique view recording
-  useEffect(() => {
-    const checkAndRecordUniqueView = async () => {
-      // Don't proceed if already recorded or article ID missing
-      if (!article.id || viewRecorded) return;
-
-      try {
-        // Wait for all other counts to load first
-        if (likeLoading || bookmarkLoading) {
-          console.log('Waiting for like/bookmark states to load...');
-          return;
-        }
-
-        console.log('Checking if view already recorded for article:', article.id);
-
-        // Check if view is already recorded in AsyncStorage
-        const viewedArticlesJson = await AsyncStorage.getItem('viewed_articles');
-        const viewedArticles = viewedArticlesJson ? JSON.parse(viewedArticlesJson) : [];
-
-        if (viewedArticles.includes(article.id)) {
-          console.log('View already recorded for this article, skipping...');
-          setViewRecorded(true);
-          return;
-        }
-
-        console.log('Recording new view for article:', article.id);
-
-        // Record the view via API
-        const userId = currentUser?.id || null;
-        const referrer = sourceTab ? `app://${sourceTab}` : 'app://direct';
-        
-        const result = await apiService.recordArticleView(article.id, userId, referrer);
-        
-        if (result.success) {
-          console.log('View recorded successfully:', result.message);
-          
-          // Store the article id locally to prevent future posts
-          const updatedViewedArticles = [...viewedArticles, article.id];
-          await AsyncStorage.setItem('viewed_articles', JSON.stringify(updatedViewedArticles));
-          
-          setViewRecorded(true);
-          
-          // Update view count only if it was actually incremented
-          if (result.incrementedCount) {
-            setViewCount(prev => prev + 1);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to record unique view:', error);
-        // Still mark as recorded to prevent retry loops
-        setViewRecorded(true);
-      }
-    };
-
-    // Add a small delay to ensure all other loading is complete
-    const timer = setTimeout(() => {
-      checkAndRecordUniqueView();
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [article.id, likeLoading, bookmarkLoading, currentUser?.id, viewRecorded, sourceTab]);
-
-  // Load initial view count
-  useEffect(() => {
-    const loadInitialViewCount = async () => {
-      try {
-        if (article.id) {
-          const viewData = await apiService.getArticleViews(article.id);
-          setViewCount(viewData.viewCount);
-          console.log('Initial view count loaded:', viewData.viewCount);
-        }
-      } catch (error) {
-        console.error('Error loading initial view count:', error);
-      }
-    };
-
-    if (article.id) {
-      loadInitialViewCount();
-    }
-  }, [article.id]);
-
-  // Share handler
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     if (shareLoading) return;
-    
+
+    setShareLoading(true);
     try {
-      setShareLoading(true);
-      
-      const shareOptions = {
-        message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
+      await Share.share({
+        message: `Check out this article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
         url: `https://nofa-sepia.vercel.app/article/${article.id}`,
         title: article.title,
-      };
-
-      const result = await Share.share(shareOptions);
-      
-      if (result.action === Share.sharedAction) {
-        let platform = 'other';
-        
-        if (result.activityType) {
-          const activityType = result.activityType.toLowerCase();
-          if (activityType.includes('twitter') || activityType.includes('com.twitter')) platform = 'twitter';
-          else if (activityType.includes('facebook') || activityType.includes('com.facebook')) platform = 'facebook';
-          else if (activityType.includes('whatsapp') || activityType.includes('net.whatsapp')) platform = 'whatsapp';
-          else if (activityType.includes('linkedin') || activityType.includes('com.linkedin')) platform = 'linkedin';
-          else if (activityType.includes('mail') || activityType.includes('message')) platform = 'email';
-          else if (activityType.includes('copy') || activityType.includes('pasteboard')) platform = 'copy_link';
-          else platform = 'other';
-        }
-
-        try {
-          const shareResult = await apiService.recordArticleShare(
-            article.id, 
-            platform, 
-            currentUser?.id
-          );
-          setShareCount(shareResult.shareCount);
-        } catch (error) {
-          console.error('Error recording share:', error);
-          setShareCount(prev => prev + 1);
-        }
-      }
-      
+      });
     } catch (error) {
-      console.error('Error sharing article:', error);
+      console.error('Error sharing:', error);
       Alert.alert('Error', 'Failed to share article');
     } finally {
       setShareLoading(false);
     }
-  };
+  }, [shareLoading, article]);
 
-  // Improved panResponder for smoother swipe animations
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to horizontal swipes with minimal movement
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: pan.x._value,
-          y: pan.y._value,
+  const handleRedirectToIframe = useCallback((articleData: any) => {
+    const url = articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/";
+    setWebViewUrl(url);
+    setShowWebView(true);
+  }, []);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      if (isTransitioning) return false;
+      return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
+    },
+    onPanResponderGrant: () => {
+      pan.setOffset({
+        x: pan.x._value,
+        y: pan.y._value,
+      });
+
+      // Pre-prepare content visibility during gesture start
+      if (hasNext && memoizedNextContent?.data) {
+        // Start preparing next content for visibility
+        setNextContentReady(true);
+      }
+      if (hasPrev && memoizedPrevContent?.data) {
+        // Start preparing prev content for visibility  
+        setPrevContentReady(true);
+      }
+    },
+    onPanResponderMove: (_, gestureState) => {
+      pan.y.setValue(gestureState.dy);
+      const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
+      opacity.setValue(1 - progress);
+
+      // Dynamically show/hide content based on swipe direction
+      const swipeThreshold = height * 0.05; // Lower threshold for preview
+
+      if (gestureState.dy < -swipeThreshold && hasNext) {
+        // Swiping up - show next content preview
+        setShowNextPreview(true);
+        setShowPrevPreview(false);
+      } else if (gestureState.dy > swipeThreshold && hasPrev) {
+        // Swiping down - show prev content preview
+        setShowPrevPreview(true);
+        setShowNextPreview(false);
+      } else {
+        // Reset previews
+        setShowNextPreview(false);
+        setShowPrevPreview(false);
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      pan.flattenOffset();
+      const swipeThreshold = height * 0.1;
+      const velocityThreshold = 0.1;
+
+      const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && hasNext;
+      const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && hasPrev;
+
+      if (shouldGoNext) {
+        // Content is already preloaded, just animate
+        Animated.timing(pan.y, {
+          toValue: -height,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          // Reset everything after animation completes
+          pan.setValue({ x: 0, y: 0 });
+          opacity.setValue(1);
+          setShowNextPreview(false);
+          setNextContentReady(false);
+          onNext(); // This will update the parent state
         });
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        // Smooth movement with direct mapping to finger position
-        pan.x.setValue(gestureState.dx);
-        
-        // Subtle opacity change for better visual feedback
-        const progress = Math.min(Math.abs(gestureState.dx) / width, 0.5);
-        opacity.setValue(1 - progress);
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        pan.flattenOffset();
-        
-        // Lower thresholds for easier swiping
-        const swipeThreshold = width * 0.2;
-        const velocityThreshold = 0.3;
-        
-        const shouldGoBack = (gestureState.dx > swipeThreshold || gestureState.vx > velocityThreshold) && gestureState.dx > 0;
-        const shouldGoNext = (gestureState.dx < -swipeThreshold || gestureState.vx < -velocityThreshold) && gestureState.dx < 0;
+      } else if (shouldGoPrev) {
+        // Content is already preloaded, just animate
+        Animated.timing(pan.y, {
+          toValue: height,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          // Reset everything after animation completes
+          pan.setValue({ x: 0, y: 0 });
+          opacity.setValue(1);
+          setShowPrevPreview(false);
+          setPrevContentReady(false);
+          onPrev(); // This will update the parent state
+        });
+      } else {
+        // Reset to current content
+        Animated.parallel([
+          Animated.spring(pan.y, {
+            toValue: 0,
+            tension: 100,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.spring(opacity, {
+            toValue: 1,
+            tension: 100,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // Reset preview states
+          setShowNextPreview(false);
+          setShowPrevPreview(false);
+          setNextContentReady(false);
+          setPrevContentReady(false);
+        });
+      }
+    },
+  }), [isTransitioning, hasNext, hasPrev, onNext, onPrev, pan, opacity, memoizedNextContent, memoizedPrevContent]);
+  // ========================================
+  // COMPONENT INITIALIZATION
+  // ========================================
+  useEffect(() => {
+    const initializeComponent = async () => {
+      if (currentUser && article.id) {
+        setLikeLoading(true);
 
-        if (shouldGoBack) {
-          // Right swipe - go back/previous
-          setIsTransitioning(true);
-          Animated.parallel([
-            Animated.spring(pan.x, {
-              toValue: width,
-              tension: 50,
-              friction: 7,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            pan.setValue({ x: 0, y: 0 });
-            opacity.setValue(1);
-            
-            if (currentIndex === 0) {
-              if (onBack) handleBack();
+        try {
+          // Check for pending likes in AsyncStorage FIRST
+          const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
+
+          if (localLikeData) {
+            const parsedData = JSON.parse(localLikeData);
+
+            if (parsedData.userId === currentUser.id && parsedData.articleId === article.id) {
+              console.log('Found pending likes, syncing to server first...');
+              await syncPendingLikesToServer(parsedData);
             } else {
-              if (onPrev) handlePrev();
+              await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
             }
-          });
-        } else if (shouldGoNext && hasNext) {
-          // Left swipe - go next
-          setIsTransitioning(true);
-          Animated.parallel([
-            Animated.spring(pan.x, {
-              toValue: -width,
-              tension: 50,
-              friction: 7,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            pan.setValue({ x: 0, y: 0 });
-            opacity.setValue(1);
-            
-            if (onNext) handleNext();
-          });
-        } else {
-          // Return to original position with smooth animation
-          Animated.parallel([
-            Animated.spring(pan.x, {
-              toValue: 0,
-              tension: 60,
-              friction: 7,
-              useNativeDriver: true,
-            }),
-            Animated.spring(opacity, {
-              toValue: 1,
-              tension: 60,
-              friction: 7,
-              useNativeDriver: true,
-            }),
-          ]).start();
+          }
+
+          // Load current server state
+          await loadServerLikeState();
+
+          // Check bookmark status
+          const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
+          setIsBookmarked(bookmarked);
+
+        } catch (error) {
+          console.error('Error initializing component:', error);
+        } finally {
+          setLikeLoading(false);
         }
-      },
-    })
-  ).current;
+      }
+    };
 
-  // Helper functions for processing tags and keywords
-  const processTags = (tags) => {
-    if (!tags) return [];
-    if (typeof tags === 'string') {
-      return tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+    if (fontsLoaded && article.id) {
+      initializeComponent();
     }
-    if (Array.isArray(tags)) {
-      return tags.filter(tag => tag && tag.trim());
-    }
-    return [];
-  };
 
-  const processKeywords = (keywords) => {
-    if (!keywords) return [];
-    if (typeof keywords === 'string') {
-      return keywords.split(',').map(keyword => keyword.trim()).filter(keyword => keyword);
-    }
-    if (Array.isArray(keywords)) {
-      return keywords.filter(keyword => keyword && keyword.trim());
-    }
-    return [];
-  };
+    return () => {
+      if (likeUpdateTimer.current) {
+        clearTimeout(likeUpdateTimer.current);
+      }
+    };
+  }, [fontsLoaded, article.id, currentUser, loadServerLikeState, syncPendingLikesToServer]);
 
-  const tagsArray = processTags(article.tags);
-  const keywordsArray = processKeywords(article.keywords);
+  // Handle transition animations
+  // In your useEffect for transition handling
+  useEffect(() => {
+    if (isTransitioning) {
+      Animated.timing(transitionOpacity, {
+        toValue: 0.95, // Don't go completely transparent
+        duration: 100,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(transitionOpacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isTransitioning, transitionOpacity]);
+  // Swipe indicator animation
+  useEffect(() => {
+    const animateIndicator = () => {
+      Animated.sequence([
+        Animated.timing(swipeIndicatorOpacity, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(swipeIndicatorOpacity, {
+          toValue: 0.6,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setTimeout(animateIndicator, 2000);
+      });
+    };
+
+    const timer = setTimeout(animateIndicator, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ========================================
+  // RENDER COMPONENTS
+  // ========================================
+  // Replace the AdComponent in your child component with this:
+
+  const AdComponent = React.memo(({ adData, onAdClick, onAdClose, isActive = false }: any) => {
+    // Ensure adData exists and has fallback values
+    const safeAdData = useMemo(() => ({
+      id: adData?.id || '',
+      title: adData?.title || 'Default Title',
+      description: adData?.description || 'Default Description',
+      imageUrl: adData?.imageUrl || 'https://via.placeholder.com/300x200',
+      ctaText: adData?.ctaText || 'Click Here',
+      advertiser: adData?.advertiser || 'Unknown'
+    }), [adData]);
+
+    return (
+      <View style={styles.adContainer}>
+        <TouchableOpacity
+          onPress={() => isActive && onAdClick?.(safeAdData)}
+          style={styles.adContent}
+          disabled={!isActive}
+        >
+          <Image
+            source={{ uri: safeAdData.imageUrl }}
+            style={styles.adImage}
+            resizeMode="cover"
+          />
+          <View style={styles.adTextContainer}>
+            <Text style={styles.adTitle}>{safeAdData.title}</Text>
+            <Text style={styles.adDescription}>{safeAdData.description}</Text>
+            <Text style={styles.adAdvertiser}>Sponsored by {safeAdData.advertiser}</Text>
+            <TouchableOpacity
+              style={[styles.adCtaButton, { opacity: isActive ? 1 : 0.7 }]}
+              disabled={!isActive}
+            >
+              <Text style={styles.adCtaText}>{safeAdData.ctaText}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+
+        {/* Always render skip button but conditionally enable */}
+        <TouchableOpacity
+          onPress={() => isActive && onAdClose?.()}
+          style={[styles.adCloseButton, { opacity: isActive ? 1 : 0.7 }]}
+          disabled={!isActive}
+        >
+          <Text style={styles.adAdvertiser2}>Skip</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  });
+  // Replace the ArticleContent component in your child component with this fixed version:
+
+  const ArticleContent = React.memo(({ articleData, isActive = false, liked, likeCount, isBookmarked, likeLoading, bookmarkLoading, shareLoading
+  }: any) => {
+    // Ensure articleData exists and has fallback values
+    const safeArticleData = useMemo(() => ({
+      id: articleData?.id || '',
+      title: articleData?.title || 'Loading...',
+      featuredImage: articleData?.featuredImage || 'https://via.placeholder.com/800x400',
+      summary: articleData?.summary || articleData?.content?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || 'No content available',
+      commentCount: articleData?.commentCount || 0,
+      sourceUrl: articleData?.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/"
+    }), [articleData]);
+
+    return (
+      <View style={styles.newsContainer}>
+        <View style={styles.articleImageContainer}>
+          <Image
+            source={{ uri: safeArticleData.featuredImage }}
+            style={styles.articleImage}
+            loadingIndicatorSource={{ uri: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }}
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.4)']}
+            style={styles.articleImageGradient}
+          />
+          {/* Always render button container but conditionally show buttons */}
+          <View style={[styles.ArticleButtonStyle, { opacity: isActive ? 1 : 0 }]}>
+            <View style={styles.ArticleButtonStyleGroup}>
+              <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+                <TouchableOpacity
+                  style={styles.footerActionButton}
+                  onPress={handleLike}
+                  disabled={likeLoading || !isActive}
+                >
+                  <Ionicons name={liked ? "heart" : "heart-outline"} size={16} color={liked ? "#ff4757" : "#fff"} />
+                  <Text style={[styles.footerActionText, liked && styles.activeFooterText]}>
+                    {likeCount > 0 ? likeCount : 'Like'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+
+              <TouchableOpacity
+                style={styles.footerActionButton}
+                onPress={() => isActive && setShowComments(true)}
+                disabled={!isActive}
+              >
+                <Ionicons name="chatbubble-outline" size={16} color="#fff" />
+                <Text style={styles.footerActionText}>
+                  {safeArticleData.commentCount > 0 ? safeArticleData.commentCount : '0'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.footerActionButton}
+                onPress={handleShare}
+                disabled={shareLoading || !isActive}
+              >
+                {shareLoading && isActive ? (
+                  <ActivityIndicator size={16} color="#999" />
+                ) : (
+                  <Ionicons name="share-social-outline" size={16} color="#fff" />
+                )}
+                <Text style={styles.footerActionText}>Share</Text>
+              </TouchableOpacity>
+
+              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                <TouchableOpacity
+                  style={styles.footerActionButton}
+                  onPress={handleBookmark}
+                  disabled={bookmarkLoading || !isActive}
+                >
+                  <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={16} color={isBookmarked ? "#4CAF50" : "#fff"} />
+                  <Text style={[styles.footerActionText, isBookmarked && styles.activeBookmarkText]}>
+                    {isBookmarked ? 'Saved' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          </View>
+
+        </View>
+
+        <View style={styles.articleContentContainer}>
+          <Text style={styles.articleSource}>R. Republic TV</Text>
+          <Text style={styles.articleTitle}>{safeArticleData.title}</Text>
+
+          <View style={styles.htmlContentContainer}>
+            <Text style={styles.articlePreview}>
+              {safeArticleData.summary}
+            </Text>
+          </View>
+        </View>
+
+        {/* Always render bottom container */}
+        <View style={styles.bottomShowMore}>
+          <TouchableOpacity
+            style={styles.showMoreButton}
+            onPress={() => handleRedirectToIframe(safeArticleData)}
+            disabled={!isActive}
+          >
+            <Text style={styles.showMoreText}>Show More</Text>
+          </TouchableOpacity>
+
+          {/* Always render swipe indicator container but conditionally show content */}
+          <Animated.View style={[
+            styles.swipeIndicator,
+            { opacity: isActive ? swipeIndicatorOpacity : 0 }
+          ]}>
+            <Text style={styles.swipeHint}>Swipe up for next news</Text>
+            <Ionicons name="arrow-up" size={16} color="#000000b6" />
+          </Animated.View>
+        </View>
+      </View>
+    );
+  });
+  const renderContent = useCallback((contentInfo: any, isActive = false) => {
+    if (!contentInfo?.data) return null;
+
+    if (contentInfo.type === 'ad') {
+      return <AdComponent adData={contentInfo.data} onAdClick={onAdClick} onAdClose={onAdClose} isActive={isActive} />;
+    }
+
+    return <ArticleContent articleData={contentInfo.data} isActive={isActive} liked={liked}
+      likeCount={likeCount}
+      isBookmarked={isBookmarked}
+      likeLoading={likeLoading}
+      bookmarkLoading={bookmarkLoading}
+      shareLoading={shareLoading} />;
+  }, [onAdClick, onAdClose, liked, likeCount, isBookmarked, likeLoading, bookmarkLoading, shareLoading]);
+  // ========================================
+  // RENDER
+  // ========================================
+  if (!fontsLoaded) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </SafeAreaView>
+    );
+  }
+
+  const containerStyle = memoizedCurrentContent.type === 'ad' ? styles.container2 : styles.container;
+
+  // Replace the render section in OptimizedNewsDetailScreen with this:
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={containerStyle}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
-      
-      <Animated.View 
+
+      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <Ionicons name="arrow-back" size={16} color="#000" />
+      </TouchableOpacity>
+
+      <Animated.View
         style={[
-          styles.container, 
+          styles.newsStackContainer,
           {
             transform: [{ translateX: pan.x }],
-            opacity: opacity,
+            opacity: Animated.multiply(opacity, transitionOpacity),
           }
         ]}
         {...panResponder.panHandlers}
       >
-        <Navbar/>
-
-        <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
-          {/* Article Image */}
-          <View style={styles.articleImageContainer}>
-            <Image 
-              source={{ uri: article.featuredImage || 'https://via.placeholder.com/800x400' }} 
-              style={styles.articleImage} 
-            />
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.3)']}
-              style={styles.articleImageGradient}
-            />
-            {article.isTrending && (
-              <View style={styles.exclusiveTagDetail}>
-                <Text style={styles.exclusiveText}>TRENDING</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Article Content */}
-          <View style={styles.articleContentContainer}>
-            {/* Source and Time */}
-            <View style={styles.articleMeta}>
-              <Text style={styles.articleSource}>📺 {article.authorName || "Unknown Author"}</Text>
-              <Text style={styles.articleTime}>
-                {article.publicationDate ? 
-                  new Date(article.publicationDate).toLocaleDateString() : 
-                  'Recently'
-                }
-              </Text>
-            </View>
-
-            {/* Title */}
-            <Text style={styles.articleTitle}>{article.title}</Text>
-
-            {/* Author and Location */}
-            <View style={styles.authorSection}>
-              <Text style={styles.authorText}>By {article.authorName}</Text>
-              <Text style={styles.locationText}>📍 {article.location || "Global"}</Text>
-            </View>
-
-            {/* Tags */}
-            {tagsArray.length > 0 && (
-              <View style={styles.tagsContainer}>
-                {tagsArray.map((tag, index) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Article Summary */}
-            {article.summary && (
-              <Text style={styles.articleLead}>{article.summary}</Text>
-            )}
-
-            {/* Article Body - HTML Content */}
-            <View style={styles.htmlContentContainer}>
-              <RenderHtml
-                contentWidth={width - 40}
-                source={{ html: article.content || '<p>No content available</p>' }}
-                tagsStyles={{
-                  p: { 
-                    fontSize: 16, 
-                    lineHeight: 24, 
-                    color: '#444',
-                    marginBottom: 15,
-                    textAlign: 'justify'
-                  },
-                  h1: { 
-                    fontSize: 24, 
-                    fontWeight: 'bold', 
-                    color: '#333',
-                    marginBottom: 15,
-                    marginTop: 10
-                  },
-                  h2: { 
-                    fontSize: 20, 
-                    fontWeight: 'bold', 
-                    color: '#333',
-                    marginBottom: 12,
-                    marginTop: 8
-                  },
-                  h3: { 
-                    fontSize: 18, 
-                    fontWeight: 'bold', 
-                    color: '#333',
-                    marginBottom: 10
-                  },
-                  img: {
-                    marginVertical: 10
-                  }
-                }}
-              />
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Action Bar */}
-        <View style={styles.actionBar}>
-          {/* Like Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleLike}
-            disabled={likeLoading}
+        {/* Previous Content - Always rendered but conditionally visible */}
+        {memoizedPrevContent?.data && (
+          <Animated.View
+            style={[
+              styles.newsStackItem,
+              styles.prevNewsItem,
+              {
+                transform: [{ translateY: pan.y }],
+                opacity: showPrevPreview || prevContentReady ? 1 : 0,
+                zIndex: showPrevPreview ? 4 : 1
+              }
+            ]}
           >
-            {likeLoading ? (
-              <Ionicons 
-                name={"heart-outline"} 
-                size={24} 
-                color={"#999"} 
-              />
-            ) : (
-              <Ionicons 
-                name={liked ? "heart" : "heart-outline"} 
-                size={24} 
-                color={liked ? "#ae0202ff" : "#999"} 
-              />
-            )}
-            <Text style={[
-                styles.actionText,
-                liked ? { color: "#ae0202ff" } : { color: "#999" }
-              ]}>
-              {likeCount}
-            </Text>
-          </TouchableOpacity>
+            {renderContent(memoizedPrevContent, false)}
+          </Animated.View>
+        )}
 
-          {/* Comment Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => setShowComments(true)}
-          >
-            <Ionicons name="chatbubble-outline" size={24} color="#999" />
-            <Text style={styles.actionText}>{commentsCount}</Text>
-          </TouchableOpacity>
+        {/* Current Content */}
+        <Animated.View
+          style={[
+            styles.newsStackItem,
+            styles.currentNewsItem,
+            {
+              transform: [{ translateY: pan.y }],
+              zIndex: (!showNextPreview && !showPrevPreview) ? 4 : 2
+            }
+          ]}
+        >
+          {renderContent(memoizedCurrentContent, true)}
+        </Animated.View>
 
-          {/* Share Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleShare}
-            disabled={shareLoading}
+        {/* Next Content - Always rendered but conditionally visible */}
+        {memoizedNextContent?.data && (
+          <Animated.View
+            style={[
+              styles.newsStackItem,
+              styles.nextNewsItem,
+              {
+                transform: [{ translateY: pan.y }],
+                opacity: showNextPreview || nextContentReady ? 1 : 0,
+                zIndex: showNextPreview ? 4 : 1
+              }
+            ]}
           >
-            {shareLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
-            ) : (
-              <Ionicons name="share-outline" size={24} color="#999" />
-            )}
-            <Text style={styles.actionText}>
-              {shareLoading ? 'Sharing...' : shareCount > 0 ? shareCount : 'Share'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Bookmark Button */}
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleBookmark}
-            disabled={bookmarkLoading}
-          >
-            {bookmarkLoading ? (
-              <Ionicons name="hourglass-outline" size={24} color="#999" />
-            ) : (
-              <Ionicons 
-                name={isBookmarked ? "bookmark" : "bookmark-outline"} 
-                size={24} 
-                color={isBookmarked ? "#4CAF50" : "#999"} 
-              />
-            )}
-            <Text style={[
-              styles.actionText,
-              isBookmarked && styles.activeActionText
-            ]}>
-              Saved
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {renderContent(memoizedNextContent, false)}
+          </Animated.View>
+        )}
       </Animated.View>
 
-      {/* Comments Section Component */}
+      {/* Rest of your modals and components remain the same */}
+      <Modal
+        visible={showWebView}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowWebView(false)}
+      >
+        <SafeAreaView style={styles.webViewContainer}>
+          <WebView
+            source={{ uri: webViewUrl }}
+            style={styles.webView}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.webViewLoading}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.webViewLoadingText}>Loading...</Text>
+              </View>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+
       <CommentsSection
         visible={showComments}
         onClose={() => setShowComments(false)}
         articleId={article.id}
       />
-
-      {/* Loading Overlay during transitions */}
-      {isTransitioning && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-        </View>
-      )}
     </SafeAreaView>
   );
 };
@@ -831,9 +790,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  detailContent: {
+  container2: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  container3: {
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 30,
+    left: 30,
+    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: 8,
+    elevation: 3,
+    shadowColor: '#000',
+    // shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -848,7 +831,11 @@ const styles = StyleSheet.create({
   },
   articleImageContainer: {
     position: 'relative',
-    height: 300,
+    height: 240,
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   articleImage: {
     width: '100%',
@@ -862,130 +849,277 @@ const styles = StyleSheet.create({
     right: 0,
     height: '30%',
   },
-  exclusiveTagDetail: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: '#FF4444',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 6,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+  htmlContentContainer: {
+    marginBottom: 20,
   },
-  exclusiveText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+  swipeDots: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  swipeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ddd',
+    marginHorizontal: 3,
+  },
+  swipeDotActive: {
+    backgroundColor: '#8B5CF6',
+  },
+  newsStackItem: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
   },
   articleContentContainer: {
     padding: 20,
+    paddingTop: 5,
+    paddingBottom: 20, // Extra space to prevent overlap with footer
   },
-  articleMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+  currentNewsItem: {
+    zIndex: 3,
   },
+  nextNewsItem: {
+    zIndex: 2,
+    transform: [{ translateY: height }],
+  },
+  prevNewsItem: {
+    zIndex: 1,
+    transform: [{ translateY: -height }],
+  },
+  newsContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingBottom: 0
+  },
+
   articleSource: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  articleTime: {
-    fontSize: 12,
-    color: '#999',
-  },
-  articleTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    lineHeight: 34,
-    marginBottom: 15,
-  },
-  authorSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  authorText: {
-    fontSize: 13,
+    fontSize: 12, // Reduced from 14
     color: '#666',
-    fontStyle: 'italic',
+    fontWeight: '400',
+    marginBottom: 12,
+    fontFamily: 'Montserrat-Medium',
   },
-  locationText: {
-    fontSize: 12,
-    color: '#999',
+
+  articleTitle: {
+    fontSize: 18, // Reduced from 24
+    fontWeight: 'bold',
+    color: '#000',
+    lineHeight: 26, // Reduced from 30
+    marginBottom: 16,
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 15,
+
+  articlePreview: {
+    fontSize: 16, // Reduced from 16
+    lineHeight: 20, // Reduced from 24
+    color: '#666', // Changed from #989898
+    fontWeight: 600,
+    textAlign: 'left',
+    fontStyle: 'normal',
+
+    // fontFamily: 'Montserrat-Medium',
+    fontFamily: 'Newsreader_24pt-Regular.ttf',
+
+
   },
-  tag: {
-    backgroundColor: '#e8f5e8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
+
+  showMoreButton: {
+    backgroundColor: '#000',
+    paddingTop: 8, // Reduced from 15
+    paddingBottom: 12,
+    paddingHorizontal: 40, // Reduced from 60
+    borderRadius: 16, // Reduced from 18
+    alignSelf: 'center',
+    marginTop: 0,
+    marginBottom: 10,
+    minWidth: 150, // Reduced from 200
   },
-  tagText: {
-    fontSize: 11,
-    color: '#4CAF50',
+
+  showMoreText: {
+    color: '#fff',
+    fontSize: 14, // Reduced from 16
     fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
-  articleLead: {
+
+  swipeHint: {
+    fontSize: 11, // Reduced from 12
+    color: '#999',
+    fontFamily: 'Montserrat-Medium',
+  },
+  // Ad Component Styles
+  adContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    zIndex: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  adContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    height: "100%",
+    width: '95%',
+    maxWidth: 400,
+  },
+  adImage: {
+    width: '100%',
+    height: 200,
+  },
+  adTextContainer: {
+    padding: 16,
+  },
+  adTitle: {
     fontSize: 18,
-    lineHeight: 26,
-    color: '#333',
-    marginBottom: 25,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#000',
+  },
+  adDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+    color: '#666',
+  },
+  adAdvertiser2: {
+    fontSize: 12,
+    color: '#ffffffff',
+    fontStyle: 'normal',
+    marginBottom: 8,
+  },
+  adAdvertiser: {
+    fontSize: 12,
     fontWeight: '500',
-    textAlign: 'justify',
+    color: '#888',
+    fontStyle: 'italic',
+    marginBottom: 16,
   },
-  htmlContentContainer: {
-    marginBottom: 25,
+  adCtaButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  // Updated Action Bar styles
-  actionBar: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#fff", 
-    paddingVertical: 4,     
-    paddingBottom: 4,       
-    borderTopWidth: 1,       
-    borderTopColor: "#f0f0f0",
-    elevation: 1,          
-    shadowColor: "#000",     
-    shadowOffset: { width: 0, height: -2 }, 
-    shadowOpacity: 0.1,      
-    shadowRadius: 3,         
+  adCtaText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
-  actionButton: {
+  adCloseButton: {
+    position: 'absolute',
+    bottom: 40,
+    margin: "auto",
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: 16,
+    paddingHorizontal: 40,
+    paddingTop: 8
+  },
+  newsStackContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+
+  webViewContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  webView: {
+    flex: 1,
+  },
+  webViewLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  webViewLoadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+    fontFamily: 'Montserrat-Medium',
+  },
+  clickableTitle: {
+    textDecorationLine: 'underline',
+    textDecorationColor: '#4CAF50',
+    color: '#2196F3',
+  },
+  footerActionButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 60,
-    paddingVertical: 1,
+    width: 48,
+    height: 50,
+    marginBottom: 10, // Add spacing between buttons instead of gap
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Slightly darker for better visibility
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.8, // Increased shadow opacity
+    shadowRadius: 4,
+    elevation: 8, // Increased elevation for Android
   },
-  actionText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  activeActionText: {
-    color: '#4CAF50',
+
+  footerActionText: {
+    fontSize: 8, // Slightly smaller for better fit
+    color: '#fff',
     fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: 'Montserrat-Medium',
+  },
+  activeFooterText: {
+    color: '#ff4757',
+    textShadowColor: 'transparent',
+    fontWeight: '700',
+  },
+  activeBookmarkText: {
+    color: '#4CAF50',
+    textShadowColor: 'transparent',
+    fontWeight: '700',
+  },
+  // Add these styles to your existing StyleSheet
+  bottomShowMore: {
+    position: "absolute",
+    bottom: 10,
+    left: 100,
+    minHeight: 80, // Fixed height to prevent shifting
+  },
+  ArticleButtonStyle: {
+    position: 'absolute',
+    right: 15,
+    bottom: 4,
+    zIndex: 5,
+    elevation: 5,
+    minHeight: 60, // Fixed height
+    minWidth: 200, // Fixed width
+  },
+  ArticleButtonStyleGroup: {
+    width: "90%",
+    flexDirection: "row",
+    justifyContent: 'space-between',
+    minHeight: 50, // Ensure consistent height
+  },
+  swipeIndicator: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    minHeight: 30, // Fixed height to prevent jumping
   },
 });
 
-export default NewsDetailScreen;
+export default OptimizedNewsDetailScreen;

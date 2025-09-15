@@ -174,35 +174,72 @@ private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<
   }
 }
 
-private async clearAuth() {
-  this.isLoggedIn = false;
-  try {
-    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_DATA_KEY);
-  } catch (error) {
-    console.error('Error clearing auth:', error);
-  }
-}
 
-  async logout(): Promise<void> {
-    try {
-      if (this.isLoggedIn) {
+async logout(): Promise<void> {
+  try {
+    if (this.isLoggedIn) {
+      try {
+        const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+        const currentUser = await GoogleSignin.getCurrentUser();
+        
+        if (currentUser) {
+          console.log("🔍 Google user detected, performing full cleanup");
+          // For Google users, revoke access first, then sign out
+          await GoogleSignin.revokeAccess();
+          await GoogleSignin.signOut();
+          console.log("✅ Google session fully cleared");
+        }
+      } catch (googleError : any) {
+        console.log("ℹ️ No Google session to clear or error:", googleError.message);
+      }
+
+      // Call your backend logout endpoint
+      try {
         await this.fetchWithTimeout('/api/auth/logout', {
           method: 'POST',
         });
+      } catch (apiError) {
+        console.error('Backend logout error:', apiError);
       }
-    } catch (error) {
-      console.error('Logout API error:', error);
-    } finally {
-      await this.clearAuth();
     }
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Always clear local auth data
+    await this.clearAuth();
   }
+}
+private async updateUserLoginTime(): Promise<void> {
+  try {
+    console.log("🕒 Updating user loginTime to 1");
+    
+    // Get current user data from AsyncStorage
+    const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
+    
+    if (userData) {
+      const user = JSON.parse(userData);
+      
+      // Update loginTime to 1
+      user.loginTime = 1;
+      
+      // Save updated user data back to AsyncStorage
+      await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(user));
+      
+    } else {
+      console.warn("⚠️ No user data found in AsyncStorage to update");
+    }
+  } catch (error) {
+    console.warn("❌ Error updating user loginTime:", error);
+    // Don't throw error - this shouldn't break the category update flow
+  }
+}
 
   // In your ApiService class, add this method
 
 // In your ApiService class
-async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
-  console.log("🚀 Google Sign In with access token");
+// Update your googleSignIn method in ApiService
+async googleSignIn(idToken: string): Promise<GoogleSignInResponse> {
+  console.log("🚀 Google Sign In with ID token");
   
   try {
     const response = await this.fetchWithTimeout('/api/auth/google', {
@@ -210,7 +247,7 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ accessToken }),
+      body: JSON.stringify({ idToken }), // Send idToken instead of accessToken
     });
 
     const data = await this.handleResponse<GoogleSignInResponse>(response);
@@ -231,19 +268,45 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
     return data;
   } catch (error: any) {
     console.error("❌ Google Sign-In error:", error);
+    await this.cleanupFailedGoogleSignIn();
     throw error;
   }
 }
 
-  // async getCurrentUser(): Promise<User | null> {
-  //   try {
-  //     const userData = await SecureStore.getItemAsync(USER_DATA_KEY);
-  //     return userData ? JSON.parse(userData) : null;
-  //   } catch (error) {
-  //     console.error('Error getting current user:', error);
-  //     return null;
-  //   }
-  // }
+private async clearAuth() {
+  this.isLoggedIn = false;
+  try {
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
+  } catch (error) {
+    console.error('Error clearing auth:', error);
+  }
+}
+
+private async cleanupFailedGoogleSignIn(): Promise<void> {
+  try {    
+    // Import GoogleSignin here to avoid circular dependencies
+    const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+    
+    // First revoke access (removes your app from user's authorized applications)
+    await GoogleSignin.revokeAccess();
+    console.log("✅ Revoked Google access");
+    
+    // Then sign out (removes user session from the device)
+    await GoogleSignin.signOut();
+    console.log("✅ Successfully signed out from Google");
+    
+    // Clear any stored auth data
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
+    this.isLoggedIn = false;
+    
+    console.log("✅ Cleared stored authentication data");
+  } catch (cleanupError) {
+    console.error("❌ Error during Google Sign-In cleanup:", cleanupError);
+    // Don't throw cleanup errors - just log them
+  }
+}
 
   async createUser(data: CreateDocumentRequest): Promise<CreateDocumentResponse> {
   // console.log("Creating document:", documentData);
@@ -259,6 +322,41 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
   return result;
 }
 
+// In your ApiService class
+async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    userId: string;
+    categoryCount: number;
+    categories: string[];
+  };
+}> {
+  console.log("🚀 Updating user categories:", userId, categoryIds);
+  
+  const response = await this.fetchWithTimeout('/api/users', {
+    method: 'PUT',
+    body: JSON.stringify({
+      userId,
+      categoryIds,
+    }),
+  });
+  
+  const result = await this.handleResponse<{
+    success: boolean;
+    message: string;
+    data: {
+      userId: string;
+      categoryCount: number;
+      categories: string[];
+    };
+  }>(response);
+
+  if (result.success) {
+    await this.updateUserLoginTime();
+  }
+  return result;
+}
   async getUserById(id: string): Promise<User> {
     const response = await this.fetchWithTimeout(`/api/users?id=${id}`, {
       method: 'GET',
@@ -278,6 +376,8 @@ async googleSignIn(accessToken: string): Promise<GoogleSignInResponse> {
     
     return users;
   }
+
+  
 
   
 
@@ -375,8 +475,7 @@ async createBookmark(documentData: CreateDocumentRequest): Promise<CreateDocumen
 async getBookMark(params:any): Promise<GetFoldersResponse> {
   const searchParams = new URLSearchParams();
   
-  // if (params.id) searchParams.append('id', params.id);
-  if (params.userID) searchParams.append('userID', params.userId);
+  if (params.userId) searchParams.append('UserId', params.userId);
   
   const url = `/api/bookmarks?${searchParams.toString()}`;
   
@@ -1075,39 +1174,7 @@ async signup(userData: {
     ...result 
   };
 }
-// In your ApiService class
-async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
-  success: boolean;
-  message: string;
-  data: {
-    userId: string;
-    categoryCount: number;
-    categories: string[];
-  };
-}> {
-  console.log("🚀 Updating user categories:", userId, categoryIds);
-  
-  const response = await this.fetchWithTimeout('/api/users', {
-    method: 'PUT',
-    body: JSON.stringify({
-      userId,
-      categoryIds,
-    }),
-  });
-  
-  const result = await this.handleResponse<{
-    success: boolean;
-    message: string;
-    data: {
-      userId: string;
-      categoryCount: number;
-      categories: string[];
-    };
-  }>(response);
-  
-  console.log("📦 Categories updated:", result);
-  return result;
-}
+
 
 async getUserCategories(userId: string): Promise<{
   success: boolean;

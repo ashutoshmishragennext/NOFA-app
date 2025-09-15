@@ -18,7 +18,7 @@ interface FeedScreenProps {
   onArticlePress: (article: any, articlesList?: any[], articleIndex?: number) => void;
 }
 
-const FeedScreen = ({ onArticlePress }: FeedScreenProps) => {
+const FeedScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -1,20 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 // TRENDING SCREEN COMPONENT - Updated with navigation support
 const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any, articles: any[], index: number) => void }) => {
+  // Load custom fonts
+  const [fontsLoaded] = useFonts({
+    'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
+    'Montserrat-SemiBold': require('../../assets/fonts/Montserrat-SemiBold.ttf'),
+  });
+
   const [trendingArticles, setTrendingArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -250,7 +257,7 @@ const TrendingScreen = ({ onArticlePress }: { onArticlePress: (article: any, art
 
           {renderTimeRangeButtons()}
 
-          {loading && !refreshing ? (
+          {(loading && !refreshing) || !fontsLoaded ? (
             renderLoadingState()
           ) : trendingArticles.length === 0 ? (
             renderEmptyState()
@@ -288,6 +295,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1A1A1A',
     marginRight: 12,
+    fontFamily: 'NeuePlakExtended-SemiBold',
   },
   trendingScreenSubtitle: {
     fontSize: 15,
