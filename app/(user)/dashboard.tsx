@@ -266,29 +266,31 @@ const NewsApp = () => {
       nextContent: prevContent
     });
     
-    setTimeout(() => {
-      setCurrentContentIndex(prevIndex);
-      
-      // Update selected article if previous content is an article
-      if (prevContent.type === 'article') {
-        setSelectedArticle(prevContent.data);
-        // Update legacy article index
-        const articleOnlyList = contentList.filter(item => item.type === 'article');
-        const articleIndex = articleOnlyList.findIndex(item => item.data.id === prevContent.data.id);
-        if (articleIndex !== -1) {
-          setCurrentArticleIndex(articleIndex);
-        }
+    // Immediate state update - no setTimeout delay
+    setCurrentContentIndex(prevIndex);
+    
+    // Update selected article if previous content is an article
+    if (prevContent.type === 'article') {
+      setSelectedArticle(prevContent.data);
+      // Update legacy article index
+      const articleOnlyList = contentList.filter(item => item.type === 'article');
+      const articleIndex = articleOnlyList.findIndex(item => item.data.id === prevContent.data.id);
+      if (articleIndex !== -1) {
+        setCurrentArticleIndex(articleIndex);
       }
-      
-      // Prerender new adjacent content
-      prerenderAdjacentContent(prevContent, contentList, prevIndex);
-      
+    }
+    
+    // Immediately prerender new adjacent content
+    prerenderAdjacentContent(prevContent, contentList, prevIndex);
+    
+    // Reset transition state after a brief moment
+    setTimeout(() => {
       setContentTransition({
         isTransitioning: false,
         direction: null,
         nextContent: null
       });
-    }, 50);
+    }, 100);
   }, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]);
 
   // Legacy handlers for backward compatibility

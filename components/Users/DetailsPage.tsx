@@ -100,6 +100,11 @@ const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
   const memoizedNextContent = useMemo(() => nextContent, [nextContent]);
   const memoizedPrevContent = useMemo(() => prevContent, [prevContent]);
 
+  // Add these to your existing state variables
+const [showNextPreview, setShowNextPreview] = useState(false);
+const [showPrevPreview, setShowPrevPreview] = useState(false);
+const [nextContentReady, setNextContentReady] = useState(false);
+const [prevContentReady, setPrevContentReady] = useState(false);
   // ========================================
   // LIKE SYSTEM (Simplified)
   // ========================================
@@ -232,70 +237,113 @@ const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
   // ========================================
   // GESTURE HANDLING (Optimized)
   // ========================================
-  const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, gestureState) => {
-      if (isTransitioning) return false;
-      return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
-    },
-    onPanResponderGrant: () => {
-      pan.setOffset({
-        x: pan.x._value,
-        y: pan.y._value,
+// In OptimizedNewsDetailScreen, replace the panResponder logic with this:
+
+const panResponder = useMemo(() => PanResponder.create({
+  onStartShouldSetPanResponder: () => false,
+  onMoveShouldSetPanResponder: (_, gestureState) => {
+    if (isTransitioning) return false;
+    return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
+  },
+  onPanResponderGrant: () => {
+    pan.setOffset({
+      x: pan.x._value,
+      y: pan.y._value,
+    });
+    
+    // Pre-prepare content visibility during gesture start
+    if (hasNext && memoizedNextContent?.data) {
+      // Start preparing next content for visibility
+      setNextContentReady(true);
+    }
+    if (hasPrev && memoizedPrevContent?.data) {
+      // Start preparing prev content for visibility  
+      setPrevContentReady(true);
+    }
+  },
+  onPanResponderMove: (_, gestureState) => {
+    pan.y.setValue(gestureState.dy);
+    const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
+    opacity.setValue(1 - progress);
+    
+    // Dynamically show/hide content based on swipe direction
+    const swipeThreshold = height * 0.05; // Lower threshold for preview
+    
+    if (gestureState.dy < -swipeThreshold && hasNext) {
+      // Swiping up - show next content preview
+      setShowNextPreview(true);
+      setShowPrevPreview(false);
+    } else if (gestureState.dy > swipeThreshold && hasPrev) {
+      // Swiping down - show prev content preview
+      setShowPrevPreview(true);
+      setShowNextPreview(false);
+    } else {
+      // Reset previews
+      setShowNextPreview(false);
+      setShowPrevPreview(false);
+    }
+  },
+  onPanResponderRelease: (_, gestureState) => {
+    pan.flattenOffset();
+    const swipeThreshold = height * 0.1;
+    const velocityThreshold = 0.1;
+
+    const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && hasNext;
+    const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && hasPrev;
+
+    if (shouldGoNext) {
+      // Content is already preloaded, just animate
+      Animated.timing(pan.y, {
+        toValue: -height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        // Reset everything after animation completes
+        pan.setValue({ x: 0, y: 0 });
+        opacity.setValue(1);
+        setShowNextPreview(false);
+        setNextContentReady(false);
+        onNext(); // This will update the parent state
       });
-    },
-    onPanResponderMove: (_, gestureState) => {
-      pan.y.setValue(gestureState.dy);
-      const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
-      opacity.setValue(1 - progress);
-    },
-    onPanResponderRelease: (_, gestureState) => {
-      pan.flattenOffset();
-      const swipeThreshold = height * 0.1;
-      const velocityThreshold = 0.1;
-
-      const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && hasNext;
-      const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && hasPrev;
-
-      if (shouldGoNext) {
-        Animated.timing(pan.y, {
-          toValue: -height,
-          duration: 250,
+    } else if (shouldGoPrev) {
+      // Content is already preloaded, just animate
+      Animated.timing(pan.y, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        // Reset everything after animation completes
+        pan.setValue({ x: 0, y: 0 });
+        opacity.setValue(1);
+        setShowPrevPreview(false);
+        setPrevContentReady(false);
+        onPrev(); // This will update the parent state
+      });
+    } else {
+      // Reset to current content
+      Animated.parallel([
+        Animated.spring(pan.y, {
+          toValue: 0,
+          tension: 100,
+          friction: 8,
           useNativeDriver: true,
-        }).start(() => {
-          pan.setValue({ x: 0, y: 0 });
-          opacity.setValue(1);
-          onNext();
-        });
-      } else if (shouldGoPrev) {
-        Animated.timing(pan.y, {
-          toValue: height,
-          duration: 250,
+        }),
+        Animated.spring(opacity, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
           useNativeDriver: true,
-        }).start(() => {
-          pan.setValue({ x: 0, y: 0 });
-          opacity.setValue(1);
-          onPrev();
-        });
-      } else {
-        Animated.parallel([
-          Animated.spring(pan.y, {
-            toValue: 0,
-            tension: 100,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.spring(opacity, {
-            toValue: 1,
-            tension: 100,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }
-    },
-  }), [isTransitioning, hasNext, hasPrev, onNext, onPrev, pan, opacity]);
-
+        }),
+      ]).start(() => {
+        // Reset preview states
+        setShowNextPreview(false);
+        setShowPrevPreview(false);
+        setNextContentReady(false);
+        setPrevContentReady(false);
+      });
+    }
+  },
+}), [isTransitioning, hasNext, hasPrev, onNext, onPrev, pan, opacity, memoizedNextContent, memoizedPrevContent]);
   // ========================================
   // COMPONENT INITIALIZATION
   // ========================================
@@ -504,90 +552,104 @@ const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
 
   const containerStyle = memoizedCurrentContent.type === 'ad' ? styles.container2 : styles.container;
 
-  return (
-    <SafeAreaView style={containerStyle}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+  // Replace the render section in OptimizedNewsDetailScreen with this:
 
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Ionicons name="arrow-back" size={16} color="#000" />
-      </TouchableOpacity>
+return (
+  <SafeAreaView style={containerStyle}>
+    <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      <Animated.View
-        style={[
-          styles.newsStackContainer,
-          {
-            transform: [{ translateX: pan.x }],
-            opacity: Animated.multiply(opacity, transitionOpacity),
-          }
-        ]}
-        {...panResponder.panHandlers}
-      >
-        {/* Previous Content */}
-        {memoizedPrevContent?.data && (
-          <Animated.View
-            style={[
-              styles.newsStackItem,
-              styles.prevNewsItem,
-              { transform: [{ translateY: pan.y }] }
-            ]}
-          >
-            {renderContent(memoizedPrevContent, false)}
-          </Animated.View>
-        )}
+    <TouchableOpacity style={styles.backButton} onPress={onBack}>
+      <Ionicons name="arrow-back" size={16} color="#000" />
+    </TouchableOpacity>
 
-        {/* Current Content */}
+    <Animated.View
+      style={[
+        styles.newsStackContainer,
+        {
+          transform: [{ translateX: pan.x }],
+          opacity: Animated.multiply(opacity, transitionOpacity),
+        }
+      ]}
+      {...panResponder.panHandlers}
+    >
+      {/* Previous Content - Always rendered but conditionally visible */}
+      {memoizedPrevContent?.data && (
         <Animated.View
           style={[
             styles.newsStackItem,
-            styles.currentNewsItem,
-            { transform: [{ translateY: pan.y }] }
+            styles.prevNewsItem,
+            { 
+              transform: [{ translateY: pan.y }],
+              opacity: showPrevPreview || prevContentReady ? 1 : 0,
+              zIndex: showPrevPreview ? 4 : 1
+            }
           ]}
         >
-          {renderContent(memoizedCurrentContent, true)}
+          {renderContent(memoizedPrevContent, false)}
         </Animated.View>
+      )}
 
-        {/* Next Content */}
-        {memoizedNextContent?.data && (
-          <Animated.View
-            style={[
-              styles.newsStackItem,
-              styles.nextNewsItem,
-              { transform: [{ translateY: pan.y }] }
-            ]}
-          >
-            {renderContent(memoizedNextContent, false)}
-          </Animated.View>
-        )}
+      {/* Current Content */}
+      <Animated.View
+        style={[
+          styles.newsStackItem,
+          styles.currentNewsItem,
+          { 
+            transform: [{ translateY: pan.y }],
+            zIndex: (!showNextPreview && !showPrevPreview) ? 4 : 2
+          }
+        ]}
+      >
+        {renderContent(memoizedCurrentContent, true)}
       </Animated.View>
 
-      <Modal
-        visible={showWebView}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowWebView(false)}
-      >
-        <SafeAreaView style={styles.webViewContainer}>
-          <WebView
-            source={{ uri: webViewUrl }}
-            style={styles.webView}
-            startInLoadingState={true}
-            renderLoading={() => (
-              <View style={styles.webViewLoading}>
-                <ActivityIndicator size="large" color="#4CAF50" />
-                <Text style={styles.webViewLoadingText}>Loading...</Text>
-              </View>
-            )}
-          />
-        </SafeAreaView>
-      </Modal>
+      {/* Next Content - Always rendered but conditionally visible */}
+      {memoizedNextContent?.data && (
+        <Animated.View
+          style={[
+            styles.newsStackItem,
+            styles.nextNewsItem,
+            { 
+              transform: [{ translateY: pan.y }],
+              opacity: showNextPreview || nextContentReady ? 1 : 0,
+              zIndex: showNextPreview ? 4 : 1
+            }
+          ]}
+        >
+          {renderContent(memoizedNextContent, false)}
+        </Animated.View>
+      )}
+    </Animated.View>
 
-      <CommentsSection
-        visible={showComments}
-        onClose={() => setShowComments(false)}
-        articleId={article.id}
-      />
-    </SafeAreaView>
-  );
+    {/* Rest of your modals and components remain the same */}
+    <Modal
+      visible={showWebView}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowWebView(false)}
+    >
+      <SafeAreaView style={styles.webViewContainer}>
+        <WebView
+          source={{ uri: webViewUrl }}
+          style={styles.webView}
+          startInLoadingState={true}
+          renderLoading={() => (
+            <View style={styles.webViewLoading}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.webViewLoadingText}>Loading...</Text>
+            </View>
+          )}
+        />
+      </SafeAreaView>
+    </Modal>
+
+    <CommentsSection
+      visible={showComments}
+      onClose={() => setShowComments(false)}
+      articleId={article.id}
+    />
+  </SafeAreaView>
+);
 };
 
 const styles = StyleSheet.create({
