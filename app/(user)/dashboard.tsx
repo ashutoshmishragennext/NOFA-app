@@ -400,10 +400,6 @@ if (currentView === "categoryChange") {
       <StatusBar style="dark" />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          {/* <View style={styles.logoContainer}>
-            <View style={styles.logoIcon} />
-            <Text style={styles.appName}>Apartment Times</Text>
-          </View> */}
             <Image
               source={require("../../assets/images/logo.png")}
               style={styles.logo1}
