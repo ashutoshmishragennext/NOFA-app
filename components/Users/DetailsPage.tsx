@@ -44,9 +44,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     'Newsreader-Italic-VariableFont_opsz': require('../../assets/fonts/Newsreader-Italic-VariableFont_opsz,wght.ttf')
   });
 
-  // ========================================
-  // SIMPLIFIED ADVERTISEMENT LOGIC WITH BINARY ARRAY
-  // ========================================
   
   // Advertisement configuration
   const AD_CONFIG = {
@@ -982,10 +979,6 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       </View>
     );
   };
-
-  // ========================================
-  // MAIN RENDER
-  // ========================================
 
   if (!fontsLoaded || adBinaryArray.length === 0) {
     return null; // Only show when fully initialized
