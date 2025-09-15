@@ -29,14 +29,16 @@ import { AdClickData, AdData, AdDisplayState, dummyAds, NewsDetailScreenProps } 
 const { width, height } = Dimensions.get('window');
 
 const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
-  article,
+   article,
   onBack,
   onNext,
   hasNext,
   onPrev,
   hasPrev = false,
   currentIndex,
-  allArticles = []
+  allArticles = [],
+  prerenderedArticles = new Map(), // New prop
+  transitionState = { isTransitioning: false, direction: null, nextArticle: null } // New prop
 }) => {
   const [fontsLoaded] = useFonts({
     'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
@@ -68,6 +70,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     adQueue: [],
   });
 
+  
   // Content determination state
   const [contentMap, setContentMap] = useState({
     current: { type: 'article', data: article, shouldShowAd: false },
@@ -139,6 +142,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     return array;
   }, []);
 
+  
   // Initialize or load binary array
   const initializeAdArray = useCallback(async () => {
     try {
@@ -226,6 +230,130 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       console.error('Error updating ads shown count:', error);
     }
   }, [adsShownCount]);
+
+  const [isPrerendering, setIsPrerendering] = useState(false);
+  const [prerenderCache, setPrerenderCache] = useState(new Map());
+  
+  // Transition animation refs
+  const transitionOpacity = useRef(new Animated.Value(1)).current;
+  const transitionScale = useRef(new Animated.Value(1)).current;
+
+  // Enhanced content mapping with prerendering
+  const calculateContentMapWithPrerender = useCallback(() => {
+    const getArticleAtIndex = (index) => {
+      if (allArticles.length === 0) return null;
+      const normalizedIndex = ((index % allArticles.length) + allArticles.length) % allArticles.length;
+      return allArticles[normalizedIndex];
+    };
+
+    // Check if we have prerendered data for current article
+    const prerenderedCurrent = prerenderedArticles.get(article.id);
+    const currentContent = prerenderedCurrent || {
+      type: 'article', 
+      data: article, 
+      shouldShowAd: shouldShowAdForIndex(currentIndex)
+    };
+
+    // Get adjacent articles with prerendering
+    const nextArticle = getArticleAtIndex(currentIndex + 1);
+    const prevArticle = getArticleAtIndex(currentIndex - 1);
+    
+    const prerenderedNext = nextArticle ? prerenderedArticles.get(nextArticle.id) : null;
+    const prerenderedPrev = prevArticle ? prerenderedArticles.get(prevArticle.id) : null;
+
+    const nextContent = prerenderedNext || {
+      type: 'article', 
+      data: nextArticle, 
+      shouldShowAd: shouldShowAdForIndex(currentIndex + 1)
+    };
+
+    const prevContent = prerenderedPrev || {
+      type: 'article', 
+      data: prevArticle, 
+      shouldShowAd: shouldShowAdForIndex(currentIndex - 1)
+    };
+
+    return {
+      current: currentContent,
+      next: nextContent,
+      prev: prevContent
+    };
+  }, [currentIndex, allArticles, article, prerenderedArticles, shouldShowAdForIndex]);
+
+const prerenderContent = useCallback(async (contentInfo:any) => {
+    if (!contentInfo.data || prerenderCache.has(contentInfo.data.id)) return;
+
+    try {
+      setIsPrerendering(true);
+      
+      // Preload images
+      if (contentInfo.data.featuredImage) {
+        await Image.prefetch(contentInfo.data.featuredImage);
+      }
+      
+      // Cache the rendered content
+      const cachedContent = {
+        ...contentInfo,
+        prerendered: true,
+        timestamp: Date.now()
+      };
+      
+      setPrerenderCache(prev => new Map(prev.set(contentInfo.data.id, cachedContent)));
+      
+    } catch (error) {
+      console.log('Prerender failed for:', contentInfo.data.id);
+    } finally {
+      setIsPrerendering(false);
+    }
+  }, [prerenderCache]);
+useEffect(() => {
+    if (adBinaryArray.length > 0 && adState.adQueue.length > 0) {
+      const newContentMap = calculateContentMapWithPrerender();
+      setContentMap(newContentMap);
+      
+      // Prerender adjacent content
+      if (newContentMap.next.data) {
+        prerenderContent(newContentMap.next);
+      }
+      if (newContentMap.prev.data) {
+        prerenderContent(newContentMap.prev);
+      }
+    }
+  }, [calculateContentMapWithPrerender, adBinaryArray, adState.adQueue, prerenderContent]);
+
+  // Handle smooth transitions
+  useEffect(() => {
+    if (transitionState.isTransitioning) {
+      // Start fade out
+      Animated.parallel([
+        Animated.timing(transitionOpacity, {
+          toValue: 0.3,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(transitionScale, {
+          toValue: 0.95,
+          duration: 150,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      // Fade back in
+      Animated.parallel([
+        Animated.timing(transitionOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(transitionScale, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [transitionState.isTransitioning, transitionOpacity, transitionScale]);
+
 
   // ========================================
   // CONTENT MAPPING WITH BINARY ARRAY LOGIC
@@ -436,7 +564,29 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       advertiser: adData.advertiser,
       timestamp: Date.now()
     };
+
   };
+  
+  // Clean up old cache entries
+  useEffect(() => {
+    const cleanupCache = () => {
+      const now = Date.now();
+      const maxAge = 5 * 60 * 1000; // 5 minutes
+      
+      setPrerenderCache(prev => {
+        const newCache = new Map();
+        prev.forEach((value, key) => {
+          if (now - value.timestamp < maxAge) {
+            newCache.set(key, value);
+          }
+        });
+        return newCache;
+      });
+    };
+
+    const interval = setInterval(cleanupCache, 60 * 1000); // Clean every minute
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAdClose = (): void => {
     console.log('Ad closed');
@@ -567,11 +717,11 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   }, [swipeIndicatorOpacity]);
 
   // Enhanced pan responder that shows correct content during swipe
-  const panResponder = useRef(
+ const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: (evt, gestureState) => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        if (isTransitioning) return false;
+        if (isTransitioning || transitionState.isTransitioning) return false;
         return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
       },
       onPanResponderGrant: () => {
@@ -588,17 +738,19 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       onPanResponderRelease: (evt, gestureState) => {
         pan.flattenOffset();
 
-        const swipeThreshold = height * 0.12;
-        const velocityThreshold = 0.15;
+        const swipeThreshold = height * 0.1; // Reduced threshold for easier swiping
+        const velocityThreshold = 0.1;
 
         const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && gestureState.dy < 0;
         const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && gestureState.dy > 0;
 
         if (shouldGoNext && allArticles.length > 1) {
           setIsTransitioning(true);
+          
+          // Smooth animation out
           Animated.timing(pan.y, {
             toValue: -height,
-            duration: 200,
+            duration: 250, // Slightly longer for smoothness
             useNativeDriver: true,
           }).start(() => {
             pan.setValue({ x: 0, y: 0 });
@@ -610,9 +762,11 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
           });
         } else if (shouldGoPrev && allArticles.length > 1) {
           setIsTransitioning(true);
+          
+          // Smooth animation out
           Animated.timing(pan.y, {
             toValue: height,
-            duration: 200,
+            duration: 250,
             useNativeDriver: true,
           }).start(() => {
             pan.setValue({ x: 0, y: 0 });
@@ -623,16 +777,17 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
             setIsTransitioning(false);
           });
         } else {
+          // Bounce back with smooth animation
           Animated.parallel([
             Animated.spring(pan.y, {
               toValue: 0,
-              tension: 120,
+              tension: 100,
               friction: 8,
               useNativeDriver: true,
             }),
             Animated.spring(opacity, {
               toValue: 1,
-              tension: 120,
+              tension: 100,
               friction: 8,
               useNativeDriver: true,
             }),
@@ -786,8 +941,16 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     );
   };
 
-  const renderContentByType = (contentInfo, isActive = false, position = 'current') => {
+  
+const renderContentByTypeEnhanced = (contentInfo, isActive = false, position = 'current') => {
     if (!contentInfo.data) return null;
+
+    // Check cache first
+    const cachedContent = prerenderCache.get(contentInfo.data.id);
+    if (cachedContent && !isActive) {
+      // Use cached version for non-active content
+      return cachedContent.renderedComponent;
+    }
 
     if (contentInfo.type === 'ad') {
       return (
@@ -800,7 +963,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
       );
     }
 
-    // Render article
+    // Render article with enhanced performance
     const articleData = contentInfo.data;
     
     const handleArticleShowMoreClick = () => {
@@ -816,6 +979,8 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
               cache: 'force-cache'
             }}
             style={styles.articleImage}
+            // Add loading optimization
+            loadingIndicatorSource={{ uri: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }}
           />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.4)']}
@@ -831,11 +996,11 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
                     onPress={handleLike}
                     disabled={likeLoading}
                   >
-                      <Ionicons
-                        name={liked ? "heart" : "heart-outline"}
-                        size={16}
-                        color={liked ? "#ff4757" : "#fff"}
-                      />
+                    <Ionicons
+                      name={liked ? "heart" : "heart-outline"}
+                      size={16}
+                      color={liked ? "#ff4757" : "#fff"}
+                    />
                     <Text style={[
                       styles.footerActionText,
                       liked && styles.activeFooterText
@@ -984,19 +1149,23 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     return null; // Only show when fully initialized
   }
 
-  const containerStyle = contentMap.current.type === 'ad' ? styles.container2 : styles.container;
+    const containerStyle = contentMap.current.type === 'ad' ? styles.container2 : styles.container;
+
   const animatedContainerStyle = contentMap.current.type === 'ad' ? styles.container3 : styles.container;
 
-  return (
+return (
     <SafeAreaView style={containerStyle}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       <Animated.View
         style={[
-          animatedContainerStyle,
+          contentMap.current.type === 'ad' ? styles.container3 : styles.container,
           {
-            transform: [{ translateX: pan.x }],
-            opacity: opacity,
+            transform: [
+              { translateX: pan.x },
+              { scale: transitionScale }
+            ],
+            opacity: Animated.multiply(opacity, transitionOpacity),
           }
         ]}
         {...panResponder.panHandlers}
@@ -1018,7 +1187,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
                 }
               ]}
             >
-              {renderContentByType(contentMap.prev, false, 'prev')}
+              {renderContentByTypeEnhanced(contentMap.prev, false, 'prev')}
             </Animated.View>
           )}
 
@@ -1034,7 +1203,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
             ]}
             {...panResponder.panHandlers}
           >
-            {renderContentByType(contentMap.current, true, 'current')}
+            {renderContentByTypeEnhanced(contentMap.current, true, 'current')}
           </Animated.View>
 
           {/* Next Content */}
@@ -1049,7 +1218,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
                 }
               ]}
             >
-              {renderContentByType(contentMap.next, false, 'next')}
+              {renderContentByTypeEnhanced(contentMap.next, false, 'next')}
             </Animated.View>
           )}
         </View>

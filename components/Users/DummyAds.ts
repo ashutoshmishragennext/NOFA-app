@@ -33,7 +33,9 @@ export interface NewsDetailScreenProps {
   currentIndex: number;
   totalArticles: number;
   sourceTab?: string;
+  prerenderedArticles: any, // New prop
   allArticles?: any[];
+  transitionState : any;
 }
 
 

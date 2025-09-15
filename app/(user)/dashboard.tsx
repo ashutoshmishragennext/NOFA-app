@@ -12,7 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -42,7 +42,102 @@ const NewsApp = () => {
   const screenWidth = Dimensions.get('window').width;
   const drawerWidth = screenWidth * 0.8; // 80% of screen width
   // Update your state to include the new screens
+const [prerenderedArticles, setPrerenderedArticles] = useState(new Map());
+  const [articleTransition, setArticleTransition] = useState({
+    isTransitioning: false,
+    direction: null,
+    nextArticle: null
+  });
+  const handleArticlePress = (article, articles, index) => {
+    setSelectedArticle(article);
+    setArticlesList(articles);
+    setCurrentArticleIndex(index);
+    setSourceTab(currentTab);
+    setCurrentView("detail");
+    
+    // Prerender adjacent articles
+    prerenderAdjacentArticles(article, articles, index);
+  };
 
+  // Enhanced navigation handlers with prerendering
+  const handleNextArticle = () => {
+    if (articleTransition.isTransitioning) return;
+    
+    setArticleTransition({
+      isTransitioning: true,
+      direction: 'next',
+      nextArticle: articlesList[(currentArticleIndex + 1) % articlesList.length]
+    });
+    
+    setTimeout(() => {
+      const nextIndex = (currentArticleIndex + 1) % articlesList.length;
+      const nextArticle = articlesList[nextIndex];
+      
+      setSelectedArticle(nextArticle);
+      setCurrentArticleIndex(nextIndex);
+      
+      // Prerender new adjacent articles
+      prerenderAdjacentArticles(nextArticle, articlesList, nextIndex);
+      
+      setArticleTransition({
+        isTransitioning: false,
+        direction: null,
+        nextArticle: null
+      });
+    }, 50); // Small delay for smooth transition
+  };
+
+  const handlePrevArticle = () => {
+    if (articleTransition.isTransitioning) return;
+    
+    setArticleTransition({
+      isTransitioning: true,
+      direction: 'prev',
+      nextArticle: articlesList[(currentArticleIndex - 1 + articlesList.length) % articlesList.length]
+    });
+    
+    setTimeout(() => {
+      const prevIndex = (currentArticleIndex - 1 + articlesList.length) % articlesList.length;
+      const prevArticle = articlesList[prevIndex];
+      
+      setSelectedArticle(prevArticle);
+      setCurrentArticleIndex(prevIndex);
+      
+      // Prerender new adjacent articles
+      prerenderAdjacentArticles(prevArticle, articlesList, prevIndex);
+      
+      setArticleTransition({
+        isTransitioning: false,
+        direction: null,
+        nextArticle: null
+      });
+    }, 50);
+  };
+const prerenderAdjacentArticles = useCallback((currentArticle, articles, currentIdx) => {
+    if (!articles || articles.length <= 1) return;
+    
+    const prerenderedMap = new Map();
+    
+    // Prerender current, next, and previous articles
+    const indices = [
+      currentIdx,
+      (currentIdx + 1) % articles.length,
+      (currentIdx - 1 + articles.length) % articles.length
+    ];
+    
+    indices.forEach(idx => {
+      const article = articles[idx];
+      if (article) {
+        prerenderedMap.set(article.id, {
+          article,
+          index: idx,
+          isActive: idx === currentIdx
+        });
+      }
+    });
+    
+    setPrerenderedArticles(prerenderedMap);
+  }, []);
 // Update your handler functions in the drawer
 const handlePasswordChange = () => {
   closeDrawer();
@@ -204,13 +299,6 @@ const handleLogoutFromDrawer = () => {
     console.log('Onboarding completed, flag set to prevent re-render');
     // The actual loginTime will be updated to 1 later in the onboarding flow when categories are selected
   };
-const handleArticlePress = (article: any, articles: any[], index: number) => {
-  setSelectedArticle(article);
-  setArticlesList(articles);
-  setCurrentArticleIndex(index);
-  setSourceTab(currentTab);
-  setCurrentView("detail");
-};
 
   // Handle back press
   const handleBackPress = () => {
@@ -220,25 +308,6 @@ const handleArticlePress = (article: any, articles: any[], index: number) => {
     setCurrentArticleIndex(0);
   };
 
-const handleNextArticle = () => {
-  // Circular navigation: wrap to index 0 when reaching the end
-  const nextIndex = (currentArticleIndex + 1) % articlesList.length;
-  const nextArticle = articlesList[nextIndex];
-  
-  setSelectedArticle(nextArticle);
-  setCurrentArticleIndex(nextIndex);
-  
-};
-
-const handlePrevArticle = () => {
-  // Circular navigation: wrap to last index when going before 0
-  const prevIndex = (currentArticleIndex - 1 + articlesList.length) % articlesList.length;
-  const prevArticle = articlesList[prevIndex];
-  
-  setSelectedArticle(prevArticle);
-  setCurrentArticleIndex(prevIndex);
-  
-};
 
   const handleTabPress = (tabName:string) => {
     setCurrentTab(tabName);
@@ -297,9 +366,6 @@ if (currentView === "categoryChange") {
 
   // Show Detail Screen if article is selected
   if (currentView === "detail" && selectedArticle) {
-    const hasNext = currentArticleIndex < articlesList.length - 1;
-    const hasPrev = currentArticleIndex > 0;
-
     return (
       <View style={[styles.container, {
         paddingTop: insets.top,
@@ -307,17 +373,19 @@ if (currentView === "categoryChange") {
       }]}>
         <StatusBar style="dark" />
         <NewsDetailScreen
-          key={selectedArticle.id}
+          key={`${selectedArticle.id}-${currentArticleIndex}`} // Force re-render with new key
           article={selectedArticle}
           onBack={handleBackPress}
-          onNext={ handleNextArticle}
-          onPrev={ handlePrevArticle}
+          onNext={handleNextArticle}
+          onPrev={handlePrevArticle}
           hasNext={articlesList.length > 1}
           hasPrev={articlesList.length > 1}
           currentIndex={currentArticleIndex}
           totalArticles={articlesList.length}
           sourceTab={sourceTab}
           allArticles={articlesList}
+          prerenderedArticles={prerenderedArticles}
+          transitionState={articleTransition}
         />
       </View>
     );
