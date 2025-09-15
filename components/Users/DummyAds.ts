@@ -23,20 +23,65 @@ export interface AdClickData {
   timestamp: number;
 }
 
-export interface NewsDetailScreenProps {
+// export interface NewsDetailScreenProps {
+//   article: any;
+//   onBack: () => void;
+//   onNext?: () => void;
+//   hasNext: boolean;
+//   onPrev?: () => void;
+//   hasPrev?: boolean;
+//   currentIndex: number;
+//   totalArticles: number;
+//   sourceTab?: string;
+//   prerenderedArticles: any, // New prop
+//   allArticles?: any[];
+//   transitionState : any;
+// }
+interface NewsDetailScreenProps {
   article: any;
   onBack: () => void;
-  onNext?: () => void;
+  onNext: () => void;
+  onPrev: () => void;
   hasNext: boolean;
-  onPrev?: () => void;
-  hasPrev?: boolean;
+  hasPrev: boolean;
   currentIndex: number;
   totalArticles: number;
-  sourceTab?: string;
-  prerenderedArticles: any, // New prop
-  allArticles?: any[];
-  transitionState : any;
+  sourceTab: string;
+  allArticles: any[];
+  prerenderedArticles: Map<string, any>;
+  transitionState: {
+    isTransitioning: boolean;
+    direction: 'next' | 'prev' | null;
+    nextArticle: any;
+  };
+  // NEW ENHANCED PROPS
+  contentQueue: {
+    previous2: any;
+    previous1: any;
+    current: any;
+    next1: any;
+    next2: any;
+    next3: any;
+  };
+  adConfig: {
+    interstitialFrequency: number;
+    rewardedAdAvailable: boolean;
+    bannerAdVisible: boolean;
+    articleCount: number;
+    lastInterstitialShown: number;
+  };
+  adQueue: {
+    interstitialLoaded: boolean;
+    rewardedLoaded: boolean;
+    bannerLoaded: false;
+  };
+  onAdEvent: (eventType: string, data: any) => void;
+  cacheStats: {
+    totalCached: number;
+    cacheHitRate: string;
+  };
 }
+
 
 
 export const dummyAds: AdData[] = [

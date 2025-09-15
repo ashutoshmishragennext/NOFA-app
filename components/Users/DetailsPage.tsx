@@ -1,10 +1,10 @@
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { apiService } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,21 +24,48 @@ import {
 import RenderHtml from "react-native-render-html";
 import { WebView } from 'react-native-webview';
 import CommentsSection from './CommentsPage';
-import { AdClickData, AdData, AdDisplayState, dummyAds, NewsDetailScreenProps } from './DummyAds';
 
 const { width, height } = Dimensions.get('window');
 
-const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
-   article,
+// Simplified props interface
+interface OptimizedNewsDetailProps {
+  article: any;
+  onBack: () => void;
+  onNext: () => void;
+  onPrev: () => void;
+  hasNext: boolean;
+  hasPrev: boolean;
+  currentIndex: number;
+  allArticles: any[];
+  // Ad logic moved to parent
+  currentContent: { type: 'article' | 'ad'; data: any };
+  nextContent?: { type: 'article' | 'ad'; data: any };
+  prevContent?: { type: 'article' | 'ad'; data: any };
+  onAdClick?: (adData: any) => void;
+  onAdClose?: () => void;
+  // Prerendering props
+  prerenderedNextArticle?: any;
+  prerenderedPrevArticle?: any;
+  isTransitioning?: boolean;
+}
+
+const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
+  article,
   onBack,
   onNext,
-  hasNext,
   onPrev,
-  hasPrev = false,
+  hasNext,
+  hasPrev,
   currentIndex,
-  allArticles = [],
-  prerenderedArticles = new Map(), // New prop
-  transitionState = { isTransitioning: false, direction: null, nextArticle: null } // New prop
+  allArticles,
+  currentContent,
+  nextContent,
+  prevContent,
+  onAdClick,
+  onAdClose,
+  prerenderedNextArticle,
+  prerenderedPrevArticle,
+  isTransitioning = false
 }) => {
   const [fontsLoaded] = useFonts({
     'NeuePlakExtended-SemiBold': require('../../assets/fonts/Neue Plak Extended SemiBold.ttf'),
@@ -46,39 +73,7 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
     'Newsreader-Italic-VariableFont_opsz': require('../../assets/fonts/Newsreader-Italic-VariableFont_opsz,wght.ttf')
   });
 
-  
-  // Advertisement configuration
-  const AD_CONFIG = {
-    ARRAY_LENGTH: 100,                // Pre-generate for 100 positions
-    AD_PROBABILITY: 1,             // 70% chance for each position
-    MIN_GAP_BETWEEN_ADS: 2,          // Minimum 2 articles between ads
-    MAX_ADS_PER_SESSION: 3,          // Maximum 3 ads per session
-    STORAGE_KEY: 'ad_binary_array'
-  };
-
-  // Pre-generated binary array for ad positions
-  const [adBinaryArray, setAdBinaryArray] = useState<number[]>([]);
-  const [adsShownCount, setAdsShownCount] = useState(0);
-  const [sessionId, setSessionId] = useState<string>('');
-
-  // Ad state
-  const [adState, setAdState] = useState<AdDisplayState>({
-    shouldShowAd: false,
-    currentAdIndex: 0,
-    articlesViewedCount: 0,
-    nextAdAfter: 2,
-    adQueue: [],
-  });
-
-  
-  // Content determination state
-  const [contentMap, setContentMap] = useState({
-    current: { type: 'article', data: article, shouldShowAd: false },
-    next: { type: 'article', data: null, shouldShowAd: false },
-    prev: { type: 'article', data: null, shouldShowAd: false }
-  });
-
-  // Article and UI state
+  // Simplified state management
   const [showComments, setShowComments] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(article.likeCount || 0);
@@ -86,350 +81,249 @@ const NewsDetailScreen: React.FC<NewsDetailScreenProps> = ({
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
-  const [showFullContent, setShowFullContent] = useState(false);
-  const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
   const [showWebView, setShowWebView] = useState(false);
   const [webViewUrl, setWebViewUrl] = useState('');
 
-  // User and animation state
-  const [pendingLikeAction, setPendingLikeAction] = useState(null);
-  const currentUser = useAuth().user;
+  // Animation refs
   const pan = useRef(new Animated.ValueXY()).current;
   const opacity = useRef(new Animated.Value(1)).current;
-  const likeUpdateTimer = useRef(null);
+  const swipeIndicatorOpacity = useRef(new Animated.Value(0.6)).current;
+  const transitionOpacity = useRef(new Animated.Value(1)).current;
+  const likeUpdateTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Constants
-  const LIKE_BATCH_DELAY = 1 * 60 * 1000;
+  const currentUser = useAuth().user;
+  const LIKE_BATCH_DELAY = 60 * 1000;
   const LIKE_STORAGE_KEY = `article_likes_${article.id}`;
 
-  // Animation state
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const likeScale = useRef(new Animated.Value(1)).current;
-  const commentScale = useRef(new Animated.Value(1)).current;
-  const shareScale = useRef(new Animated.Value(1)).current;
-  const bookmarkScale = useRef(new Animated.Value(1)).current;
+  // Memoized content to prevent unnecessary re-renders
+  const memoizedCurrentContent = useMemo(() => currentContent, [currentContent]);
+  const memoizedNextContent = useMemo(() => nextContent, [nextContent]);
+  const memoizedPrevContent = useMemo(() => prevContent, [prevContent]);
 
   // ========================================
-  // BINARY ARRAY GENERATION LOGIC
+  // LIKE SYSTEM (Simplified)
   // ========================================
+  const loadServerLikeState = useCallback(async () => {
+    if (!currentUser || !article.id) return;
+    
+    try {
+      const status = await apiService.getArticleLikes(article.id, currentUser.id);
+      setLiked(status.userLiked);
+      setLikeCount(status.likeCount);
+    } catch (error) {
+      console.error('Error loading like state:', error);
+    }
+  }, [article.id, currentUser?.id]);
 
-  // Generate smart binary array with proper gaps
-  const generateAdBinaryArray = useCallback((): number[] => {
-    const array = new Array(AD_CONFIG.ARRAY_LENGTH).fill(0);
-    let adsPlaced = 0;
-    let lastAdPosition = -AD_CONFIG.MIN_GAP_BETWEEN_ADS;
+  const syncPendingLikesToServer = useCallback(async () => {
+    if (!currentUser) return;
 
-    console.log('Generating ad binary array...');
+    try {
+      const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
+      if (!localLikeData) return;
 
-    for (let i = 0; i < AD_CONFIG.ARRAY_LENGTH && adsPlaced < AD_CONFIG.MAX_ADS_PER_SESSION; i++) {
-      // Check if minimum gap is maintained
-      const gapMaintained = (i - lastAdPosition) >= AD_CONFIG.MIN_GAP_BETWEEN_ADS;
-      
-      // Random probability check
-      const shouldPlaceAd = Math.random() < AD_CONFIG.AD_PROBABILITY;
-      
-      if (gapMaintained && shouldPlaceAd) {
-        array[i] = 1;
-        lastAdPosition = i;
-        adsPlaced++;
-        console.log(`Ad placed at position ${i}`);
+      const pendingData = JSON.parse(localLikeData);
+      const currentServerState = await apiService.getArticleLikes(article.id, currentUser.id);
+
+      if (pendingData.finalLikedState !== currentServerState.userLiked) {
+        const result = await apiService.toggleArticleLike(article.id, currentUser.id);
+        setLiked(result.liked);
+        setLikeCount(result.likeCount);
       }
+
+      await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
+    } catch (error) {
+      console.error('Error syncing likes:', error);
+    }
+  }, [article.id, currentUser]);
+
+  const handleLike = useCallback(async () => {
+    if (!currentUser) {
+      Alert.alert('Login Required', 'Please login to like articles');
+      return;
     }
 
-    console.log('Generated binary array:', array.slice(0, 20), '...'); // Show first 20 positions
-    console.log(`Total ads placed: ${adsPlaced}`);
+    const newLiked = !liked;
+    const newCount = newLiked ? likeCount + 1 : likeCount - 1;
+
+    // Optimistic update
+    setLiked(newLiked);
+    setLikeCount(newCount);
+
+    try {
+      const localLikeData = {
+        userId: currentUser.id,
+        articleId: article.id,
+        finalLikedState: newLiked,
+        finalCount: newCount,
+        timestamp: Date.now(),
+      };
+
+      await AsyncStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(localLikeData));
+      
+      // Clear existing timer and set new one
+      if (likeUpdateTimer.current) {
+        clearTimeout(likeUpdateTimer.current);
+      }
+      
+      likeUpdateTimer.current = setTimeout(() => {
+        syncPendingLikesToServer();
+      }, LIKE_BATCH_DELAY);
+
+    } catch (error) {
+      // Revert on error
+      setLiked(!newLiked);
+      setLikeCount(newLiked ? newCount - 1 : newCount + 1);
+      console.error('Error handling like:', error);
+    }
+  }, [liked, likeCount, currentUser, syncPendingLikesToServer]);
+
+  // ========================================
+  // OTHER INTERACTIONS (Simplified)
+  // ========================================
+  const handleBookmark = useCallback(async () => {
+    if (bookmarkLoading || !currentUser) {
+      if (!currentUser) {
+        Alert.alert('Login Required', 'Please login to bookmark articles');
+      }
+      return;
+    }
+
+    setBookmarkLoading(true);
+    const optimisticBookmark = !isBookmarked;
+    setIsBookmarked(optimisticBookmark);
+
+    try {
+      const result = await apiService.toggleBookmark(currentUser.id, article.id);
+      setIsBookmarked(result.bookmarked);
+    } catch (error) {
+      setIsBookmarked(!optimisticBookmark);
+      console.error('Error toggling bookmark:', error);
+      Alert.alert('Error', 'Failed to update bookmark');
+    } finally {
+      setBookmarkLoading(false);
+    }
+  }, [bookmarkLoading, isBookmarked, currentUser, article.id]);
+
+  const handleShare = useCallback(async () => {
+    if (shareLoading) return;
     
-    return array;
+    setShareLoading(true);
+    try {
+      await Share.share({
+        message: `Check out this article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
+        url: `https://nofa-sepia.vercel.app/article/${article.id}`,
+        title: article.title,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+      Alert.alert('Error', 'Failed to share article');
+    } finally {
+      setShareLoading(false);
+    }
+  }, [shareLoading, article]);
+
+  const handleRedirectToIframe = useCallback((articleData: any) => {
+    const url = articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/";
+    setWebViewUrl(url);
+    setShowWebView(true);
   }, []);
 
-  
-  // Initialize or load binary array
-  const initializeAdArray = useCallback(async () => {
-    try {
-      const currentSessionId = Date.now().toString();
-      const storedData = await AsyncStorage.getItem(AD_CONFIG.STORAGE_KEY);
-      
-      if (storedData) {
-        const parsed = JSON.parse(storedData);
-        
-        // Check if session is less than 24 hours old
-        const isValidSession = (Date.now() - parseInt(parsed.sessionId)) < (24 * 60 * 60 * 1000);
-        
-        if (isValidSession && parsed.array && Array.isArray(parsed.array)) {
-          console.log('Using stored ad binary array');
-          setAdBinaryArray(parsed.array);
-          setAdsShownCount(parsed.adsShown || 0);
-          setSessionId(parsed.sessionId);
-          return;
-        }
+  // ========================================
+  // GESTURE HANDLING (Optimized)
+  // ========================================
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      if (isTransitioning) return false;
+      return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
+    },
+    onPanResponderGrant: () => {
+      pan.setOffset({
+        x: pan.x._value,
+        y: pan.y._value,
+      });
+    },
+    onPanResponderMove: (_, gestureState) => {
+      pan.y.setValue(gestureState.dy);
+      const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
+      opacity.setValue(1 - progress);
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      pan.flattenOffset();
+      const swipeThreshold = height * 0.1;
+      const velocityThreshold = 0.1;
+
+      const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && hasNext;
+      const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && hasPrev;
+
+      if (shouldGoNext) {
+        Animated.timing(pan.y, {
+          toValue: -height,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          pan.setValue({ x: 0, y: 0 });
+          opacity.setValue(1);
+          onNext();
+        });
+      } else if (shouldGoPrev) {
+        Animated.timing(pan.y, {
+          toValue: height,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          pan.setValue({ x: 0, y: 0 });
+          opacity.setValue(1);
+          onPrev();
+        });
+      } else {
+        Animated.parallel([
+          Animated.spring(pan.y, {
+            toValue: 0,
+            tension: 100,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.spring(opacity, {
+            toValue: 1,
+            tension: 100,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]).start();
       }
-
-      // Generate new array for new session
-      console.log('Generating new ad binary array');
-      const newArray = generateAdBinaryArray();
-      const sessionData = {
-        array: newArray,
-        sessionId: currentSessionId,
-        adsShown: 0
-      };
-
-      setAdBinaryArray(newArray);
-      setAdsShownCount(0);
-      setSessionId(currentSessionId);
-      
-      await AsyncStorage.setItem(AD_CONFIG.STORAGE_KEY, JSON.stringify(sessionData));
-      
-    } catch (error) {
-      console.error('Error initializing ad array:', error);
-      // Fallback to generated array
-      const fallbackArray = generateAdBinaryArray();
-      setAdBinaryArray(fallbackArray);
-    }
-  }, [generateAdBinaryArray]);
+    },
+  }), [isTransitioning, hasNext, hasPrev, onNext, onPrev, pan, opacity]);
 
   // ========================================
-  // SIMPLIFIED AD DISPLAY LOGIC
+  // COMPONENT INITIALIZATION
   // ========================================
-
-  // Simple check using binary array
-  const shouldShowAdForIndex = useCallback((articleIndex: number): boolean => {
-    // Ensure index is within array bounds
-    const safeIndex = articleIndex % adBinaryArray.length;
-    
-    // Check binary array value
-    const shouldShow = adBinaryArray[safeIndex] === 1;
-    
-    // Additional check: don't exceed session limit
-    const withinSessionLimit = adsShownCount < AD_CONFIG.MAX_ADS_PER_SESSION;
-    
-    const result = shouldShow && withinSessionLimit;
-    
-    if (shouldShow) {
-      console.log(`Index ${articleIndex} (array pos ${safeIndex}): Should show ad = ${result}, ads shown = ${adsShownCount}`);
-    }
-    
-    return result;
-  }, [adBinaryArray, adsShownCount]);
-
-  // Update ads shown count
-  const updateAdsShownCount = useCallback(async () => {
-    try {
-      const newCount = adsShownCount + 1;
-      setAdsShownCount(newCount);
-      
-      // Update stored data
-      const storedData = await AsyncStorage.getItem(AD_CONFIG.STORAGE_KEY);
-      if (storedData) {
-        const parsed = JSON.parse(storedData);
-        parsed.adsShown = newCount;
-        await AsyncStorage.setItem(AD_CONFIG.STORAGE_KEY, JSON.stringify(parsed));
-      }
-      
-      console.log(`Ads shown count updated to: ${newCount}`);
-    } catch (error) {
-      console.error('Error updating ads shown count:', error);
-    }
-  }, [adsShownCount]);
-
-  const [isPrerendering, setIsPrerendering] = useState(false);
-  const [prerenderCache, setPrerenderCache] = useState(new Map());
-  
-  // Transition animation refs
-  const transitionOpacity = useRef(new Animated.Value(1)).current;
-  const transitionScale = useRef(new Animated.Value(1)).current;
-
-  // Enhanced content mapping with prerendering
-  const calculateContentMapWithPrerender = useCallback(() => {
-    const getArticleAtIndex = (index) => {
-      if (allArticles.length === 0) return null;
-      const normalizedIndex = ((index % allArticles.length) + allArticles.length) % allArticles.length;
-      return allArticles[normalizedIndex];
-    };
-
-    // Check if we have prerendered data for current article
-    const prerenderedCurrent = prerenderedArticles.get(article.id);
-    const currentContent = prerenderedCurrent || {
-      type: 'article', 
-      data: article, 
-      shouldShowAd: shouldShowAdForIndex(currentIndex)
-    };
-
-    // Get adjacent articles with prerendering
-    const nextArticle = getArticleAtIndex(currentIndex + 1);
-    const prevArticle = getArticleAtIndex(currentIndex - 1);
-    
-    const prerenderedNext = nextArticle ? prerenderedArticles.get(nextArticle.id) : null;
-    const prerenderedPrev = prevArticle ? prerenderedArticles.get(prevArticle.id) : null;
-
-    const nextContent = prerenderedNext || {
-      type: 'article', 
-      data: nextArticle, 
-      shouldShowAd: shouldShowAdForIndex(currentIndex + 1)
-    };
-
-    const prevContent = prerenderedPrev || {
-      type: 'article', 
-      data: prevArticle, 
-      shouldShowAd: shouldShowAdForIndex(currentIndex - 1)
-    };
-
-    return {
-      current: currentContent,
-      next: nextContent,
-      prev: prevContent
-    };
-  }, [currentIndex, allArticles, article, prerenderedArticles, shouldShowAdForIndex]);
-
-const prerenderContent = useCallback(async (contentInfo:any) => {
-    if (!contentInfo.data || prerenderCache.has(contentInfo.data.id)) return;
-
-    try {
-      setIsPrerendering(true);
-      
-      // Preload images
-      if (contentInfo.data.featuredImage) {
-        await Image.prefetch(contentInfo.data.featuredImage);
-      }
-      
-      // Cache the rendered content
-      const cachedContent = {
-        ...contentInfo,
-        prerendered: true,
-        timestamp: Date.now()
-      };
-      
-      setPrerenderCache(prev => new Map(prev.set(contentInfo.data.id, cachedContent)));
-      
-    } catch (error) {
-      console.log('Prerender failed for:', contentInfo.data.id);
-    } finally {
-      setIsPrerendering(false);
-    }
-  }, [prerenderCache]);
-useEffect(() => {
-    if (adBinaryArray.length > 0 && adState.adQueue.length > 0) {
-      const newContentMap = calculateContentMapWithPrerender();
-      setContentMap(newContentMap);
-      
-      // Prerender adjacent content
-      if (newContentMap.next.data) {
-        prerenderContent(newContentMap.next);
-      }
-      if (newContentMap.prev.data) {
-        prerenderContent(newContentMap.prev);
-      }
-    }
-  }, [calculateContentMapWithPrerender, adBinaryArray, adState.adQueue, prerenderContent]);
-
-  // Handle smooth transitions
   useEffect(() => {
-    if (transitionState.isTransitioning) {
-      // Start fade out
-      Animated.parallel([
-        Animated.timing(transitionOpacity, {
-          toValue: 0.3,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(transitionScale, {
-          toValue: 0.95,
-          duration: 150,
-          useNativeDriver: true,
-        })
-      ]).start();
-    } else {
-      // Fade back in
-      Animated.parallel([
-        Animated.timing(transitionOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(transitionScale, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        })
-      ]).start();
-    }
-  }, [transitionState.isTransitioning, transitionOpacity, transitionScale]);
-
-
-  // ========================================
-  // CONTENT MAPPING WITH BINARY ARRAY LOGIC
-  // ========================================
-
-  const calculateContentMap = useCallback(() => {
-    const getArticleAtIndex = (index: number) => {
-      if (allArticles.length === 0) return null;
-      const normalizedIndex = ((index % allArticles.length) + allArticles.length) % allArticles.length;
-      return allArticles[normalizedIndex];
-    };
-
-    // Use binary array to determine ad placement
-    const currentShouldShowAd = shouldShowAdForIndex(currentIndex);
-    const nextShouldShowAd = shouldShowAdForIndex(currentIndex + 1);
-    const prevShouldShowAd = shouldShowAdForIndex(currentIndex - 1);
-
-    const currentContent = currentShouldShowAd && adState.adQueue.length > 0
-      ? { type: 'ad', data: adState.adQueue[adState.currentAdIndex], shouldShowAd: true }
-      : { type: 'article', data: article, shouldShowAd: false };
-
-    const nextContent = nextShouldShowAd && adState.adQueue.length > 0
-      ? { type: 'ad', data: adState.adQueue[(adState.currentAdIndex + 1) % adState.adQueue.length], shouldShowAd: true }
-      : { type: 'article', data: getArticleAtIndex(currentIndex + 1), shouldShowAd: false };
-
-    const prevContent = prevShouldShowAd && adState.adQueue.length > 0
-      ? { type: 'ad', data: adState.adQueue[(adState.currentAdIndex - 1 + adState.adQueue.length) % adState.adQueue.length], shouldShowAd: true }
-      : { type: 'article', data: getArticleAtIndex(currentIndex - 1), shouldShowAd: false };
-
-    return {
-      current: currentContent,
-      next: nextContent,
-      prev: prevContent
-    };
-  }, [currentIndex, allArticles, article, adState.adQueue, adState.currentAdIndex, shouldShowAdForIndex]);
-
-  // ========================================
-  // LIKE SYSTEM LOGIC
-  // ========================================
-
-  // Initialize like state
-  useEffect(() => {
-    const initializeLikeState = async () => {
-      try {
-        if (currentUser && article.id) {
-          setLikeLoading(true);
-
-          // Check for pending likes in AsyncStorage FIRST
-          const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
-
-          if (localLikeData) {
-            const parsedData = JSON.parse(localLikeData);
-
-            if (parsedData.userId === currentUser.id && parsedData.articleId === article.id) {
-              console.log('Found pending likes, syncing to server first...');
-              await syncPendingLikesToServer(parsedData);
-            } else {
-              await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
-            }
-          }
-
-          await loadServerLikeState();
-
+    const initializeComponent = async () => {
+      if (currentUser && article.id) {
+        setLikeLoading(true);
+        
+        // Sync any pending likes first
+        await syncPendingLikesToServer();
+        
+        // Load current state
+        await loadServerLikeState();
+        
+        // Check bookmark status
+        try {
           const bookmarked = await apiService.isArticleBookmarked(currentUser.id, article.id);
           setIsBookmarked(bookmarked);
-
-          setLikeLoading(false);
+        } catch (error) {
+          console.error('Error checking bookmark:', error);
         }
-      } catch (error) {
-        console.error('Error initializing like state:', error);
+        
         setLikeLoading(false);
       }
     };
 
-    if (article.id) {
-      initializeLikeState();
+    if (fontsLoaded && article.id) {
+      initializeComponent();
     }
 
     return () => {
@@ -437,261 +331,24 @@ useEffect(() => {
         clearTimeout(likeUpdateTimer.current);
       }
     };
-  }, [article.id, currentUser?.id]);
+  }, [fontsLoaded, article.id, currentUser, loadServerLikeState, syncPendingLikesToServer]);
 
-  // Load server state
-  const loadServerLikeState = async () => {
-    try {
-      const status = await apiService.getArticleLikes(article.id, currentUser?.id);
-      setLiked(status.userLiked);
-      setLikeCount(status.likeCount);
-      console.log('Loaded server state:', status);
-    } catch (error) {
-      console.error('Error loading server like state:', error);
-    }
-  };
-
-  // Sync pending likes
-  const syncPendingLikesToServer = async (pendingData = null) => {
-    try {
-      let dataToSync = pendingData;
-
-      if (!dataToSync) {
-        const localLikeData = await AsyncStorage.getItem(LIKE_STORAGE_KEY);
-        if (!localLikeData) return;
-        dataToSync = JSON.parse(localLikeData);
-      }
-
-      console.log('Syncing pending data:', dataToSync);
-
-      const currentServerState = await apiService.getArticleLikes(article.id, currentUser?.id);
-      console.log('Current server state:', currentServerState);
-
-      if (dataToSync.finalLikedState !== currentServerState.userLiked) {
-        console.log('States differ, making API call...');
-
-        const result = await apiService.toggleArticleLike(article.id, currentUser ? currentUser.id : '');
-        console.log('API result:', result);
-
-        setLiked(result.liked);
-        setLikeCount(result.likeCount);
-      } else {
-        console.log('States match, no API call needed');
-        setLiked(currentServerState.userLiked);
-        setLikeCount(currentServerState.likeCount);
-      }
-
-      await AsyncStorage.removeItem(LIKE_STORAGE_KEY);
-      setPendingLikeAction(null);
-
-      console.log('Pending likes synced and cleared');
-
-    } catch (error) {
-      console.error('Error syncing pending likes:', error);
-      throw error;
-    }
-  };
-
-  // Schedule like sync
-  const scheduleLikeSync = () => {
-    if (likeUpdateTimer.current) {
-      clearTimeout(likeUpdateTimer.current);
-    }
-
-    likeUpdateTimer.current = setTimeout(() => {
-      syncLikesToServer();
-    }, LIKE_BATCH_DELAY);
-  };
-
-  // Handle like
-  const handleLike = async () => {
-    try {
-      if (!currentUser) {
-        Alert.alert('Login Required', 'Please login to like articles');
-        return;
-      }
-
-      const newLiked = !liked;
-      const newCount = newLiked ? likeCount + 1 : likeCount - 1;
-      const timestamp = Date.now();
-
-      setLiked(newLiked);
-      setLikeCount(newCount);
-      setPendingLikeAction('pending');
-
-      const localLikeData = {
-        userId: currentUser.id,
-        articleId: article.id,
-        finalLikedState: newLiked,
-        finalCount: newCount,
-        timestamp: timestamp,
-        needsSync: true
-      };
-
-      await AsyncStorage.setItem(LIKE_STORAGE_KEY, JSON.stringify(localLikeData));
-      scheduleLikeSync();
-
-    } catch (error) {
-      console.error('Error handling like:', error);
-      setLiked(!liked);
-      setLikeCount(!liked ? likeCount - 1 : likeCount + 1);
-      Alert.alert('Error', 'Failed to update like status');
-    }
-  };
-
-  // Sync likes to server
-  const syncLikesToServer = async () => {
-    try {
-      await syncPendingLikesToServer();
-    } catch (error) {
-      console.error('Error in scheduled sync:', error);
-      setTimeout(() => {
-        syncLikesToServer();
-      }, 30000);
-    }
-  };
-
-  // ========================================
-  // AD INTERACTION HANDLERS
-  // ========================================
-
-  const handleAdClick = (adData: AdData): void => {
-    console.log('Ad clicked:', adData);
-    
-    const clickData: AdClickData = {
-      adId: adData.id,
-      adType: adData.type,
-      advertiser: adData.advertiser,
-      timestamp: Date.now()
-    };
-
-  };
-  
-  // Clean up old cache entries
+  // Handle transition animations
   useEffect(() => {
-    const cleanupCache = () => {
-      const now = Date.now();
-      const maxAge = 5 * 60 * 1000; // 5 minutes
-      
-      setPrerenderCache(prev => {
-        const newCache = new Map();
-        prev.forEach((value, key) => {
-          if (now - value.timestamp < maxAge) {
-            newCache.set(key, value);
-          }
-        });
-        return newCache;
-      });
-    };
-
-    const interval = setInterval(cleanupCache, 60 * 1000); // Clean every minute
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleAdClose = (): void => {
-    console.log('Ad closed');
-    
-    // Update ads shown count
-    updateAdsShownCount();
-    
-    // Move to next ad in queue
-    setAdState(prev => ({
-      ...prev,
-      currentAdIndex: prev.currentAdIndex >= prev.adQueue.length - 1 ? 0 : prev.currentAdIndex + 1
-    }));
-    
-    // Recalculate content map
-    setTimeout(() => {
-      const newContentMap = calculateContentMap();
-      setContentMap(newContentMap);
-    }, 100);
-  };
-
-  // ========================================
-  // NAVIGATION AND INTERACTION HANDLERS
-  // ========================================
-
-  const handleBack = () => {
-    if (!isTransitioning && onBack) {
-      setIsTransitioning(true);
-      onBack();
-      setTimeout(() => setIsTransitioning(false), 100);
+    if (isTransitioning) {
+      Animated.timing(transitionOpacity, {
+        toValue: 0.7,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(transitionOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
-  };
-
-  const handleRedirectToIframe = (articleData: any) => {
-    if ((articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/")) {
-      console.log("Redirecting to:", articleData.sourceUrl);
-      setWebViewUrl(articleData.sourceUrl || "https://apartmenttimes.in/active-citizen-team-submits-memorandum-to-jewar-mla-demanding-government-hospitals-over-private-healthcare-projects/");
-      setShowWebView(true);
-    }
-  };
-
-  // Bookmark handler
-  const handleBookmark = async () => {
-    if (bookmarkLoading) return;
-
-    try {
-      setBookmarkLoading(true);
-
-      if (!currentUser) {
-        Alert.alert('Login Required', 'Please login to bookmark articles');
-        return;
-      }
-
-      setIsBookmarked(!isBookmarked);
-      const result = await apiService.toggleBookmark(currentUser.id, article.id);
-      setIsBookmarked(result.bookmarked);
-
-    } catch (error) {
-      setIsBookmarked(!isBookmarked);
-      console.error('Error toggling bookmark:', error);
-      Alert.alert('Error', 'Failed to update bookmark');
-    } finally {
-      setBookmarkLoading(false);
-    }
-  };
-
-  // Share handler
-  const handleShare = async () => {
-    if (shareLoading) return;
-
-    try {
-      setShareLoading(true);
-
-      const shareOptions = {
-        message: `Check out this amazing article: "${article.title}"\n\nRead more: https://nofa-sepia.vercel.app/article/${article.id}`,
-        url: `https://nofa-sepia.vercel.app/article/${article.id}`,
-        title: article.title,
-      };
-
-      const result = await Share.share(shareOptions);
-
-      if (result.action === Share.sharedAction) {
-        let platform = 'other';
-
-        if (result.activityType) {
-          const activityType = result.activityType.toLowerCase();
-          if (activityType.includes('twitter') || activityType.includes('com.twitter')) platform = 'twitter';
-          else if (activityType.includes('facebook') || activityType.includes('com.facebook')) platform = 'facebook';
-          else if (activityType.includes('whatsapp') || activityType.includes('net.whatsapp')) platform = 'whatsapp';
-          else if (activityType.includes('linkedin') || activityType.includes('com.linkedin')) platform = 'linkedin';
-          else if (activityType.includes('mail') || activityType.includes('message')) platform = 'email';
-          else if (activityType.includes('copy') || activityType.includes('pasteboard')) platform = 'copy_link';
-          else platform = 'other';
-        }
-      }
-    } catch (error) {
-      console.error('Error sharing article:', error);
-      Alert.alert('Error', 'Failed to share article');
-    } finally {
-      setShareLoading(false);
-    }
-  };
-
-  // ========================================
-  // ANIMATION AND GESTURE HANDLERS
-  // ========================================
+  }, [isTransitioning, transitionOpacity]);
 
   // Swipe indicator animation
   useEffect(() => {
@@ -714,181 +371,204 @@ useEffect(() => {
 
     const timer = setTimeout(animateIndicator, 3000);
     return () => clearTimeout(timer);
-  }, [swipeIndicatorOpacity]);
-
-  // Enhanced pan responder that shows correct content during swipe
- const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        if (isTransitioning || transitionState.isTransitioning) return false;
-        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: pan.x._value,
-          y: pan.y._value,
-        });
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        pan.y.setValue(gestureState.dy);
-        const progress = Math.min(Math.abs(gestureState.dy) / height, 0.3);
-        opacity.setValue(1 - progress);
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        pan.flattenOffset();
-
-        const swipeThreshold = height * 0.1; // Reduced threshold for easier swiping
-        const velocityThreshold = 0.1;
-
-        const shouldGoNext = (gestureState.dy < -swipeThreshold || gestureState.vy < -velocityThreshold) && gestureState.dy < 0;
-        const shouldGoPrev = (gestureState.dy > swipeThreshold || gestureState.vy > velocityThreshold) && gestureState.dy > 0;
-
-        if (shouldGoNext && allArticles.length > 1) {
-          setIsTransitioning(true);
-          
-          // Smooth animation out
-          Animated.timing(pan.y, {
-            toValue: -height,
-            duration: 250, // Slightly longer for smoothness
-            useNativeDriver: true,
-          }).start(() => {
-            pan.setValue({ x: 0, y: 0 });
-            opacity.setValue(1);
-            if (onNext) {
-              onNext();
-            }
-            setIsTransitioning(false);
-          });
-        } else if (shouldGoPrev && allArticles.length > 1) {
-          setIsTransitioning(true);
-          
-          // Smooth animation out
-          Animated.timing(pan.y, {
-            toValue: height,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            pan.setValue({ x: 0, y: 0 });
-            opacity.setValue(1);
-            if (onPrev) {
-              onPrev();
-            }
-            setIsTransitioning(false);
-          });
-        } else {
-          // Bounce back with smooth animation
-          Animated.parallel([
-            Animated.spring(pan.y, {
-              toValue: 0,
-              tension: 100,
-              friction: 8,
-              useNativeDriver: true,
-            }),
-            Animated.spring(opacity, {
-              toValue: 1,
-              tension: 100,
-              friction: 8,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        }
-      },
-    })
-  ).current;
+  }, []);
 
   // ========================================
-  // INITIALIZATION
+  // RENDER COMPONENTS
   // ========================================
+  const AdComponent = React.memo(({ adData, onAdClick, onAdClose }: any) => (
+    <View style={styles.adContainer}>
+      <TouchableOpacity onPress={() => onAdClick?.(adData)} style={styles.adContent}>
+        <Image
+          source={{ uri: adData?.imageUrl || 'https://via.placeholder.com/300x200' }}
+          style={styles.adImage}
+          resizeMode="cover"
+        />
+        <View style={styles.adTextContainer}>
+          <Text style={styles.adTitle}>{adData?.title || 'Default Title'}</Text>
+          <Text style={styles.adDescription}>{adData?.description || 'Default Description'}</Text>
+          <Text style={styles.adAdvertiser}>Sponsored by {adData?.advertiser || 'Unknown'}</Text>
+          <TouchableOpacity style={styles.adCtaButton}>
+            <Text style={styles.adCtaText}>{adData?.ctaText || 'Click Here'}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
+        <Text style={styles.adAdvertiser2}>Skip</Text>
+      </TouchableOpacity>
+    </View>
+  ));
 
-  // Initialize everything
-  useEffect(() => {
-    const initialize = async () => {
-      console.log('Initializing NewsDetailScreen...');
-      
-      // Initialize ad binary array first
-      await initializeAdArray();
-      
-      // Initialize ads
-      const shuffledAds = [...dummyAds].sort(() => Math.random() - 0.5);
-      
-      // Preload ad images
-      const preloadPromises = shuffledAds.slice(0, 3).map(async (ad) => {
-        if (ad.imageUrl) {
-          try {
-            await Image.prefetch(ad.imageUrl);
-          } catch (error) {
-            console.log('Failed to preload ad image:', ad.id);
-          }
-        }
-        return ad;
-      });
+  const ArticleContent = React.memo(({ articleData, isActive = false }: any) => (
+    <View style={styles.newsContainer}>
+      <View style={styles.articleImageContainer}>
+        <Image
+          source={{ 
+            uri: articleData.featuredImage || 'https://via.placeholder.com/800x400'
+          }}
+          style={styles.articleImage}
+          loadingIndicatorSource={{ uri: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.4)']}
+          style={styles.articleImageGradient}
+        />
 
-      await Promise.allSettled(preloadPromises);
-      
-      setAdState(prev => ({
-        ...prev,
-        adQueue: shuffledAds
-      }));
+        {isActive && (
+          <View style={styles.ArticleButtonStyle}>
+            <View style={styles.ArticleButtonStyleGroup}>
+              <TouchableOpacity style={styles.footerActionButton} onPress={handleLike} disabled={likeLoading}>
+                <Ionicons name={liked ? "heart" : "heart-outline"} size={16} color={liked ? "#ff4757" : "#fff"} />
+                <Text style={[styles.footerActionText, liked && styles.activeFooterText]}>
+                  {likeCount > 0 ? likeCount : 'Like'}
+                </Text>
+              </TouchableOpacity>
 
-      console.log('Initialization complete');
-    };
+              <TouchableOpacity style={styles.footerActionButton} onPress={() => setShowComments(true)}>
+                <Ionicons name="chatbubble-outline" size={16} color="#fff" />
+                <Text style={styles.footerActionText}>
+                  {articleData.commentCount > 0 ? articleData.commentCount : '0'}
+                </Text>
+              </TouchableOpacity>
 
-    if (fontsLoaded) {
-      initialize();
+              <TouchableOpacity style={styles.footerActionButton} onPress={handleShare} disabled={shareLoading}>
+                {shareLoading ? (
+                  <ActivityIndicator size={16} color="#999" />
+                ) : (
+                  <Ionicons name="share-social-outline" size={16} color="#fff" />
+                )}
+                <Text style={styles.footerActionText}>Share</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.footerActionButton} onPress={handleBookmark} disabled={bookmarkLoading}>
+                {bookmarkLoading ? (
+                  <ActivityIndicator size={16} color="#999" />
+                ) : (
+                  <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={16} color={isBookmarked ? "#4CAF50" : "#fff"} />
+                )}
+                <Text style={[styles.footerActionText, isBookmarked && styles.activeBookmarkText]}>
+                  {isBookmarked ? 'Saved' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.articleContentContainer}>
+        <Text style={styles.articleSource}>R. Republic TV</Text>
+        <Text style={styles.articleTitle}>{articleData.title}</Text>
+        
+        <View style={styles.htmlContentContainer}>
+          <Text style={styles.articlePreview}>
+            {articleData.summary || articleData.content?.replace(/<[^>]*>/g, '').substring(0, 200) + '...' || 'No content available'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.bottomShowMore}>
+        <TouchableOpacity style={styles.showMoreButton} onPress={() => handleRedirectToIframe(articleData)}>
+          <Text style={styles.showMoreText}>Show More</Text>
+        </TouchableOpacity>
+
+        {isActive && (
+          <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
+            <Text style={styles.swipeHint}>Swipe up for next news</Text>
+            <Ionicons name="arrow-up" size={16} color="#000000b6" />
+          </Animated.View>
+        )}
+      </View>
+    </View>
+  ));
+
+  const renderContent = useCallback((contentInfo: any, isActive = false) => {
+    if (!contentInfo?.data) return null;
+
+    if (contentInfo.type === 'ad') {
+      return <AdComponent adData={contentInfo.data} onAdClick={onAdClick} onAdClose={onAdClose} />;
     }
-  }, [fontsLoaded, initializeAdArray]);
 
-  // Update content map when binary array or dependencies change
-  useEffect(() => {
-    if (adBinaryArray.length > 0 && adState.adQueue.length > 0) {
-      const newContentMap = calculateContentMap();
-      setContentMap(newContentMap);
-    }
-  }, [calculateContentMap, adBinaryArray, adState.adQueue]);
+    return <ArticleContent articleData={contentInfo.data} isActive={isActive} />;
+  }, [onAdClick, onAdClose]);
 
   // ========================================
-  // DEBUG HELPER (Remove in production)
+  // RENDER
   // ========================================
-  
-  // Log current ad status for debugging
-  useEffect(() => {
-    if (adBinaryArray.length > 0) {
-      const currentAdStatus = shouldShowAdForIndex(currentIndex);
-      const nextAdStatus = shouldShowAdForIndex(currentIndex + 1);
-      const prevAdStatus = shouldShowAdForIndex(currentIndex - 1);
-      
-      console.log('=== AD STATUS DEBUG ===');
-      console.log(`Current Index: ${currentIndex}`);
-      console.log(`Current Ad Status: ${currentAdStatus ? 'AD' : 'ARTICLE'}`);
-      console.log(`Next Ad Status: ${nextAdStatus ? 'AD' : 'ARTICLE'}`);
-      console.log(`Prev Ad Status: ${prevAdStatus ? 'AD' : 'ARTICLE'}`);
-      console.log(`Binary Array [${currentIndex-2}-${currentIndex+2}]:`, 
-        adBinaryArray.slice(Math.max(0, currentIndex-2), currentIndex+3));
-      console.log(`Ads Shown: ${adsShownCount}/${AD_CONFIG.MAX_ADS_PER_SESSION}`);
-      console.log('=====================');
-    }
-  }, [currentIndex, adBinaryArray, adsShownCount, shouldShowAdForIndex]);
-
-  // ========================================
-  // COMPONENT DEFINITIONS
-  // ========================================
-
-  // WebView Modal Component
-  const WebViewModal = ({ visible, url, onClose }) => {
-    const webviewRef = useRef(null);
-
+  if (!fontsLoaded) {
     return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </SafeAreaView>
+    );
+  }
+
+  const containerStyle = memoizedCurrentContent.type === 'ad' ? styles.container2 : styles.container;
+
+  return (
+    <SafeAreaView style={containerStyle}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+
+      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <Ionicons name="arrow-back" size={16} color="#000" />
+      </TouchableOpacity>
+
+      <Animated.View
+        style={[
+          styles.newsStackContainer,
+          {
+            transform: [{ translateX: pan.x }],
+            opacity: Animated.multiply(opacity, transitionOpacity),
+          }
+        ]}
+        {...panResponder.panHandlers}
+      >
+        {/* Previous Content */}
+        {memoizedPrevContent?.data && (
+          <Animated.View
+            style={[
+              styles.newsStackItem,
+              styles.prevNewsItem,
+              { transform: [{ translateY: pan.y }] }
+            ]}
+          >
+            {renderContent(memoizedPrevContent, false)}
+          </Animated.View>
+        )}
+
+        {/* Current Content */}
+        <Animated.View
+          style={[
+            styles.newsStackItem,
+            styles.currentNewsItem,
+            { transform: [{ translateY: pan.y }] }
+          ]}
+        >
+          {renderContent(memoizedCurrentContent, true)}
+        </Animated.View>
+
+        {/* Next Content */}
+        {memoizedNextContent?.data && (
+          <Animated.View
+            style={[
+              styles.newsStackItem,
+              styles.nextNewsItem,
+              { transform: [{ translateY: pan.y }] }
+            ]}
+          >
+            {renderContent(memoizedNextContent, false)}
+          </Animated.View>
+        )}
+      </Animated.View>
+
       <Modal
-        visible={visible}
+        visible={showWebView}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={onClose}
+        onRequestClose={() => setShowWebView(false)}
       >
         <SafeAreaView style={styles.webViewContainer}>
           <WebView
-            ref={webviewRef}
-            source={{ uri: url }}
+            source={{ uri: webViewUrl }}
             style={styles.webView}
             startInLoadingState={true}
             renderLoading={() => (
@@ -897,341 +577,9 @@ useEffect(() => {
                 <Text style={styles.webViewLoadingText}>Loading...</Text>
               </View>
             )}
-            onError={() => {
-              Alert.alert('Error', 'Failed to load the webpage');
-            }}
           />
         </SafeAreaView>
       </Modal>
-    );
-  };
-
-  const EnhancedAdComponent = ({ adData, onAdClick, onAdClose, visible }) => {
-    if (!visible || !adData) return null;
-    
-    const title = adData?.title || 'Default Title';
-    const description = adData?.description || 'Default Description';
-    const advertiser = adData?.advertiser || 'Unknown Advertiser';
-    const ctaText = adData?.ctaText || 'Click Here';
-    
-    return (
-      <View style={styles.adContainer}>
-        <TouchableOpacity onPress={() => onAdClick(adData)} style={styles.adContent}>
-          <Image
-            source={{ 
-              uri: adData?.imageUrl || 'https://via.placeholder.com/300x200',
-              cache: 'force-cache'
-            }}
-            style={styles.adImage}
-            resizeMode="cover"
-          />
-          <View style={styles.adTextContainer}>
-            <Text style={styles.adTitle}>{title}</Text>
-            <Text style={styles.adDescription}>{description}</Text>
-            <Text style={styles.adAdvertiser}>Sponsored by {advertiser}</Text>
-            <TouchableOpacity style={styles.adCtaButton}>
-              <Text style={styles.adCtaText}>{ctaText}</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onAdClose} style={styles.adCloseButton}>
-          <Text style={styles.adAdvertiser2}>Skip</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  
-const renderContentByTypeEnhanced = (contentInfo, isActive = false, position = 'current') => {
-    if (!contentInfo.data) return null;
-
-    // Check cache first
-    const cachedContent = prerenderCache.get(contentInfo.data.id);
-    if (cachedContent && !isActive) {
-      // Use cached version for non-active content
-      return cachedContent.renderedComponent;
-    }
-
-    if (contentInfo.type === 'ad') {
-      return (
-        <EnhancedAdComponent
-          adData={contentInfo.data}
-          onAdClick={handleAdClick}
-          onAdClose={handleAdClose}
-          visible={true}
-        />
-      );
-    }
-
-    // Render article with enhanced performance
-    const articleData = contentInfo.data;
-    
-    const handleArticleShowMoreClick = () => {
-      handleRedirectToIframe(articleData);
-    };
-
-    return (
-      <View style={[styles.newsContainer]}>
-        <View style={[styles.articleImageContainer]}>
-          <Image
-            source={{ 
-              uri: articleData.featuredImage || 'https://via.placeholder.com/800x400',
-              cache: 'force-cache'
-            }}
-            style={styles.articleImage}
-            // Add loading optimization
-            loadingIndicatorSource={{ uri: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' }}
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.4)']}
-            style={styles.articleImageGradient}
-          />
-
-          {isActive && (
-            <View style={[styles.ArticleButtonStyle]}>
-              <View style={[styles.ArticleButtonStyleGroup]}>
-                <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                  <TouchableOpacity
-                    style={[styles.footerActionButton]}
-                    onPress={handleLike}
-                    disabled={likeLoading}
-                  >
-                    <Ionicons
-                      name={liked ? "heart" : "heart-outline"}
-                      size={16}
-                      color={liked ? "#ff4757" : "#fff"}
-                    />
-                    <Text style={[
-                      styles.footerActionText,
-                      liked && styles.activeFooterText
-                    ]}>
-                      {likeCount > 0 ? likeCount : 'Like'}
-                    </Text>
-                  </TouchableOpacity>
-                </Animated.View>
-
-                <Animated.View style={{ transform: [{ scale: commentScale }] }}>
-                  <TouchableOpacity
-                    style={styles.footerActionButton}
-                    onPress={() => setShowComments(true)}
-                  >
-                    <Ionicons name="chatbubble-outline" size={16} color="#fff" />
-                    <Text style={styles.footerActionText}>
-                      {articleData.commentCount > 0 ? articleData.commentCount : '0'}
-                    </Text>
-                  </TouchableOpacity>
-                </Animated.View>
-
-                <Animated.View style={{ transform: [{ scale: shareScale }] }}>
-                  <TouchableOpacity
-                    style={styles.footerActionButton}
-                    onPress={handleShare}
-                    disabled={shareLoading}
-                  >
-                    {shareLoading ? (
-                      <ActivityIndicator size={16} color="#999" />
-                    ) : (
-                      <Ionicons name="share-social-outline" size={16} color="#fff" />
-                    )}
-                    <Text style={styles.footerActionText}>{'Share'}</Text>
-                  </TouchableOpacity>
-                </Animated.View>
-
-                <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-                  <TouchableOpacity
-                    style={[styles.footerActionButton]}
-                    onPress={handleBookmark}
-                    disabled={bookmarkLoading}
-                  >
-                    {bookmarkLoading ? (
-                      <ActivityIndicator size={16} color="#999" />
-                    ) : (
-                      <Ionicons
-                        name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                        size={16}
-                        color={isBookmarked ? "#4CAF50" : "#fff"}
-                      />
-                    )}
-                    <Text style={[
-                      styles.footerActionText,
-                      isBookmarked && styles.activeBookmarkText
-                    ]}>
-                      {isBookmarked ? 'Saved' : 'Save'}
-                    </Text>
-                  </TouchableOpacity>
-                </Animated.View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={[styles.articleContentContainer]}>
-          <Text style={styles.articleSource}>R. Republic TV</Text>
-
-          <TouchableOpacity disabled={!showFullContent}>
-            <Text style={[styles.articleTitle]}>
-              {articleData.title}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.htmlContentContainer}>
-            {showFullContent ? (
-              <RenderHtml
-                contentWidth={width - 40}
-                source={{ html: articleData.content || '<p>No content available</p>' }}
-                tagsStyles={{
-                  p: {
-                    fontSize: 14,
-                    lineHeight: 20,
-                    color: '#666',
-                    marginBottom: 12,
-                    textAlign: 'left',
-                    fontFamily: 'Montserrat-Medium'
-                  },
-                  h1: {
-                    fontSize: 20,
-                    fontWeight: 'bold',
-                    color: '#333',
-                    marginBottom: 12,
-                    marginTop: 8,
-                    fontFamily: 'NeuePlakExtended-SemiBold'
-                  },
-                  h2: {
-                    fontSize: 18,
-                    fontWeight: 'bold',
-                    color: '#333',
-                    marginBottom: 10,
-                    marginTop: 6,
-                    fontFamily: 'NeuePlakExtended-SemiBold'
-                  },
-                  h3: {
-                    fontSize: 16,
-                    fontWeight: 'bold',
-                    color: '#333',
-                    marginBottom: 8,
-                    fontFamily: 'NeuePlakExtended-SemiBold'
-                  },
-                  img: {
-                    marginVertical: 8
-                  }
-                }}
-              />
-            ) : (
-              <Text style={styles.articlePreview}>
-                {articleData.summary || '".'}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        <View style={[styles.bottomShowMore]}>
-          <TouchableOpacity
-            style={styles.showMoreButton}
-            onPress={() => handleArticleShowMoreClick()}
-          >
-            <Text style={styles.showMoreText}>
-              {showFullContent ? 'Show Less' : 'Show More'}
-            </Text>
-          </TouchableOpacity>
-
-          {isActive && (
-            <Animated.View style={[styles.swipeIndicator, { opacity: swipeIndicatorOpacity }]}>
-              <Text style={styles.swipeHint}>Swipe up for next news</Text>
-              <Ionicons name="arrow-up" size={16} color={"#000000b6"} />
-            </Animated.View>
-          )}
-        </View>
-      </View>
-    );
-  };
-
-  if (!fontsLoaded || adBinaryArray.length === 0) {
-    return null; // Only show when fully initialized
-  }
-
-    const containerStyle = contentMap.current.type === 'ad' ? styles.container2 : styles.container;
-
-  const animatedContainerStyle = contentMap.current.type === 'ad' ? styles.container3 : styles.container;
-
-return (
-    <SafeAreaView style={containerStyle}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-
-      <Animated.View
-        style={[
-          contentMap.current.type === 'ad' ? styles.container3 : styles.container,
-          {
-            transform: [
-              { translateX: pan.x },
-              { scale: transitionScale }
-            ],
-            opacity: Animated.multiply(opacity, transitionOpacity),
-          }
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Ionicons name="arrow-back" size={16} color="#000" />
-        </TouchableOpacity>
-
-        <View style={styles.newsStackContainer}>
-          {/* Previous Content */}
-          {contentMap.prev.data && (
-            <Animated.View
-              style={[
-                styles.newsStackItem,
-                styles.prevNewsItem,
-                {
-                  transform: [{ translateY: pan.y }],
-                  opacity: opacity,
-                }
-              ]}
-            >
-              {renderContentByTypeEnhanced(contentMap.prev, true, 'prev')}
-            </Animated.View>
-          )}
-
-          {/* Current Content */}
-          <Animated.View
-            style={[
-              styles.newsStackItem,
-              styles.currentNewsItem,
-              {
-                transform: [{ translateY: pan.y }],
-                opacity: opacity,
-              }
-            ]}
-            {...panResponder.panHandlers}
-          >
-            {renderContentByTypeEnhanced(contentMap.current, true, 'current')}
-          </Animated.View>
-
-          {/* Next Content */}
-          {contentMap.next.data && (
-            <Animated.View
-              style={[
-                styles.newsStackItem,
-                styles.nextNewsItem,
-                {
-                  transform: [{ translateY: pan.y }],
-                  opacity: opacity,
-                }
-              ]}
-            >
-              {renderContentByTypeEnhanced(contentMap.next, true, 'next')}
-            </Animated.View>
-          )}
-        </View>
-      </Animated.View>
-
-      <WebViewModal
-        visible={showWebView}
-        url={webViewUrl}
-        onClose={() => {
-          setShowWebView(false);
-          setWebViewUrl('');
-        }}
-      />
 
       <CommentsSection
         visible={showComments}
@@ -1241,7 +589,6 @@ return (
     </SafeAreaView>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {
@@ -1576,4 +923,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default NewsDetailScreen;
+export default OptimizedNewsDetailScreen;
