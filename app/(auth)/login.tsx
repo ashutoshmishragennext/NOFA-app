@@ -12,8 +12,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  KeyboardAvoidingView,  // Add this
+  Platform,               // Add this
   View
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';  // Add this
 import { useGoogleAuth } from "@/components/utils/GoogleAuth";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -39,6 +42,7 @@ export default function ApartmentLoginScreen() {
   const { login, googleSignIn, user } = useAuth();
   const { signInWithGoogle } = useGoogleAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();  // Add this line
 
   const handleSignUp = () => {
     try {
@@ -125,6 +129,13 @@ export default function ApartmentLoginScreen() {
   };
 
   return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.keyboardContainer, {
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom
+      }]}
+    >
     <LinearGradient
       colors={["#f0f9ff", "#e0f2fe", "#bae6fd"]}
       style={styles.container}
@@ -286,18 +297,21 @@ export default function ApartmentLoginScreen() {
         </View>
       </ScrollView>
     </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardContainer: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
   container: {
     flex: 1,
-    paddingVertical: 0,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingVertical: 20,
   },
   icon: {
     height: 20,
