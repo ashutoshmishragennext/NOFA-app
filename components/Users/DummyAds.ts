@@ -14,6 +14,7 @@ export interface AdData {
   ctaText: string;
   advertiser: string;
   backgroundColor: string;
+  redirectLink : string;
 }
 
 export interface AdClickData {
@@ -93,7 +94,8 @@ export const dummyAds: AdData[] = [
     imageUrl: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400',
     ctaText: 'Shop Now',
     advertiser: 'ShopMart',
-    backgroundColor: '#FF6B6B'
+    backgroundColor: '#FF6B6B',
+    redirectLink : 'https://www.adjust.com/glossary/advertisement/'
   },
   {
     id: 'ad_2',
@@ -103,7 +105,8 @@ export const dummyAds: AdData[] = [
     imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400',
     ctaText: 'Start Learning',
     advertiser: 'CodeAcademy',
-    backgroundColor: '#4ECDC4'
+    backgroundColor: '#4ECDC4',
+    redirectLink : 'https://www.adjust.com/glossary/advertisement/'
   },
   {
     id: 'ad_3',
@@ -113,7 +116,9 @@ export const dummyAds: AdData[] = [
     imageUrl: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=400',
     ctaText: 'Order Now',
     advertiser: 'Coffee Co.',
-    backgroundColor: '#8B4513'
+    backgroundColor: '#8B4513',
+        redirectLink : 'https://www.adjust.com/glossary/advertisement/'
+
   },
   {
     id: 'ad_4',
@@ -123,7 +128,9 @@ export const dummyAds: AdData[] = [
     imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400',
     ctaText: 'Download',
     advertiser: 'FitTrack',
-    backgroundColor: '#45B7D1'
+    backgroundColor: '#45B7D1',
+        redirectLink : 'https://www.adjust.com/glossary/advertisement/'
+
   },
   {
     id: 'ad_5',
@@ -133,7 +140,9 @@ export const dummyAds: AdData[] = [
     imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
     ctaText: 'Order Food',
     advertiser: 'FoodExpress',
-    backgroundColor: '#FF8C42'
+    backgroundColor: '#FF8C42',
+        redirectLink : 'https://www.adjust.com/glossary/advertisement/'
+
   },
   {
     id: 'ad_6',
@@ -143,6 +152,8 @@ export const dummyAds: AdData[] = [
     imageUrl: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400',
     ctaText: 'Book Now',
     advertiser: 'TravelDeals',
-    backgroundColor: '#6C5CE7'
+    backgroundColor: '#6C5CE7',
+        redirectLink : 'https://www.adjust.com/glossary/advertisement/'
+
   }
 ];

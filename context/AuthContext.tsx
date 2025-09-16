@@ -14,6 +14,7 @@ export interface User {
   image?: string;
   provider?:string;
   loginTime ?: string;
+  googleId ?: string;
 }
 
 interface AuthContextType {

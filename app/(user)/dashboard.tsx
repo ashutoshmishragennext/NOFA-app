@@ -19,6 +19,7 @@ import {
   Animated,
   BackHandler,
   Dimensions,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -40,7 +41,6 @@ const NewsApp = () => {
   const [currentTab, setCurrentTab] = useState("Home");
   const [currentView, setCurrentView] = useState<"main" | "detail" | "passwordChange" | "categoryChange">("main");
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const insets = useSafeAreaInsets();
@@ -295,51 +295,32 @@ const handleNextContent = useCallback(() => {
     }, 100);
   }, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]);
 
-  // Legacy handlers for backward compatibility
-  const handleNextArticle = handleNextContent;
-  const handlePrevArticle = handlePrevContent;
-
   // ========================================
   // AD INTERACTION HANDLERS
   // ========================================
 
-  const handleAdClick = useCallback((adData: AdData) => {
-    const clickData: AdClickData = {
-      adId: adData.id,
-      adType: adData.type,
-      advertiser: adData.advertiser,
-      timestamp: Date.now()
-    };
-    
-    console.log('Ad clicked:', clickData);
-    
-    // Here you would typically:
-    // 1. Log the ad click to analytics
-    // 2. Open the ad's destination URL
-    // 3. Track conversion metrics
-    
-    // For now, we'll just show an alert and navigate to next content
-    Alert.alert(
-      'Ad Clicked',
-      `Opening ${adData.advertiser} - ${adData.title}`,
-      [
-        {
-          text: 'Continue',
-          onPress: () => {
-            // Auto-advance to next content after ad click
-            setTimeout(() => {
-              handleNextContent();
-            }, 1000);
-          }
-        }
-      ]
-    );
-  }, [handleNextContent]);
+ const handleAdClick = useCallback((adData: AdData) => {
+  const clickData: AdClickData = {
+    adId: adData.id,
+    adType: adData.type,
+    advertiser: adData.advertiser,
+    timestamp: Date.now(),
+  };
+
+  const redirectLink = adData.redirectLink;
+
+  if (redirectLink) {
+    Linking.openURL(redirectLink).catch((err) => {
+      console.error("Failed to open link:", err);
+      Alert.alert("Error", "Unable to open the link.");
+    });
+  }
+}, [handleNextContent]);
 
   const handleAdClose = useCallback(() => {
-    // Move to next content when ad is closed
     handleNextContent();
   }, [handleNextContent]);
+
 
   // ========================================
   // EXISTING HANDLERS (unchanged)
@@ -504,9 +485,6 @@ const handleNextContent = useCallback(() => {
     }));
   }, []);
 
-  // ========================================
-  // RENDER FUNCTIONS
-  // ========================================
 
   const renderCurrentScreen = () => {
     switch (currentTab) {
@@ -679,6 +657,7 @@ const handleNextContent = useCallback(() => {
 
             {/* Drawer Menu Items */}
             <View style={styles.drawerContent}>
+              {user && !user.googleId &&
               <TouchableOpacity style={styles.drawerMenuItem} onPress={handlePasswordChange}>
                 <View style={styles.menuItemIcon}>
                   <Ionicons name="lock-closed-outline" size={22} color="#555" />
@@ -686,7 +665,7 @@ const handleNextContent = useCallback(() => {
                 <Text style={styles.drawerMenuItemText}>Change Password</Text>
                 <Ionicons name="chevron-forward" size={18} color="#999" />
               </TouchableOpacity>
-
+}
               <TouchableOpacity style={styles.drawerMenuItem} onPress={handleCategoryChange}>
                 <View style={styles.menuItemIcon}>
                   <Ionicons name="options-outline" size={22} color="#555" />

@@ -503,7 +503,8 @@ const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
       description: adData?.description || 'Default Description',
       imageUrl: adData?.imageUrl || 'https://via.placeholder.com/300x200',
       ctaText: adData?.ctaText || 'Click Here',
-      advertiser: adData?.advertiser || 'Unknown'
+      advertiser: adData?.advertiser || 'Unknown',
+      redirectLink : adData?.redirectLink,
     }), [adData]);
 
     return (
@@ -533,11 +534,12 @@ const OptimizedNewsDetailScreen: React.FC<OptimizedNewsDetailProps> = ({
 
         {/* Always render skip button but conditionally enable */}
         <TouchableOpacity
-          onPress={() => isActive && onAdClose?.()}
+          // onPress={() => isActive && onAdClose?.()} onAdClick?.(safeAdData)
+          onPress={() => isActive && onAdClick?.(safeAdData)}
           style={[styles.adCloseButton, { opacity: isActive ? 1 : 0.7 }]}
           disabled={!isActive}
         >
-          <Text style={styles.adAdvertiser2}>Skip</Text>
+          <Text style={styles.adAdvertiser2}>Show More</Text>
         </TouchableOpacity>
       </View>
     );
@@ -959,11 +961,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.9)',
     zIndex: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical : 8
   },
   adContent: {
     backgroundColor: '#fff',
@@ -992,7 +993,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   adAdvertiser2: {
-    fontSize: 12,
+    fontSize: 16,
     color: '#ffffffff',
     fontStyle: 'normal',
     marginBottom: 8,
@@ -1021,7 +1022,7 @@ const styles = StyleSheet.create({
     bottom: 40,
     margin: "auto",
     backgroundColor: 'rgba(0,0,0,0.8)',
-    borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 40,
     paddingTop: 8
   },
