@@ -1,32 +1,26 @@
-import HamburgerIcon from "@/components/HamburgerMenu";
-import NewsDetailScreen from "@/components/Users/DetailsPage";
-import ExploreScreen from "@/components/Users/Explore";
-import HomeScreen from "@/components/Users/Home";
-import OnboardingScreen from "@/components/Users/OnboardingScreen";
-import PasswordChangeScreen from "@/components/Users/PasswordChangeScreen";
-import ProfileScreen from "@/components/Users/Profile";
-import FeedScreen from "@/components/Users/Save";
-import TrendingScreen from "@/components/Users/Trending";
-import CategorySelectionScreen from "@/components/Users/categorySelection";
-import { dummyAds, AdData, AdDisplayState, AdClickData } from "@/components/Users/DummyAds";
-import { useAuth } from "@/context/AuthContext";
-import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, BackHandler, Dimensions, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Animated,
-  BackHandler,
-  Dimensions,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from "react-native";
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Enhanced content interface to support ads
+import HamburgerIcon from '@/components/HamburgerMenu';
+import NewsDetailScreen from '@/components/Users/DetailsPage';
+import ExploreScreen from '@/components/Users/Explore';
+import HomeScreen from '@/components/Users/Home';
+import OnboardingScreen from '@/components/Users/OnboardingScreen';
+import PasswordChangeScreen from '@/components/Users/PasswordChangeScreen';
+import ProfileScreen from '@/components/Users/Profile';
+import FeedScreen from '@/components/Users/Save';
+import TrendingScreen from '@/components/Users/Trending';
+import CategorySelectionScreen from '@/components/Users/categorySelection';
+import { useAuth } from '@/context/AuthContext';
+import { AdData, AdClickData, dummyAds } from '@/components/Users/DummyAds';
+import { useAdStore } from '@/stores/adstore';
+import { useShallow } from 'zustand/react/shallow';
+
+// Content item model
 interface ContentItem {
   type: 'article' | 'ad';
   data: any;
@@ -36,14 +30,13 @@ interface ContentItem {
 
 const NewsApp = () => {
   const { logout, user } = useAuth();
+  const insets = useSafeAreaInsets();
 
-  const [currentTab, setCurrentTab] = useState("Home");
-  const [currentView, setCurrentView] = useState<"main" | "detail" | "passwordChange" | "categoryChange">("main");
+  const [currentTab, setCurrentTab] = useState('Home');
+  const [currentView, setCurrentView] = useState<'main' | 'detail' | 'passwordChange' | 'categoryChange'>('main');
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const insets = useSafeAreaInsets();
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(300)).current;
@@ -51,367 +44,250 @@ const NewsApp = () => {
   const screenWidth = Dimensions.get('window').width;
   const drawerWidth = screenWidth * 0.8;
 
-  // Enhanced state for content management with ads
   const [contentList, setContentList] = useState<ContentItem[]>([]);
   const [currentContentIndex, setCurrentContentIndex] = useState(0);
-  const [sourceTab, setSourceTab] = useState("Home");
-  const [prerenderedContent, setPrerenderedContent] = useState(new Map());
-  
-  // Ad management state
-  const [adDisplayState, setAdDisplayState] = useState<AdDisplayState>({
-    shouldShowAd: false,
-    currentAdIndex: 0,
-    articlesViewedCount: 0,
-    nextAdAfter: 3, // Show ad after every 3 articles
-    adQueue: [...dummyAds]
-  });
+  const [sourceTab, setSourceTab] = useState('Home');
+  const [prerenderedContent, setPrerenderedContent] = useState(new Map<string, any>());
 
-  const [contentTransition, setContentTransition] = useState({
+  // Zustand store selectors
+  const {
+    adQueue,
+    nextAdAfter,
+    fetchAds,
+    setQueue,
+    currentAd,
+    advanceAd,
+    recordArticleView,
+  } = useAdStore(
+    useShallow((s) => ({
+      adQueue: s.adQueue,
+      nextAdAfter: s.nextAdAfter,
+      fetchAds: s.fetchAds,
+      setQueue: s.setQueue,
+      currentAd: s.currentAd,
+      advanceAd: s.advanceAd,
+      recordArticleView: s.recordArticleView,
+    }))
+  ); // [web:86][web:44]
+
+  const [contentTransition, setContentTransition] = useState<{
+    isTransitioning: boolean;
+    direction: 'next' | 'prev' | null;
+    nextContent: ContentItem | null;
+  }>({
     isTransitioning: false,
     direction: null,
-    nextContent: null
+    nextContent: null,
   });
 
-  // Article navigation states (keep for backward compatibility)
-  const [articlesList, setArticlesList] = useState<never[] | any[]>([]);
+  const [articlesList, setArticlesList] = useState<any[]>([]);
   const [currentArticleIndex, setCurrentArticleIndex] = useState(0);
 
+  // Fetch ads on mount; fallback to dummy if needed
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await fetchAds();        
+        if (!cancelled && (!adQueue || adQueue.length === 0)) setQueue(dummyAds);
+      } catch {
+        if (!cancelled) setQueue(dummyAds);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchAds, setQueue, adQueue]); // [web:44]
+
   const bottomTabs = [
-    { name: "Home", icon: "home", activeIcon: "home" },
-    { name: "Explore", icon: "search-outline", activeIcon: "search" },
-    { name: "Feed", icon: "newspaper-outline", activeIcon: "newspaper" },
-    {
-      name: "Trending",
-      icon: "trending-up-outline",
-      activeIcon: "trending-up",
-    },
-    { name: "Profile", icon: "person-outline", activeIcon: "person" },
-  ];
+    { name: 'Home', icon: 'home', activeIcon: 'home' },
+    { name: 'Explore', icon: 'search-outline', activeIcon: 'search' },
+    { name: 'Feed', icon: 'newspaper-outline', activeIcon: 'newspaper' },
+    { name: 'Trending', icon: 'trending-up-outline', activeIcon: 'trending-up' },
+    { name: 'Profile', icon: 'person-outline', activeIcon: 'person' },
+  ]; // [web:44]
 
-  // ========================================
-  // AD MANAGEMENT FUNCTIONS
-  // ========================================
+  // Store-backed ad rotation
+  const getNextAd = useCallback((): AdData | null => {
+    const ad = currentAd();
+    if (ad) advanceAd();
+    return ad ?? null;
+  }, [currentAd, advanceAd]); // [web:44]
 
-  const shuffleArray = <T,>(array: T[]): T[] => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
+  const shouldShowAdNow = useCallback(
+    (viewedCount: number): boolean => viewedCount > 0 && viewedCount % nextAdAfter === 0,
+    [nextAdAfter]
+  ); // [web:44]
 
-  const getNextAd = useCallback((): AdData => {
-    const currentAd = adDisplayState.adQueue[adDisplayState.currentAdIndex];
-    
-    setAdDisplayState(prev => ({
-      ...prev,
-      currentAdIndex: (prev.currentAdIndex + 1) % prev.adQueue.length
-    }));
+  const createContentList = useCallback(
+    (articles: any[]): ContentItem[] => {
+      if (!articles?.length) return [];
+      const content: ContentItem[] = [];
+      let contentIndex = 0;
+      let views = 0;
 
-    return currentAd;
-  }, [adDisplayState.adQueue, adDisplayState.currentAdIndex]);
+      articles.forEach((article, idx) => {
+        content.push({
+          type: 'article',
+          data: article,
+          id: `article_${article.id}_${idx}`,
+          index: contentIndex++,
+        });
 
-  const shouldShowAdNow = useCallback((viewedCount: number): boolean => {
-    return viewedCount > 0 && viewedCount % adDisplayState.nextAdAfter === 0;
-  }, [adDisplayState.nextAdAfter]);
-
-  const createContentList = useCallback((articles: any[]): ContentItem[] => {
-    if (!articles || articles.length === 0) return [];
-
-    const content: ContentItem[] = [];
-    let contentIndex = 0;
-
-    articles.forEach((article, idx) => {
-      // Add the article
-      content.push({
-        type: 'article',
-        data: article,
-        id: `article_${article.id}_${idx}`,
-        index: contentIndex++
+        views++;
+        if (shouldShowAdNow(views)) {
+          const ad = getNextAd();
+          if (ad) {
+            content.push({
+              type: 'ad',
+              data: ad,
+              id: `ad_${ad.id}_${idx}`,
+              index: contentIndex++,
+            });
+          }
+        }
       });
 
-      // Check if we should add an ad after this article
-      if (shouldShowAdNow(idx + 1)) {
-        const ad = getNextAd();
-        content.push({
-          type: 'ad',
-          data: ad,
-          id: `ad_${ad.id}_${idx}`,
-          index: contentIndex++
-        });
-      }
-    });
+      return content;
+    },
+    [shouldShowAdNow, getNextAd]
+  ); // [web:44]
 
-    return content;
-  }, [shouldShowAdNow, getNextAd]);
+  const prerenderAdjacentContent = useCallback((currentContent: ContentItem, list: ContentItem[], currentIdx: number) => {
+    if (!list || list.length <= 1) return;
 
-  const prerenderAdjacentContent = useCallback((currentContent: ContentItem, contentList: ContentItem[], currentIdx: number) => {
-    if (!contentList || contentList.length <= 1) return;
-    
-    const prerenderedMap = new Map();
-    
-    // Prerender current, next, and previous content
-    const indices = [
-      currentIdx,
-      (currentIdx + 1) % contentList.length,
-      (currentIdx - 1 + contentList.length) % contentList.length
-    ];
-    
-    indices.forEach(idx => {
-      const content = contentList[idx];
+    const prerenderedMap = new Map<string, any>();
+    const indices = [currentIdx, (currentIdx + 1) % list.length, (currentIdx - 1 + list.length) % list.length];
+
+    indices.forEach((idx) => {
+      const content = list[idx];
       if (content) {
         prerenderedMap.set(content.id, {
           content,
           index: idx,
-          isActive: idx === currentIdx
+          isActive: idx === currentIdx,
         });
       }
     });
-    
+
     setPrerenderedContent(prerenderedMap);
-  }, []);
+  }, []); // [web:44]
 
-  // ========================================
-  // NAVIGATION HANDLERS
-  // ========================================
+  // Navigation handlers
+  const handleArticlePress = useCallback(
+    (article: any, articles: any[], index: number) => {
+      const enhancedContent = createContentList(articles);
+      const articleContentItem = enhancedContent.find((item) => item.type === 'article' && item.data.id === article.id);
+      if (!articleContentItem) return;
 
-  const handleArticlePress = useCallback((article, articles, index) => {
-    // Create content list with ads integrated
-    const enhancedContent = createContentList(articles);
-    
-    // Find the corresponding content item for the selected article
-    const articleContentItem = enhancedContent.find(item => 
-      item.type === 'article' && item.data.id === article.id
-    );
-    
-    if (!articleContentItem) return;
+      const contentIndex = enhancedContent.findIndex((item) => item.id === articleContentItem.id);
 
-    const contentIndex = enhancedContent.findIndex(item => item.id === articleContentItem.id);
-    
-    setContentList(enhancedContent);
-    setCurrentContentIndex(contentIndex);
-    setSelectedArticle(article);
-    setSourceTab(currentTab);
-    setCurrentView("detail");
-    
-    // Also set legacy states for backward compatibility
-    setArticlesList(articles);
-    setCurrentArticleIndex(index);
-    
-    // Prerender adjacent content
-    prerenderAdjacentContent(articleContentItem, enhancedContent, contentIndex);
-    
-    // Update ad view count
-    setAdDisplayState(prev => ({
-      ...prev,
-      articlesViewedCount: prev.articlesViewedCount + 1
-    }));
-  }, [currentTab, createContentList, prerenderAdjacentContent]);
+      setContentList(enhancedContent);
+      setCurrentContentIndex(contentIndex);
+      setSelectedArticle(article);
+      setSourceTab(currentTab);
+      setCurrentView('detail');
 
-const handleNextContent = useCallback(() => {
-  if (contentTransition.isTransitioning || contentList.length <= 1) return;
-  
-  const nextIndex = (currentContentIndex + 1) % contentList.length;
-  const nextContent = contentList[nextIndex];
-  
-  setContentTransition({
-    isTransitioning: true,
-    direction: 'next',
-    nextContent: nextContent
-  });
-  
-  // Immediate state update - no setTimeout delay (consistent with handlePrevContent)
-  setCurrentContentIndex(nextIndex);
-  
-  // Update selected article if next content is an article
-  if (nextContent.type === 'article') {
-    setSelectedArticle(nextContent.data);
-    // Update legacy article index
-    const articleOnlyList = contentList.filter(item => item.type === 'article');
-    const articleIndex = articleOnlyList.findIndex(item => item.data.id === nextContent.data.id);
-    if (articleIndex !== -1) {
-      setCurrentArticleIndex(articleIndex);
-    }
-  }
-  
-  // Immediately prerender new adjacent content
-  prerenderAdjacentContent(nextContent, contentList, nextIndex);
-  
-  // Reset transition state after a brief moment
-  setTimeout(() => {
-    setContentTransition({
-      isTransitioning: false,
-      direction: null,
-      nextContent: null
-    });
-  }, 100);
+      setArticlesList(articles);
+      setCurrentArticleIndex(index);
 
-  // Update view count for articles
-  if (nextContent.type === 'article') {
-    setAdDisplayState(prev => ({
-      ...prev,
-      articlesViewedCount: prev.articlesViewedCount + 1
-    }));
-  }
-}, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]);
+      prerenderAdjacentContent(articleContentItem, enhancedContent, contentIndex);
 
-  const handlePrevContent = useCallback(() => {
+      recordArticleView();
+    },
+    [currentTab, createContentList, prerenderAdjacentContent, recordArticleView]
+  ); // [web:44]
+
+  const handleNextContent = useCallback(() => {
     if (contentTransition.isTransitioning || contentList.length <= 1) return;
-    
-    const prevIndex = (currentContentIndex - 1 + contentList.length) % contentList.length;
-    const prevContent = contentList[prevIndex];
-    
+
+    const nextIndex = (currentContentIndex + 1) % contentList.length;
+    const nextContent = contentList[nextIndex];
+
     setContentTransition({
       isTransitioning: true,
-      direction: 'prev',
-      nextContent: prevContent
+      direction: 'next',
+      nextContent,
     });
-    
-    // Immediate state update - no setTimeout delay
-    setCurrentContentIndex(prevIndex);
-    
-    // Update selected article if previous content is an article
-    if (prevContent.type === 'article') {
-      setSelectedArticle(prevContent.data);
-      // Update legacy article index
-      const articleOnlyList = contentList.filter(item => item.type === 'article');
-      const articleIndex = articleOnlyList.findIndex(item => item.data.id === prevContent.data.id);
-      if (articleIndex !== -1) {
-        setCurrentArticleIndex(articleIndex);
-      }
+
+    setCurrentContentIndex(nextIndex);
+
+    if (nextContent.type === 'article') {
+      setSelectedArticle(nextContent.data);
+      const articleOnlyList = contentList.filter((item) => item.type === 'article');
+      const articleIndex = articleOnlyList.findIndex((item) => item.data.id === nextContent.data.id);
+      if (articleIndex !== -1) setCurrentArticleIndex(articleIndex);
     }
-    
-    // Immediately prerender new adjacent content
-    prerenderAdjacentContent(prevContent, contentList, prevIndex);
-    
-    // Reset transition state after a brief moment
+
+    prerenderAdjacentContent(nextContent, contentList, nextIndex);
+
     setTimeout(() => {
       setContentTransition({
         isTransitioning: false,
         direction: null,
-        nextContent: null
+        nextContent: null,
       });
     }, 100);
-  }, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]);
 
-  // ========================================
-  // AD INTERACTION HANDLERS
-  // ========================================
+    if (nextContent.type === 'article') {
+      recordArticleView();
+    }
+  }, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent, recordArticleView]); // [web:44]
 
+  const handlePrevContent = useCallback(() => {
+    if (contentTransition.isTransitioning || contentList.length <= 1) return;
+
+    const prevIndex = (currentContentIndex - 1 + contentList.length) % contentList.length;
+    const prevContent = contentList[prevIndex];
+
+    setContentTransition({
+      isTransitioning: true,
+      direction: 'prev',
+      nextContent: prevContent,
+    });
+
+    setCurrentContentIndex(prevIndex);
+
+    if (prevContent.type === 'article') {
+      setSelectedArticle(prevContent.data);
+      const articleOnlyList = contentList.filter((item) => item.type === 'article');
+      const articleIndex = articleOnlyList.findIndex((item) => item.data.id === prevContent.data.id);
+      if (articleIndex !== -1) setCurrentArticleIndex(articleIndex);
+    }
+
+    prerenderAdjacentContent(prevContent, contentList, prevIndex);
+
+    setTimeout(() => {
+      setContentTransition({
+        isTransitioning: false,
+        direction: null,
+        nextContent: null,
+      });
+    }, 100);
+  }, [contentTransition.isTransitioning, contentList, currentContentIndex, prerenderAdjacentContent]); // [web:44]
+
+  // Ad interactions
   const handleAdClick = useCallback((adData: AdData) => {
     const clickData: AdClickData = {
       adId: adData.id,
       adType: adData.type,
       advertiser: adData.advertiser,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    
-  }, [handleNextContent]);
+    // TODO: send clickData to analytics endpoint
+    if (adData.redirectLink) {
+      Linking.openURL(adData.redirectLink).catch((err) => {
+        console.error('Failed to open link:', err);
+        Alert.alert('Error', 'Unable to open the link.');
+      });
+    }
+  }, []); // [web:44]
 
   const handleAdClose = useCallback(() => {
     handleNextContent();
-  }, [handleNextContent]);
+  }, [handleNextContent]); // [web:44]
 
-  // ========================================
-  // EXISTING HANDLERS (unchanged)
-  // ========================================
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-          },
-        },
-      ]
-    );
-  };
-
-  const openDrawer = () => {
-    setDrawerVisible(true);
-    
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(overlayOpacity, {
-        toValue: 0.5,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const closeDrawer = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: drawerWidth,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setDrawerVisible(false);
-    });
-  };
-
-  const handlePasswordChange = () => {
-    closeDrawer();
-    setCurrentView("passwordChange");
-  };
-
-  const handleCategoryChange = () => {
-    closeDrawer();
-    setCurrentView("categoryChange");
-  };
-
-  const handleBackToMain = () => {
-    setCurrentView("main");
-  };
-
-  const handleLogoutFromDrawer = () => {
-    closeDrawer();
-    setTimeout(() => {
-      handleLogout();
-    }, 300);
-  };
-
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-    setOnboardingCompleted(true);
-  };
-
-  const handleBackPress = () => {
-    setCurrentView("main");
-    setSelectedArticle(null);
-    setContentList([]);
-    setArticlesList([]);
-    setCurrentContentIndex(0);
-    setCurrentArticleIndex(0);
-    setPrerenderedContent(new Map());
-  };
-
-  const handleTabPress = (tabName: string) => {
-    setCurrentTab(tabName);
-  };
-
-  // ========================================
-  // EFFECTS
-  // ========================================
-
+  // Auth / onboarding
   useEffect(() => {
     if (user && Number(user.loginTime) === 0 && !onboardingCompleted) {
       setShowOnboarding(true);
@@ -419,121 +295,151 @@ const handleNextContent = useCallback(() => {
       setShowOnboarding(false);
       setOnboardingCompleted(true);
     }
-  }, [user]);
+  }, [user, onboardingCompleted]); // [web:44]
 
+  // Android back handler
   useEffect(() => {
     const backAction = () => {
       if (drawerVisible) {
         closeDrawer();
         return true;
       }
-
-      if (currentView === "passwordChange" || currentView === "categoryChange") {
+      if (currentView === 'passwordChange' || currentView === 'categoryChange') {
         handleBackToMain();
         return true;
       }
-
-      if (showOnboarding) {
-        return true;
-      }
-
-      if (currentView === "detail" && selectedArticle) {
+      if (showOnboarding) return true;
+      if (currentView === 'detail' && selectedArticle) {
         handleBackPress();
         return true;
       }
-
-      Alert.alert(
-        "Exit App",
-        "Do you want to exit the app?",
-        [
-          {
-            text: "Cancel",
-            onPress: () => null,
-            style: "cancel"
-          },
-          {
-            text: "Exit",
-            onPress: () => BackHandler.exitApp()
-          }
-        ]
-      );
+      Alert.alert('Exit App', 'Do you want to exit the app?', [
+        { text: 'Cancel', onPress: () => null, style: 'cancel' },
+        { text: 'Exit', onPress: () => BackHandler.exitApp() },
+      ]);
       return true;
     };
 
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction
-    );
-
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [currentView, selectedArticle, showOnboarding, drawerVisible]);
+  }, [currentView, selectedArticle, showOnboarding, drawerVisible]); // [web:44]
 
-  // Initialize ad queue with shuffled ads
-  useEffect(() => {
-    setAdDisplayState(prev => ({
-      ...prev,
-      adQueue: shuffleArray(dummyAds)
-    }));
-  }, []);
+  // Rebuild ad-integrated content when ads change
+useEffect(() => {
+  if (currentView !== 'detail') return;
+  if (!articlesList?.length || !selectedArticle) return;
 
+  const enhanced = createContentList(articlesList);
+  const articleItem = enhanced.find(i => i.type === 'article' && i.data.id === selectedArticle.id);
+  if (!articleItem) return;
+
+  const idx = enhanced.findIndex(i => i.id === articleItem.id);
+  setContentList(enhanced);
+  setCurrentContentIndex(idx);
+  prerenderAdjacentContent(articleItem, enhanced, idx);
+}, [adQueue, currentView, articlesList, selectedArticle, createContentList, prerenderAdjacentContent]);
+
+  // Drawer helpers
+  const openDrawer = () => {
+    setDrawerVisible(true);
+    Animated.parallel([
+      Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      Animated.timing(overlayOpacity, { toValue: 0.5, duration: 300, useNativeDriver: true }),
+    ]).start();
+  }; // [web:44]
+
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(slideAnim, { toValue: drawerWidth, duration: 250, useNativeDriver: true }),
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start(() => setDrawerVisible(false));
+  }; // [web:44]
+
+  const handlePasswordChange = () => {
+    closeDrawer();
+    setCurrentView('passwordChange');
+  }; // [web:44]
+
+  const handleCategoryChange = () => {
+    closeDrawer();
+    setCurrentView('categoryChange');
+  }; // [web:44]
+
+  const handleBackToMain = () => setCurrentView('main'); // [web:44]
+
+  const handleLogoutFromDrawer = () => {
+    closeDrawer();
+    setTimeout(() => {
+      Alert.alert('Logout', 'Are you sure you want to logout?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: () => logout() },
+      ]);
+    }, 300);
+  }; // [web:44]
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    setOnboardingCompleted(true);
+  }; // [web:44]
+
+  const handleBackPress = () => {
+    setCurrentView('main');
+    setSelectedArticle(null);
+    setContentList([]);
+    setArticlesList([]);
+    setCurrentContentIndex(0);
+    setCurrentArticleIndex(0);
+    setPrerenderedContent(new Map());
+  }; // [web:44]
+
+  const handleTabPress = (tabName: string) => setCurrentTab(tabName); // [web:44]
 
   const renderCurrentScreen = () => {
     switch (currentTab) {
-      case "Home":
+      case 'Home':
         return <HomeScreen onArticlePress={handleArticlePress} />;
-      case "Explore":
+      case 'Explore':
         return <ExploreScreen onArticlePress={handleArticlePress} />;
-      case "Feed":
+      case 'Feed':
         return <FeedScreen onArticlePress={handleArticlePress} />;
-      case "Trending":
+      case 'Trending':
         return <TrendingScreen onArticlePress={handleArticlePress} />;
-      case "Profile":
-        return <ProfileScreen onArticlePress={handleArticlePress}/>;
+      case 'Profile':
+        return <ProfileScreen onArticlePress={handleArticlePress} />;
       default:
         return <HomeScreen onArticlePress={handleArticlePress} />;
     }
-  };
+  }; // [web:44]
 
-  // Helper function to get content for rendering
   const getContentForRendering = () => {
     if (contentList.length === 0) return { current: null, next: null, prev: null };
-    
     const current = contentList[currentContentIndex];
     const next = contentList[(currentContentIndex + 1) % contentList.length];
     const prev = contentList[(currentContentIndex - 1 + contentList.length) % contentList.length];
-    
-    return {
-      current: current || null,
-      next: contentList.length > 1 ? next : null,
-      prev: contentList.length > 1 ? prev : null
-    };
-  };
+    return { current: current || null, next: contentList.length > 1 ? next : null, prev: contentList.length > 1 ? prev : null };
+  }; // [web:44]
 
-  // Show onboarding screen if user's loginTime is 0 AND flag is not set
+  // Onboarding screen
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
-  }
+  } // [web:44]
 
-  if (currentView === "passwordChange") {
+  // Password change
+  if (currentView === 'passwordChange') {
     return (
-      <View style={[styles.container, {
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom
-      }]}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="dark" />
         <PasswordChangeScreen onBack={handleBackToMain} />
       </View>
     );
-  }
+  } // [web:44]
 
-  if (currentView === "categoryChange") {
+  // Category change
+  if (currentView === 'categoryChange') {
     return (
-      <View style={[styles.container, {
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom
-      }]}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="dark" />
-        <CategorySelectionScreen 
+        <CategorySelectionScreen
           onBack={handleBackToMain}
           mode="settings"
           title="Select Categories"
@@ -541,17 +447,13 @@ const handleNextContent = useCallback(() => {
         />
       </View>
     );
-  }
+  } // [web:44]
 
-  // Show Detail Screen if content is selected
-  if (currentView === "detail" && contentList.length > 0) {
+  // Detail view
+  if (currentView === 'detail' && contentList.length > 0) {
     const { current, next, prev } = getContentForRendering();
-    
     return (
-      <View style={[styles.container, {
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom
-      }]}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="dark" />
         <NewsDetailScreen
           key={`${current?.id}-${currentContentIndex}`}
@@ -563,7 +465,6 @@ const handleNextContent = useCallback(() => {
           hasPrev={contentList.length > 1}
           currentIndex={currentContentIndex}
           allArticles={articlesList}
-          // Enhanced props for ad support
           currentContent={current}
           nextContent={next}
           prevContent={prev}
@@ -575,61 +476,29 @@ const handleNextContent = useCallback(() => {
         />
       </View>
     );
-  }
+  } // [web:44]
 
-  // MAIN APP SCREEN
+  // Main
   return (
-    <View style={[styles.container, {
-      paddingTop: insets.top,
-      paddingBottom: insets.bottom
-    }]}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar style="dark" />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-            <Image
-              source={require("../../assets/images/logo.png")}
-              style={styles.logo1}
-            />
+          <Image source={require('../../assets/images/logo.png')} style={styles.logo1} />
         </View>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={openDrawer}
-        >
+        <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
           <HamburgerIcon size={22} />
         </TouchableOpacity>
       </View>
 
-      {/* Sliding Drawer */}
       {drawerVisible && (
         <>
-          {/* Overlay */}
-          <Animated.View
-            style={[
-              styles.overlay,
-              {
-                opacity: overlayOpacity,
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.overlayTouchable}
-              onPress={closeDrawer}
-              activeOpacity={1}
-            />
+          <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+            <TouchableOpacity style={styles.overlayTouchable} onPress={closeDrawer} activeOpacity={1} />
           </Animated.View>
 
-          {/* Sliding Drawer */}
-          <Animated.View
-            style={[
-              styles.drawer,
-              {
-                width: drawerWidth,
-                transform: [{ translateX: slideAnim }],
-              },
-            ]}
-          >
-            {/* Drawer Header */}
-            <View style={[styles.drawerHeader,{paddingTop: insets.top + 20}]}>
+          <Animated.View style={[styles.drawer, { width: drawerWidth, transform: [{ translateX: slideAnim }] }]}>
+            <View style={[styles.drawerHeader, { paddingTop: insets.top + 20 }]}>
               <View style={styles.drawerHeaderContent}>
                 <View style={styles.userInfo}>
                   <View style={styles.userAvatar}>
@@ -646,15 +515,16 @@ const handleNextContent = useCallback(() => {
               </View>
             </View>
 
-            {/* Drawer Menu Items */}
             <View style={styles.drawerContent}>
-              <TouchableOpacity style={styles.drawerMenuItem} onPress={handlePasswordChange}>
-                <View style={styles.menuItemIcon}>
-                  <Ionicons name="lock-closed-outline" size={22} color="#555" />
-                </View>
-                <Text style={styles.drawerMenuItemText}>Change Password</Text>
-                <Ionicons name="chevron-forward" size={18} color="#999" />
-              </TouchableOpacity>
+              {user && !user.googleId && (
+                <TouchableOpacity style={styles.drawerMenuItem} onPress={handlePasswordChange}>
+                  <View style={styles.menuItemIcon}>
+                    <Ionicons name="lock-closed-outline" size={22} color="#555" />
+                  </View>
+                  <Text style={styles.drawerMenuItemText}>Change Password</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#999" />
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity style={styles.drawerMenuItem} onPress={handleCategoryChange}>
                 <View style={styles.menuItemIcon}>
@@ -676,40 +546,24 @@ const handleNextContent = useCallback(() => {
         </>
       )}
 
-      {/* Current Screen Content */}
       {renderCurrentScreen()}
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         {bottomTabs.map((tab, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.bottomTab}
-            onPress={() => handleTabPress(tab.name)}
-          >
+          <TouchableOpacity key={index} style={styles.bottomTab} onPress={() => handleTabPress(tab.name)}>
             <Ionicons
-              name={
-                currentTab === tab.name
-                  ? (tab.activeIcon as any)
-                  : (tab.icon as any)
-              }
+              name={currentTab === tab.name ? (tab.activeIcon as any) : (tab.icon as any)}
               size={24}
-              color={currentTab === tab.name ? "#4CAF50" : "#999"}
+              color={currentTab === tab.name ? '#4CAF50' : '#999'}
             />
-            <Text
-              style={[
-                styles.bottomTabText,
-                currentTab === tab.name && styles.activeBottomTabText,
-              ]}
-            >
-              {tab.name}
-            </Text>
+            <Text style={[styles.bottomTabText, currentTab === tab.name && styles.activeBottomTabText]}>{tab.name}</Text>
           </TouchableOpacity>
         ))}
       </View>
     </View>
   );
 };
+
 
 // Styles remain the same as in your original code
 const styles = StyleSheet.create({

@@ -3,6 +3,7 @@ import { API_BASE_URL, API_TIMEOUT } from '../constants/config';
 // import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersRequest, GetFoldersResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
 import * as SecureStore from 'expo-secure-store';
 import { AwsUploadInfoResponse, AwsUploadResponse, CreateDocumentRequest, CreateDocumentResponse, CreateDocumentTypeRequest, CreateFolderRequest, DeleteDocumentResponse, DeleteFolderResponse, DocumentTypeWithMetadata, Folder, GetFoldersResponse, GoogleSignInResponse, LoginRequest, LoginResponse, ProcessImageApiInfo, ProcessImageRequest, ProcessImageResponse, SearchDocumentsRequest, UpdateDocumentRequest, UpdateDocumentResponse, User } from './types';
+import { ApiAd } from '@/stores/adstore';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
@@ -1222,6 +1223,14 @@ async getCategoryById(id: string): Promise<Folder> {
     method: 'GET',
   });
   return this.handleResponse<Folder[]>(response);
+}
+
+ async getAds(): Promise<ApiAd[]> {
+  const response = await this.fetchWithTimeout(`/api/advertisment`, {
+    method: 'GET',
+  });
+  
+  return this.handleResponse<ApiAd[]>(response);
 }
   // Getter to check if user is logged in
   get isAuthenticated(): boolean {

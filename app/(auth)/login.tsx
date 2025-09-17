@@ -122,7 +122,7 @@ export default function ApartmentLoginScreen() {
       
     } catch (error: any) {
       console.error('Google login error:', error);
-      Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
+      // Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
     } finally {
       setIsGoogleLoading(false);
     }
