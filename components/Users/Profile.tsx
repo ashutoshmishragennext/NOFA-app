@@ -25,24 +25,7 @@ const ProfileScreen = ({ onArticlePress }: { onArticlePress?: (article: any, art
   const [articlesLoading, setArticlesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showProfileViewer, setShowProfileViewer] = useState(false);
-  const { user, logout, updateUser } = useAuth();
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-          },
-        },
-      ]
-    );
-  };
+  const { user, updateUser } = useAuth();
 
   const uploadProfileIcon = async () => {
     if (!user?.id) {
@@ -450,9 +433,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   articleItem: {
-    width: (width - 3) / 3, // Exactly 3 columns
-    height: (width - 3) / 3, // Square aspect ratio
-    margin: 0.1,
+    width: (width - 8) / 2, // Exactly 3 columns
+    height: (width - 8) / 2, // Square aspect ratio
+    margin: 1,
     position: 'relative',
     backgroundColor: '#f5f5f5',
     borderRadius: 2,
