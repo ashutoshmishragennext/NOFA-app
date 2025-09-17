@@ -324,7 +324,7 @@ private async cleanupFailedGoogleSignIn(): Promise<void> {
 }
 
 // In your ApiService class
-async updateUserCategories(userId: string, categoryIds: string[]): Promise<{
+async updateUserCategories(userId: string | undefined, categoryIds: string[]): Promise<{
   success: boolean;
   message: string;
   data: {

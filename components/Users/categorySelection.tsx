@@ -1,7 +1,5 @@
-import { apiService } from "@/api";
-import { useAuth } from "@/context/AuthContext";
-import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,31 +11,33 @@ import {
   TouchableOpacity,
   View,
   SafeAreaView,
-} from "react-native";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from 'react-native';
+import { useAuth } from '@/context/AuthContext';
+import { apiService } from '@/api';
+import { useCategoryStore } from '@/stores/categoryStore';
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 
-const categoryConfig = {
-  arts: { icon: "brush-outline", color: "#FF6B6B", emoji: "🎭" },
-  food: { icon: "restaurant-outline", color: "#FF8C42", emoji: "🍕" },
-  gaming: { icon: "game-controller-outline", color: "#6C5CE7", emoji: "🎮" },
-  music: { icon: "musical-note-outline", color: "#FF6B6B", emoji: "🎸" },
-  science: { icon: "flask-outline", color: "#00B894", emoji: "🧪" },
-  football: { icon: "football-outline", color: "#2D3436", emoji: "⚽" },
-  travel: { icon: "airplane-outline", color: "#0984E3", emoji: "✈️" },
-  cricket: { icon: "baseball-outline", color: "#FDCB6E", emoji: "🏏" },
-  business: { icon: "briefcase-outline", color: "#6C5CE7", emoji: "💼" },
-  fashion: { icon: "shirt-outline", color: "#A29BFE", emoji: "👗" },
-  politics: { icon: "flag-outline", color: "#E17055", emoji: "🏛️" },
-  entertainment: { icon: "film-outline", color: "#FD79A8", emoji: "🎬" },
-  health: { icon: "medical-outline", color: "#00B894", emoji: "🏥" },
-  world: { icon: "earth-outline", color: "#74B9FF", emoji: "🌍" },
-  local: { icon: "location-outline", color: "#FDCB6E", emoji: "📍" },
-  nature: { icon: "leaf-outline", color: "#00B894", emoji: "🌿" },
-  gym: { icon: "fitness-outline", color: "#FDCB6E", emoji: "💪" },
-  technology: { icon: "laptop-outline", color: "#2D3436", emoji: "💻" },
-  tennis: { icon: "tennisball-outline", color: "#00B894", emoji: "🎾" },
+const categoryConfig: Record<string, { icon: string; color: string; emoji: string }> = {
+  arts: { icon: 'brush-outline', color: '#FF6B6B', emoji: '🎭' },
+  food: { icon: 'restaurant-outline', color: '#FF8C42', emoji: '🍕' },
+  gaming: { icon: 'game-controller-outline', color: '#6C5CE7', emoji: '🎮' },
+  music: { icon: 'musical-note-outline', color: '#FF6B6B', emoji: '🎸' },
+  science: { icon: 'flask-outline', color: '#00B894', emoji: '🧪' },
+  football: { icon: 'football-outline', color: '#2D3436', emoji: '⚽' },
+  travel: { icon: 'airplane-outline', color: '#0984E3', emoji: '✈️' },
+  cricket: { icon: 'baseball-outline', color: '#FDCB6E', emoji: '🏏' },
+  business: { icon: 'briefcase-outline', color: '#6C5CE7', emoji: '💼' },
+  fashion: { icon: 'shirt-outline', color: '#A29BFE', emoji: '👗' },
+  politics: { icon: 'flag-outline', color: '#E17055', emoji: '🏛️' },
+  entertainment: { icon: 'film-outline', color: '#FD79A8', emoji: '🎬' },
+  health: { icon: 'medical-outline', color: '#00B894', emoji: '🏥' },
+  world: { icon: 'earth-outline', color: '#74B9FF', emoji: '🌍' },
+  local: { icon: 'location-outline', color: '#FDCB6E', emoji: '📍' },
+  nature: { icon: 'leaf-outline', color: '#00B894', emoji: '🌿' },
+  gym: { icon: 'fitness-outline', color: '#FDCB6E', emoji: '💪' },
+  technology: { icon: 'laptop-outline', color: '#2D3436', emoji: '💻' },
+  tennis: { icon: 'tennisball-outline', color: '#00B894', emoji: '🎾' },
 };
 
 interface CategorySelectionScreenProps {
@@ -49,201 +49,143 @@ interface CategorySelectionScreenProps {
   showBackButton?: boolean;
 }
 
-const CategorySelectionScreen: React.FC<CategorySelectionScreenProps> = ({ 
-  onComplete, 
-  onBack, 
+const CategorySelectionScreen: React.FC<CategorySelectionScreenProps> = ({
+  onComplete,
+  onBack,
   mode = 'onboarding',
   title,
   description,
-  showBackButton = false
+  showBackButton = false,
 }) => {
-  const [categories, setCategories] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [loadingCategories, setLoadingCategories] = useState(false);
-  const [savingCategories, setSavingCategories] = useState(false);
-  const [imageErrors, setImageErrors] = useState({});
   const { user } = useAuth();
+
+  // Read from zustand store
+  const categories = useCategoryStore((s) => s.categories);
+  const loading = useCategoryStore((s) => s.loading);
+  const fetchCategories = useCategoryStore((s) => s.fetchCategories);
+
+  // Local UI state
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [savingCategories, setSavingCategories] = useState(false);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   const isSettingsMode = mode === 'settings';
   const isOnboardingMode = mode === 'onboarding';
 
+  // Fetch only if store empty; if onboarding preloaded, this stays instant
   useEffect(() => {
-    loadCategories();
-  }, []);
+    if (!categories || categories.length === 0) {
+      fetchCategories().catch(() => {});
+    }
+  }, [categories?.length, fetchCategories]); 
 
-  const loadCategories = async () => {
-    try {
-      setLoadingCategories(true);
-      const response = await apiService.getAllCategories();
-
-      if (response && response.success) {
-        setCategories(response.data || []);
-        if (user?.id) {
-          await loadUserPreferences();
+  // Load user preferences once categories are present
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      if (!user?.id) return;
+      try {
+        const response = await apiService.getUserCategories(user.id);
+        if (response?.success) {
+          setSelectedCategories(response.data.categories || []);
         }
-      } else {
-        throw new Error("Failed to load categories");
+      } catch (e) {
+        // non-blocking
       }
-    } catch (error) {
-      console.error("Error loading categories:", error);
-      Alert.alert("Error", "Failed to load categories. Please try again.");
-      setCategories([]);
-    } finally {
-      setLoadingCategories(false);
+    };
+    if (categories && categories.length) {
+      loadUserPreferences();
     }
+  }, [categories, user?.id]);
+
+  const toggleCategory = (id: string) => {
+    setSelectedCategories((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   };
 
-  const loadUserPreferences = async () => {
-    try {
-      const response = await apiService.getUserCategories(user.id);
-      if (response && response.success) {
-        setSelectedCategories(response.data.categories || []);
-      }
-    } catch (error) {
-      console.error("Error loading preferences:", error);
-    }
-  };
-
-  const toggleCategory = (id) => {
-    setSelectedCategories((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
-    );
-  };
-
-  const handleImageError = (categoryId) => {
-    setImageErrors(prev => ({
-      ...prev,
-      [categoryId]: true
-    }));
+  const handleImageError = (categoryId: string) => {
+    setImageErrors((prev) => ({ ...prev, [categoryId]: true }));
   };
 
   const saveUserCategories = async () => {
     if (selectedCategories.length === 0) {
-      Alert.alert("Select at least one", "Please pick your interests.");
+      Alert.alert('Select at least one', 'Please pick your interests.');
       return;
     }
-
     try {
       setSavingCategories(true);
-      const response = await apiService.updateUserCategories(
-        user.id,
-        selectedCategories
-      );
-
-      if (response && response.success) {
+      const response = await apiService.updateUserCategories(user?.id, selectedCategories);
+      if (response?.success) {
         if (isOnboardingMode && onComplete) {
-          // Alert.alert("Saved!", "Preferences updated.", [
-          //   { text: "Continue", onPress: () => onComplete(selectedCategories) },
-          // ]);
-          onComplete(selectedCategories)
+          onComplete(selectedCategories);
         } else if (isSettingsMode && onBack) {
-          // Alert.alert("Success!", "Your preferences have been updated successfully.", [
-          //   { text: "OK", onPress: () => onBack() },
-          // ]);
           onBack();
         }
       } else {
-        throw new Error("Save failed");
+        throw new Error('Save failed');
       }
-    } catch (error) {
-      Alert.alert("Save Failed", "Try again later");
+    } catch {
+      Alert.alert('Save Failed', 'Try again later');
     } finally {
       setSavingCategories(false);
     }
   };
 
-  const renderCategoryIcon = (category) => {
-    const config = categoryConfig[category.slug] || {
-      icon: "library-outline",
-      color: "#74B9FF",
-      emoji: "📚"
-    };    
-
-    const hasValidImage = category.image && 
-                         category.image.trim() !== '' && 
-                         !imageErrors[category.id];
-
+  const renderCategoryIcon = (category: any) => {
+    const config = categoryConfig[category.slug] || { icon: 'library-outline', color: '#74B9FF', emoji: '📚' };
+    const hasValidImage = !!category.image && category.image.trim() !== '' && !imageErrors[category.id];
     if (hasValidImage) {
       return (
         <View style={styles.categoryIconContainer}>
-          <Image
-            source={{ uri: category.image }}
-            style={styles.categoryImage}
-            onError={() => handleImageError(category.id)}
-          />
-        </View>
-      );
-    } else {
-      return (
-        <View style={styles.categoryIconContainer}>
-          <Text style={styles.categoryEmoji}>{config.emoji}</Text>
+          <Image source={{ uri: category.image }} style={styles.categoryImage} onError={() => handleImageError(category.id)} />
         </View>
       );
     }
+    return (
+      <View style={styles.categoryIconContainer}>
+        <Text style={styles.categoryEmoji}>{config.emoji}</Text>
+      </View>
+    );
   };
 
-  if (loadingCategories) {
+  if (loading && (!categories || categories.length === 0)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#22C55E" />
         <Text style={styles.loadingText}>Loading categories...</Text>
       </View>
     );
-  }
+  } 
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header for settings mode */}
       {(isSettingsMode || (isOnboardingMode && showBackButton)) && onBack && (
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.title}>
-            {title || "Choose your interests"}
-          </Text>
+          <Text style={styles.title}>{title || 'Choose your interests'}</Text>
           <View style={styles.placeholder} />
         </View>
       )}
 
-      {/* Main Content */}
       <View style={styles.content}>
-        {/* Title and Description */}
         <View style={styles.titleSection}>
           <Text style={styles.description}>
             {description || "We'll recommend news according to your interests and familiarity."}
           </Text>
         </View>
 
-
-        {/* Categories Grid */}
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.categoriesGrid}
-          showsVerticalScrollIndicator={false}
-        >
-          {categories.map((category) => {
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.categoriesGrid} showsVerticalScrollIndicator={false}>
+          {categories?.map((category: any) => {
             const isSelected = selectedCategories.includes(category.id);
-
             return (
               <TouchableOpacity
                 key={category.id}
-                style={[
-                  styles.categoryCard,
-                  isSelected && styles.selectedCategoryCard,
-                ]}
+                style={[styles.categoryCard, isSelected && styles.selectedCategoryCard]}
                 onPress={() => toggleCategory(category.id)}
                 disabled={savingCategories}
               >
                 {renderCategoryIcon(category)}
-                <Text 
-                  style={[
-                    styles.categoryName,
-                    isSelected && styles.selectedCategoryName
-                  ]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
+                <Text style={[styles.categoryName, isSelected && styles.selectedCategoryName]} numberOfLines={1} ellipsizeMode="tail">
                   {category.name}
                 </Text>
                 {isSelected && (
@@ -256,21 +198,13 @@ const CategorySelectionScreen: React.FC<CategorySelectionScreenProps> = ({
           })}
         </ScrollView>
 
-        {/* Done Button */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={[
-              styles.doneButton,
-              (selectedCategories.length === 0 || savingCategories) && styles.disabledDoneButton,
-            ]}
+            style={[styles.doneButton, (selectedCategories.length === 0 || savingCategories) && styles.disabledDoneButton]}
             onPress={saveUserCategories}
             disabled={selectedCategories.length === 0 || savingCategories}
           >
-            {savingCategories ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.doneButtonText}>Done</Text>
-            )}
+            {savingCategories ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.doneButtonText}>Done</Text>}
           </TouchableOpacity>
         </View>
       </View>

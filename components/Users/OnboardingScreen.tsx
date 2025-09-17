@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CategorySelectionScreen from './categorySelection';
 import { StatusBar } from 'expo-status-bar';
+import { useCategoryStore } from '@/stores/categoryStore';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ const OnboardingScreen = ({ onComplete }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { fetchCategories } = useCategoryStore.getState();
 
   const onboardingData = [
     {
@@ -55,11 +57,21 @@ const OnboardingScreen = ({ onComplete }) => {
     }
   ];
 
-  const handleNext = () => {
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        await fetchCategories(true);        
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [fetchCategories]); // [web:44]
+  
+
+  const handleNext =async  () => {
     if (currentPage < onboardingData.length - 1) {
       setCurrentPage(currentPage + 1);
-    } else {
-      // Move to categories page
+    } else {      
       setCurrentPage(3);
     }
   };
