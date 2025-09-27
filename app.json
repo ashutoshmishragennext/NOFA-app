@@ -26,6 +26,9 @@
             ]
           }
         ]
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
       }
     },
     "android": {
@@ -57,7 +60,8 @@
             "scheme": "apartmenttimes"
           }
         }
-      ]
+      ],
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "bundler": "metro",
@@ -77,7 +81,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -89,6 +94,9 @@
       "eas": {
         "projectId": "3d42fa99-dbca-4de6-b617-fe799fafc9a5"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3d42fa99-dbca-4de6-b617-fe799fafc9a5"
     }
   }
 }
